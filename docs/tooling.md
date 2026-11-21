@@ -4,7 +4,7 @@
 
 ## Resumen
 
-Proyecto Angular 20 (`@angular/build:application`, esbuild) con npm como gestor, SCSS, Karma/Jasmine para pruebas y ESLint flat config con `angular-eslint`. Hay 8 scripts npm; `npm start` sirve en `http://localhost:4200` contra el backend en `http://127.0.0.1:8120` (prefijo `/api/v1`). El build de producción es la configuración por defecto de `ng build` y reemplaza `environment.ts` por `environment.production.ts`. No hay dependencias de UI, estado ni gráficos de terceros: solo Angular, RxJS, zone.js y tslib. No hay CI, e2e, Prettier instalado ni cobertura configurada. El repositorio aún no tiene commits.
+Proyecto Angular 20 (`@angular/build:application`, esbuild) con npm como gestor, SCSS, Karma/Jasmine para pruebas y ESLint flat config con `angular-eslint`. Hay 8 scripts npm más `env` y sus hooks `pre*`; `npm start` sirve en `http://localhost:4200` contra el backend en `http://127.0.0.1:8120` (prefijo `/api/v1`). El build de producción es la configuración por defecto de `ng build`; la configuración por entorno sale de `.env` o de variables del proceso (`scripts/generate-env.mjs`, sin `fileReplacements`). No hay dependencias de UI, estado ni gráficos de terceros: solo Angular, RxJS, zone.js y tslib. No hay CI, e2e, Prettier instalado ni cobertura configurada. El repositorio aún no tiene commits.
 
 ## Tabla de contenidos
 
@@ -30,12 +30,12 @@ npm install
 npm start                 # ng serve, configuración development, http://localhost:4200
 npm run lint              # ng lint (ESLint sobre src/**/*.ts y src/**/*.html)
 npm run test:ci           # Karma + ChromeHeadless, una sola pasada
-npm run build:prod        # dist/logyco2-frontend con environment.production.ts
+npm run build:prod        # dist/logyco2-frontend; exige APP_ENV=production
 ```
 
-- El backend FastAPI debe estar en `http://127.0.0.1:8120` (según `environment.ts`) y tener `http://localhost:4200` en su CORS (README). [V]
+- Antes de nada: `cp .env.example .env` (y ajuste los valores). El backend FastAPI debe estar en `API_BASE_URL` (por defecto `http://127.0.0.1:8120`) y tener el origen del frontend en su `CORS_ALLOWED_ORIGINS`. [V]
 - Para tests: Chrome requerido; en macOS el README sugiere `export CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`. [V]
-- En producción hay que fijar `apiBaseUrl` en `src/environments/environment.production.ts` al desplegar (README). [V]
+- En producción el pipeline define `APP_ENV=production`, `API_BASE_URL`, `API_PREFIX` y `SESSION_PERSISTENCE=memory` como variables de entorno; `npm run build:prod` falla si falta alguna, si `APP_ENV` no es `production` o si la sesión no es `memory`. [V]
 
 ## 2. Scripts
 
@@ -81,7 +81,7 @@ Proyecto único `logyco2-frontend` (`projectType: application`, `prefix: app`, `
 | Target | Builder | Opciones clave |
 |---|---|---|
 | `build` | `@angular/build:application` | `browser: src/main.ts`, `polyfills: [zone.js]`, `tsConfig: tsconfig.app.json`, `inlineStyleLanguage: scss`, `assets: public/**/*`, `styles: [src/styles.scss]` |
-| `build:production` (default) | | `outputHashing: all`; `fileReplacements: environment.ts → environment.production.ts`; budgets: `initial` warn 700 kB / error 1.2 MB; `anyComponentStyle` warn 12 kB / error 16 kB |
+| `build:production` (default) | | `outputHashing: all`; budgets: `initial` warn 700 kB / error 1.2 MB; `anyComponentStyle` warn 12 kB / error 16 kB |
 | `build:development` | | `optimization: false`, `extractLicenses: false`, `sourceMap: true` |
 | `serve` | `@angular/build:dev-server` | `development` por defecto; `production` disponible |
 | `extract-i18n` | `@angular/build:extract-i18n` | sin uso (la UI está en español fijo) |
@@ -117,7 +117,7 @@ Proyecto único `logyco2-frontend` (`projectType: application`, `prefix: app`, `
 
 ## 9. Entornos
 
-`src/environments/environment.ts` (dev) y `environment.production.ts` exportan `environment: AppConfig` con las claves `production`, `apiBaseUrl`, `apiPrefix`, `sessionPersistence`. Dev: sesión `tab`; prod: sesión `memory` (verificado solo con comprobaciones booleanas). El valor de `apiBaseUrl` de producción no es localhost/ejemplo ni contiene marcadores TODO (comprobación por patrón). Se inyecta como `APP_CONFIG` (`app.config.ts`). No hay secretos en estos archivos (solo se revisaron nombres de clave). [V]
+`src/environments/environment.ts` lo **genera** `scripts/generate-env.mjs` desde `.env` o el entorno (valida valores; sin valores por defecto en el código) y exporta `environment: AppConfig` con `apiBaseUrl`, `apiPrefix` y `sessionPersistence`. Variables: `APP_ENV` (`development`/`production`), `API_BASE_URL` (origen sin barra final; vacío solo en producción), `API_PREFIX`, `SESSION_PERSISTENCE` (`tab` solo en desarrollo; `memory` obligatorio en producción). Se inyecta como `APP_CONFIG` (`app.config.ts`). El frontend no debe contener secretos: solo URLs públicas.
 
 ## 10. Editor
 
@@ -142,7 +142,7 @@ SOLID/limpieza: configuración mínima y estándar de Angular CLI; sin duplicaci
 
 ## 12. Cómo extender
 
-- **Nuevo entorno** (p. ej. staging): crear `src/environments/environment.staging.ts` (`AppConfig`), añadir configuración `staging` en `angular.json > build > configurations` con `fileReplacements` y, si se desea, `serve > configurations`.
+- **Nuevo entorno** (p. ej. staging): no requiere código; el pipeline define las variables (`APP_ENV`, `API_BASE_URL`, …) de ese entorno y ejecuta `npm run build:prod` (si `APP_ENV` admitiera más valores, ampliar `scripts/generate-env.mjs`).
 - **Nuevo script**: agregar a `package.json > scripts` (p. ej. `"format": "prettier --write ."` tras instalar `prettier`).
 - **Nueva regla de lint**: añadir a `rules` en el bloque `**/*.ts` o `**/*.html` de `eslint.config.js`.
 - **Cobertura**: `ng test --code-coverage --watch=false --browsers=ChromeHeadless` (usa `karma-coverage`).

@@ -15,7 +15,7 @@ import { PlatformDashboardFacade } from './platform.facades';
 type Preset = 7 | 30 | 90;
 
 const PRESETS: readonly Preset[] = [7, 30, 90];
-const TYPE_COLORS = [CHART_COLORS.green, 'var(--c-chart-8)', CHART_COLORS.blue, CHART_COLORS.amber, CHART_COLORS.petrol];
+const TYPE_COLORS = [CHART_COLORS.green, CHART_COLORS.emerald, CHART_COLORS.petrol, CHART_COLORS.amber, CHART_COLORS.lime];
 
 /** Iconos de trazo (24×24), sin dependencias externas. */
 const ICONS = {

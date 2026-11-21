@@ -33,6 +33,8 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   SELF_MODIFICATION_FORBIDDEN: 'No puedes modificar tu propia membresía.',
   ROLE_GRANT_NOT_ALLOWED: 'No tienes permiso para otorgar ese rol.',
   ROLE_NOT_ASSIGNABLE: 'Ese rol no se puede asignar mediante invitación.',
+  USER_BELONGS_TO_OTHER_ORGANIZATION: 'Esta persona ya pertenece a otra empresa.',
+  ORG_ADMIN_ALREADY_EXISTS: 'La empresa ya tiene un administrador. Para cambiarlo, primero revoca el acceso del actual (o su invitación pendiente).',
   MEMBERSHIP_NOT_REVOKED: 'Solo se puede eliminar a quien ya tiene el acceso revocado.',
   OWN_EMAIL_LOCKED: 'No puedes cambiar tu propio correo.',
   EMAIL_IN_USE: 'Ese correo ya pertenece a otra persona.',

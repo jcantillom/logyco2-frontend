@@ -10,6 +10,25 @@ export const PERSON_STATUS_LABELS: Readonly<Record<string, Label>> = {
   REVOKED: { text: 'Revocado', tone: 'danger' },
 };
 
+/** Estado de una persona según su membresía, con el mismo texto en toda la consola (lista, identidad y tabla de membresías). */
+export function memberStatus(status: string): Label {
+  return status === 'PENDING' ? { text: 'Pendiente', tone: 'warning' } : (PERSON_STATUS_LABELS[status] ?? { text: 'Activo', tone: 'success' });
+}
+
+/**
+ * Estado de la persona, el mismo criterio en la lista y en el detalle: cuenta inactiva; si no, su membresía vigente;
+ * si solo conserva membresías revocadas, «Revocado» (la cuenta puede seguir activa); sin membresías, solo la cuenta.
+ */
+export function personStatus(user: { readonly isActive: boolean; readonly memberships: readonly { readonly status: string }[] }): Label {
+  if (!user.isActive) return { text: 'Inactivo', tone: 'neutral' };
+
+  const current = user.memberships.find((m) => m.status !== 'REVOKED');
+
+  if (current) return memberStatus(current.status);
+
+  return user.memberships.length > 0 ? memberStatus('REVOKED') : { text: 'Activo', tone: 'success' };
+}
+
 export const SERVICE_LABELS: Record<ServiceStatus, Label> = {
   UP: { text: 'Operativo', tone: 'success' },
   DEGRADED: { text: 'Degradado', tone: 'warning' },

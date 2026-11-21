@@ -70,22 +70,23 @@ describe('LogoComponent y LogycaLogoComponent', () => {
     expect(totalLength(36)).toBe(totalLength(48));
   });
 
-  it('el CO₂ va en el naranja de LOGYCA con fondo oscuro y claro; el isotipo, blanco u oscuro según el fondo', () => {
+  it('el CO₂ va en el verde aguamarina con fondo oscuro y claro; el isotipo, blanco u oscuro según el fondo', () => {
     const dark = colors(render({ theme: 'dark' }));
     expect(dark).toContain('#FFFFFF');
-    expect(dark).toContain('#FC4C02');
+    expect(dark).toContain('#00B398');
     const light = colors(render({ theme: 'light' }));
     expect(light).toContain('#0B2638');
-    expect(light).toContain('#FC4C02');
+    expect(light).toContain('#00B398');
   });
 
-  it('la hoja, las barras de la carga y la curva del isotipo van en naranja LOGYCA con fondo claro y oscuro', () => {
+  it('hoja, barras de la carga, curva y «CO₂» van en el verde aguamarina autorizado (fondo claro y oscuro)', () => {
     for (const theme of ['light', 'dark'] as const) {
       const el = render({ variant: 'mark', size: 64, theme });
       const fill = (piece: string): string | null => logo(el).querySelector(`path.${piece}`)!.getAttribute('fill');
 
-      for (const piece of ['leaf', 'bar1', 'bar2', 'bar3', 'swooshG']) expect(fill(piece)).toBe('#FC4C02');
+      for (const piece of ['leaf', 'bar1', 'bar2', 'bar3', 'swooshG']) expect(fill(piece)).toBe('#00B398');
     }
+    expect(colors(render({ variant: 'horizontal', theme: 'dark' }))).toContain('#00B398');
   });
 
   it('monocromático usa currentColor (hereda el color del contexto)', () => {

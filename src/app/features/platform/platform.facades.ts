@@ -176,6 +176,10 @@ export class PlatformUsersFacade {
   changeMembershipStatus(organizationId: string, membershipId: string, status: MembershipTargetStatus): Observable<MembershipRecord> {
     return this.memberships.changeStatus(organizationId, membershipId, status).pipe(tap(() => this.refresh()));
   }
+  /** Quita de la empresa una membresía ya revocada (la cuenta de la persona se conserva). */
+  removeMembership(organizationId: string, membershipId: string): Observable<void> {
+    return this.memberships.remove(organizationId, membershipId).pipe(tap(() => this.refresh()));
+  }
   createInvitation(invitation: NewInvitation): Observable<CreatedInvitation> {
     return this.invitationsRepo.create(invitation).pipe(tap(() => this.loadInvitations()));
   }

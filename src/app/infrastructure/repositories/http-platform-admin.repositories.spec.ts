@@ -14,7 +14,7 @@ describe('repositorios HTTP de administración global (superadministradores, ten
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(), provideHttpClientTesting(),
-        { provide: APP_CONFIG, useValue: { production: false, apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
         HttpSuperAdminsRepository, HttpInsightsRepository, HttpRbacRepository,
       ],
     });

@@ -2,13 +2,21 @@
   "name": "logyco2-frontend",
   "version": "0.0.0",
   "scripts": {
+    "env": "node scripts/generate-env.mjs",
     "ng": "ng",
+    "prestart": "npm run env",
     "start": "ng serve",
+    "prebuild": "npm run env",
     "build": "ng build",
+    "prewatch": "npm run env",
     "watch": "ng build --watch --configuration development",
+    "pretest": "npm run env",
     "test": "ng test",
+    "prelint": "npm run env",
     "lint": "ng lint",
+    "pretest:ci": "npm run env",
     "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
+    "prebuild:prod": "node scripts/generate-env.mjs --production",
     "build:prod": "ng build --configuration production"
   },
   "prettier": {

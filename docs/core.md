@@ -31,7 +31,7 @@
 | `AppConfig` | `{ production: boolean; apiBaseUrl: string; apiPrefix: string; sessionPersistence?: 'memory' \| 'tab' }` | todos `readonly`. `apiBaseUrl` sin barra final ni versión; `apiPrefix` p. ej. `/api/v1` |
 | `APP_CONFIG` | `InjectionToken<AppConfig>('APP_CONFIG')` | provisto en `app.config.ts` con el objeto `environment` |
 
-Claves de los entornos (`src/environments/environment.ts` y `environment.production.ts`, reemplazo por `fileReplacements` en build de producción): `production`, `apiBaseUrl`, `apiPrefix`, `sessionPersistence`. Dev: `sessionPersistence: 'tab'`; prod: `sessionPersistence: 'memory'` [V; solo se comprobó que existen esos valores, no se reproducen aquí]. Usado por: `authInterceptor`, `SessionPersistence`, `ApiClient`.
+Configuración por entorno: `.env` (ignorado por Git; plantilla en `.env.example`) o variables del proceso en el pipeline, con `APP_ENV`, `API_BASE_URL`, `API_PREFIX` y `SESSION_PERSISTENCE`. `scripts/generate-env.mjs` las valida y genera `src/environments/environment.ts` (ignorado por Git) antes de `start`, `build`, `build:prod`, `watch`, `test`, `test:ci` y `lint` (hooks `pre*` de npm). Claves del objeto `environment` (`AppConfig`): `apiBaseUrl`, `apiPrefix`, `sessionPersistence` [V]. Usado por: `authInterceptor`, `SessionPersistence`, `ApiClient`.
 
 ## 2. `auth/`
 
@@ -256,5 +256,5 @@ SOLID rápido: SRP bien respetado; DIP excelente (`AuthFacade` depende del puert
 - **Nuevo estado dependiente de la organización**: en un facade `root`, `readonly x = inject(ContextResetRegistry).track(new ScopedResource<T>())`.
 - **Nueva pantalla que recarga con la org**: en el constructor `reloadOnContextChange(() => this.facade.load())`.
 - **Nuevo interceptor**: crear `core/interceptors/x.interceptor.ts` (`HttpInterceptorFn`, `inject()` solo síncrono) y añadirlo a `withInterceptors([...])` en `app.config.ts`, respetando el orden.
-- **Nueva bandera de entorno**: ampliar `AppConfig` y ambos `environment*.ts`.
+- **Nueva variable de entorno**: ampliar `AppConfig`, `scripts/generate-env.mjs` (validación y salida), `.env.example` y el pipeline.
 - **Nuevo módulo sin backend**: no toca `core`: ruta con `ComingSoonComponent` + ítem de menú `soon: true` (ver [architecture.md](architecture.md), sección «Cómo extender»).

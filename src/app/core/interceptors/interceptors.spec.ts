@@ -26,7 +26,7 @@ describe('interceptores HTTP', () => {
       providers: [
         provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
         provideHttpClientTesting(),
-        { provide: APP_CONFIG, useValue: { production: false, apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
         { provide: Router, useValue: router },
       ],
     });

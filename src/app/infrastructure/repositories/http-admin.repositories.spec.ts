@@ -21,7 +21,7 @@ describe('repositorios HTTP de administración de plataforma', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: APP_CONFIG, useValue: { production: false, apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
         HttpOrganizationAdminRepository, HttpAdminMetricsRepository,
       ],
     });

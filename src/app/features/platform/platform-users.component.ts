@@ -16,6 +16,7 @@ import { PAGE_SIZES, PagerComponent } from '../../shared/ui/pager.component';
 import { ResourceStateComponent } from '../../shared/ui/resource-state.component';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import { PlatformOrganizationsFacade, PlatformUsersFacade } from './platform.facades';
+import { personStatus } from './platform-labels';
 
 type Tab = 'users' | 'invitations';
 const SIZE_KEY = 'logyco2.platform.users.pageSize';
@@ -108,7 +109,7 @@ function storedSize(): number {
                           <td class="c-mail">{{ u.email }}</td>
                           <td class="c-org">@for (m of places(u).shown; track m.id) { <div class="org-cell"><span class="org-logo" aria-hidden="true"><app-org-logo [id]="m.id" [version]="m.logoVersion">{{ initialsOf(m.organization) }}</app-org-logo></span><span class="org-name" [title]="m.organization">{{ m.organization }}</span></div> } @empty { <span class="muted">—</span> }@if (places(u).more) { <span class="muted small">+{{ places(u).more }}</span> }</td>
                           <td class="c-role">@for (m of places(u).shown; track m.id) { <span class="role-line">{{ m.role }}</span> } @empty { <span class="role-line">{{ globalRole(u) }}</span> }</td>
-                          <td class="c-acct"><span class="pill" [class.on]="u.isActive" [class.off]="!u.isActive">{{ u.isActive ? 'Activo' : 'Inactivo' }}</span></td>
+                          <td class="c-acct"><span class="pill" [class.on]="status(u).tone === 'success'" [class.off]="status(u).tone !== 'success'">{{ status(u).text }}</span></td>
                           <td><svg class="go" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg></td>
                         </tr>
                       }
@@ -202,6 +203,7 @@ export class PlatformUsersComponent {
   protected readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
   protected readonly hueOf = hueOf;
   protected readonly initialsOf = initialsOf;
+  protected readonly status = personStatus;
   protected readonly icons = {
     users: 'M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM21 20v-1a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
     search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',

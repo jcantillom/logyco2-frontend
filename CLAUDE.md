@@ -29,6 +29,6 @@ corrección de hallazgo actualiza la documentación **en el mismo trabajo** (det
   es el único lugar que enlaza puertos con adaptadores HTTP.
 - Módulos sin backend: ruta con `ComingSoonComponent` + ítem de menú con `soon: true` (sin pantalla, facade, puerto ni datos); se construyen cuando exista la API.
 - Tests: `provideTestApp()` y helpers de `src/` (ver `docs/tooling.md`).
-- Nunca mostrar ni commitear secretos/tokens; de los `environment*.ts` solo nombres de clave.
+- Configuración por entorno solo vía `.env`/variables del proceso (`scripts/generate-env.mjs` genera `environment.ts`; ni `.env` ni `environment.ts` se versionan; plantilla `.env.example`). Nunca mostrar ni commitear secretos/tokens.
 - Código, comentarios y UI en inglés salvo que el proyecto ya use otro idioma; documentación en español.
 - El repo aún no tiene commits: no commitear ni hacer push sin orden expresa; staging por rutas.

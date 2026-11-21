@@ -7,14 +7,26 @@ Angular 20 (standalone, signals) · TypeScript 5.9 · npm · SCSS · Karma/Jasmi
 ## Comandos
 
 ```bash
+cp .env.example .env      # configuración por entorno (ver «Configuración»)
 npm install
-npm start                 # http://localhost:4200  (API en http://127.0.0.1:8120)
+npm start                 # http://localhost:4200  (API en API_BASE_URL, por defecto http://127.0.0.1:8120)
 npm run test:ci           # requiere Chrome (export CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 npm run lint
-npm run build:prod        # usa src/environments/environment.production.ts (fijar apiBaseUrl al desplegar)
+npm run build:prod        # exige APP_ENV=production y las demás variables (las define el pipeline)
 ```
 
-El backend debe tener `http://localhost:4200` en su CORS (ya lo tiene en `development`).
+## Configuración
+
+La configuración por entorno sale de `.env` (local, ignorado por Git; plantilla en `.env.example`) o de variables del proceso (pipeline), que tienen prioridad. `scripts/generate-env.mjs` las valida y genera `src/environments/environment.ts` (también ignorado) antes de `start`, `build`, `build:prod`, `watch`, `test`, `test:ci` y `lint`.
+
+| Variable | Valores |
+|---|---|
+| `APP_ENV` | `development` o `production` (`build:prod` exige `production`) |
+| `API_BASE_URL` | origen del backend, sin ruta ni barra final; vacío solo en producción (mismo origen) |
+| `API_PREFIX` | prefijo de versión de la API, p. ej. `/api/v1` |
+| `SESSION_PERSISTENCE` | `tab` (solo desarrollo) o `memory` (obligatorio en producción) |
+
+El backend debe tener el origen del frontend (p. ej. `http://localhost:4200`) en su variable `CORS_ALLOWED_ORIGINS`.
 
 ## Arquitectura
 
@@ -48,7 +60,7 @@ Detalle en `docs/features/system.md`.
 Investigado en el código y contra el backend (`POST /auth/login`, `GET /auth/me`): el login devuelve un Bearer
 token en el JSON (`access_token`); **no** hay cookie HttpOnly, ni refresh token, ni endpoint de cierre/revocación.
 `SessionStore` guarda token y usuario en señales (memoria). La persistencia es una **decisión por entorno**
-(`sessionPersistence` en `src/environments/*`, tipo `AppConfig`):
+(`SESSION_PERSISTENCE`, tipo `AppConfig`):
 
 | Entorno | Valor | Efecto |
 |---|---|---|

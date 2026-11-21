@@ -52,7 +52,7 @@ src/
   main.ts                      bootstrapApplication(App, appConfig)
   index.html                   <app-root>, lang="es", theme-color
   styles.scss                  tokens CSS + clases base (.btn, .card, .badge, .alert, .table-wrap, ...)
-  environments/                environment.ts (dev) / environment.production.ts (fileReplacements)
+  environments/                environment.ts (GENERADO por scripts/generate-env.mjs desde .env o el entorno; no se versiona)
   testing/                     providers.ts (provideTestApp), builders.ts (buildUser, ORG_*, FAKE_TOKEN)
   app/
     app.ts                     App: <router-outlet/> + <app-toast-host/> + <app-confirm-dialog-host/> + <app-action-feedback-host/> (instancia ThemeService)
@@ -279,7 +279,7 @@ Formato: severidad · archivo · problema · sugerencia. Detalle por capa en cad
 | H-A5 | Baja | `src/index.html` | Sin Content-Security-Policy (ni meta ni se ve cabecera). | Definir CSP en el servidor/hosting (importante mientras el token pueda estar en `sessionStorage`) [?] cabeceras reales no comprobadas |
 | H-A6 | Baja | repo | Según `CLAUDE.md` el repositorio aún no tiene commits (no se ejecutó `git` al documentar [?]). | Hacer un primer commit para tener línea base |
 | H-A7 | Baja | `src/app/app.routes.ts` | `/acceso-denegado` y `**` están dentro del shell de organización; un fallo de guard en `/plataforma` redirige al shell de organización y muestra su navegación. | Aceptable; si se quiere separar contextos, añadir rutas de error bajo `/plataforma` |
-| H-A8 | Info | tests | 59 archivos spec (598 `it` contados con grep; 601 specs ejecutadas, en las carpetas `features`, `infrastructure`, `shared` y `core`). Cobertura de `core` buena (guards, interceptors, sesión, mapper de errores); `shared/` logo, resource-state, shell, navegación, charts, pager, paginación por cursor, org-logo, close-on-backdrop; sin e2e. | Añadir specs a `pagination`, `confirm-dialog-host`, `toast-host`, `user-menu` |
+| H-A8 | Info | tests | 59 archivos spec (606 `it` contados con grep; 609 specs ejecutadas, en las carpetas `features`, `infrastructure`, `shared` y `core`). Cobertura de `core` buena (guards, interceptors, sesión, mapper de errores); `shared/` logo, resource-state, shell, navegación, charts, pager, paginación por cursor, org-logo, close-on-backdrop; sin e2e. | Añadir specs a `pagination`, `confirm-dialog-host`, `toast-host`, `user-menu` |
 
 ## 12. Cómo extender
 
@@ -297,6 +297,6 @@ Formato: severidad · archivo · problema · sugerencia. Detalle por capa en cad
 
 **Nuevo permiso**: añadir el código a `PERMISSION_CODES` (`domain/models/identity.ts`) y a las matrices de `access-policy.ts`.
 
-**Nuevo entorno / flag**: ampliar `AppConfig` (`core/config/app-config.ts`) y ambos `environment*.ts`.
+**Nueva variable de entorno**: ampliar `AppConfig` (`core/config/app-config.ts`), `scripts/generate-env.mjs` y `.env.example`.
 
 **Tests**: usar `provideTestApp()` (repositorios HTTP reales con `HttpClient` simulado) y `buildUser()/signInAs()` de `src/testing/`.

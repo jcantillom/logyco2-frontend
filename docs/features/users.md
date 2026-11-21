@@ -1,11 +1,11 @@
 # Feature `users` («Usuarios y accesos» de la empresa)
 
 Leyenda: [V] verificado en código; [?] no comprobado.
-Código: `src/app/features/users/` -> `users.component.ts` (701 l.), `users.facade.ts` (104 l.). Specs: `users-view.spec.ts` (8 `it`) y `users-onboarding.spec.ts` (5 `it`). La administración global de personas vive en la feature `platform` (ver [platform.md](platform.md)).
+Código: `src/app/features/users/` -> `users.component.ts` (701 l.), `users.facade.ts` (104 l.). Specs: `users-view.spec.ts` (9 `it`) y `users-onboarding.spec.ts` (5 `it`). La administración global de personas vive en la feature `platform` (ver [platform.md](platform.md)).
 
 ## 1. Propósito y flujo [V]
 Administración de las personas de la empresa activa y de sus invitaciones. Cuatro tarjetas de conteo (usuarios totales, activos, invitaciones pendientes, inactivos) y tres pestañas:
-1. **Usuarios**: tabla paginada (6 por página) con búsqueda por nombre o correo (espera de 300 ms) y filtros de rol y estado; columnas Usuario, Correo, Rol, Estado, Último acceso y Acciones. El menú de acciones de cada fila ofrece Editar, las transiciones de estado de la membresía (Aprobar, Rechazar, Suspender, Revocar, Reactivar) y, si la membresía está revocada, Eliminar; todas piden confirmación.
+1. **Usuarios**: tabla paginada (6 por página) con búsqueda por nombre o correo (espera de 300 ms) y filtros de rol y estado; columnas Usuario, Correo, Rol, Estado, Último acceso y Acciones. El menú de acciones de cada fila ofrece Editar, las transiciones de estado de la membresía (Aprobar, Rechazar, Suspender, Revocar, Reactivar) y, si la membresía está revocada, Anular revocación (vuelve a Activa) y Eliminar; todas piden confirmación.
 2. **Roles**: tarjetas con lo que puede hacer cada rol de la empresa (una empresa tiene un solo administrador).
 3. **Invitaciones**: tabla paginada (Invitado, Rol, Estado, Expira, Acciones) con «Revocar» para las `PENDING`.
 «Invitar usuario» (solo con `memberships:manage`) abre el diálogo «Incorporar usuario» (correo, nombre completo y rol entre `TEAM_ROLES`); al enviarlo, `OnboardingFacade.onboardMember` crea la incorporación y se muestra el diálogo «Estado de la incorporación» (`OnboardingStatusComponent`) con los tres pasos reales (identidad, correo, activación) y reenvío. La persona activa su cuenta con el enlace del correo (ver [auth.md](auth.md)).
@@ -15,7 +15,7 @@ Administración de las personas de la empresa activa y de sus invitaciones. Cuat
 
 ## 3. Componente `UsersComponent` (`app-users`) [V]
 - Sin inputs/outputs. Inyecta `UsersFacade`, `OnboardingFacade`, `AccessPolicy`, `ConfirmService`, `ToastService`, `ActionFeedbackService`, `SessionStore`, `OrganizationContext`. `viewChild.required` de `#createDialog`, `#editDialog` y `#codeDialog`. Usa `PageHeroComponent`, `ResourceStateComponent`, `PaginationComponent`, `StatusBadgeComponent` y `OnboardingStatusComponent`.
-- Tipos locales: `Tab = 'users'|'roles'|'invitations'`, `StatusView`, `MembershipAction {status,label,danger}`. Constante `ACTIONS` (mapa estado -> acciones; refleja `_TRANSITIONS` del backend: `PENDING` -> `ACTIVE`/`REVOKED`; `ACTIVE` -> `SUSPENDED`/`REVOKED`; `SUSPENDED` -> `ACTIVE`/`REVOKED`; `REVOKED` -> ninguna). El servidor revalida.
+- Tipos locales: `Tab = 'users'|'roles'|'invitations'`, `StatusView`, `MembershipAction {status,label,danger,phrase?}`. Constante `ACTIONS` (mapa estado -> acciones; refleja `_TRANSITIONS` del backend: `PENDING` -> `ACTIVE`/`REVOKED`; `ACTIVE` -> `SUSPENDED`/`REVOKED`; `SUSPENDED` -> `ACTIVE`/`REVOKED`; `REVOKED` -> `ACTIVE`, «Anular revocación»; el servidor la rechaza con 409 si la persona ya está en otra empresa o si otra persona ocupa el cupo de administrador). El servidor revalida.
 - Filtros: `roleOptions` (`ORG_ADMIN` más `TEAM_ROLES`) y estados Activo, Pendiente de aprobación e Inactivo (`SUSPENDED`); se aplican en el servidor mediante `facade.setFilter`.
 - Formularios (`nonNullable.group`): invitación con `email` (obligatorio, `email`, máx. 320), `inviteeName` (obligatorio, máx. 255) y `roleCode` (obligatorio, por defecto `DEFAULT_TEAM_ROLE`); edición de usuario con `fullName` (obligatorio, máx. 255) y `email` (obligatorio, `email`, máx. 320; el correo propio queda bloqueado). La invitación se crea siempre en la empresa activa (`context.activeOrganizationId()`).
 - Constructor: `reloadOnContextChange` carga `facade.loadUsers(1)`, `loadInvitations(1)` y `loadCounts()`; la búsqueda usa `debounceTime(300)`.

@@ -25,7 +25,7 @@ export function provideTestApp(options: { routes?: Routes } = {}): (Provider | E
     provideHttpClient(),
     provideHttpClientTesting(),
     provideRouter(options.routes ?? []),
-    { provide: APP_CONFIG, useValue: { production: false, apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
+    { provide: APP_CONFIG, useValue: { apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
     provideRepositories(),
     { provide: AuthRepository, useClass: StubAuthRepository },
   ];

@@ -34,8 +34,8 @@ export type LogoMotion = 'none' | 'entrance' | 'live' | 'hover';
 type Colors = Record<LogoRole, string>;
 
 const COLORS: Record<LogoTheme, Colors> = {
-  dark: { markBase: '#FFFFFF', markAccent: '#FC4C02', base: '#FFFFFF', accent: '#FC4C02', sub: '#D5DEE5', divider: '#3B5568' },
-  light: { markBase: '#0B2638', markAccent: '#FC4C02', base: '#0B2638', accent: '#FC4C02', sub: '#3A4A58', divider: '#C5D1DB' },
+  dark: { markBase: '#FFFFFF', markAccent: '#00B398', base: '#FFFFFF', accent: '#00B398', sub: '#D5DEE5', divider: '#3B5568' },
+  light: { markBase: '#0B2638', markAccent: '#00B398', base: '#0B2638', accent: '#00B398', sub: '#3A4A58', divider: '#C5D1DB' },
   mono: { markBase: 'currentColor', markAccent: 'currentColor', base: 'currentColor', accent: 'currentColor', sub: 'currentColor', divider: 'currentColor' },
 };
 

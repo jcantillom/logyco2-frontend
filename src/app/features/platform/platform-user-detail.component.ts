@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, HostListener, effect, inject, input, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { toAppError } from '../../core/errors/http-error-mapper';
@@ -7,33 +7,40 @@ import { ActionFeedbackService } from '../../core/notifications/action-feedback.
 import { ToastService } from '../../core/notifications/toast.service';
 import { ManagedMembership, ManagedUser, MembershipTargetStatus } from '../../domain/models/users';
 import { hueOf, initialsOf } from '../../shared/ui/avatar';
-import { MEMBERSHIP_LABELS, roleLabel } from '../../shared/ui/labels';
+import { roleLabel } from '../../shared/ui/labels';
 import { ResourceStateComponent } from '../../shared/ui/resource-state.component';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
+import { memberStatus, personStatus } from './platform-labels';
 import { PlatformUsersFacade } from './platform.facades';
 
-type Tone = 'primary' | 'neutral' | 'warn' | 'danger';
 interface Action {
   readonly status: MembershipTargetStatus;
   readonly label: string;
-  readonly tone: Tone;
+  /** Acción destructiva: se pinta en rojo y la confirmación lo advierte. */
+  readonly danger: boolean;
+  /** Cómo se nombra la acción en la confirmación; por defecto «<etiqueta> la membresía». */
+  readonly phrase?: string;
   /** Qué ocurre al confirmar: se muestra como ayuda del botón y en la confirmación. */
   readonly effect: string;
 }
 
-const APPROVE: Action = { status: 'ACTIVE', label: 'Aprobar', tone: 'primary', effect: 'La persona podrá acceder a la empresa con su rol.' };
-const REJECT: Action = { status: 'REVOKED', label: 'Rechazar', tone: 'danger', effect: 'Se descarta la solicitud. No se puede deshacer.' };
-const SUSPEND: Action = { status: 'SUSPENDED', label: 'Suspender', tone: 'warn', effect: 'Pierde el acceso a la empresa de forma temporal. Puedes reactivarla cuando quieras.' };
-const REACTIVATE: Action = { status: 'ACTIVE', label: 'Reactivar', tone: 'neutral', effect: 'Recupera el acceso a la empresa con su rol.' };
-const REVOKE: Action = { status: 'REVOKED', label: 'Revocar', tone: 'danger', effect: 'Se retira de la empresa de forma definitiva: no se puede deshacer ni volver a vincular a esta misma empresa.' };
+const APPROVE: Action = { status: 'ACTIVE', label: 'Aprobar', danger: false, effect: 'La persona podrá acceder a la empresa con su rol.' };
+const REJECT: Action = { status: 'REVOKED', label: 'Rechazar', danger: true, effect: 'Se descarta la solicitud. No se puede deshacer.' };
+const SUSPEND: Action = { status: 'SUSPENDED', label: 'Suspender', danger: false, effect: 'Pierde el acceso a la empresa de forma temporal. Puedes reactivarla cuando quieras.' };
+const REACTIVATE: Action = { status: 'ACTIVE', label: 'Reactivar', danger: false, effect: 'Recupera el acceso a la empresa con su rol.' };
+const REVOKE: Action = { status: 'REVOKED', label: 'Revocar', danger: true, effect: 'Se retira de la empresa y pierde el acceso. Después se puede anular la revocación o eliminarla de la lista.' };
+const RESTORE: Action = { status: 'ACTIVE', label: 'Anular revocación', danger: false, phrase: 'Anular la revocación de la membresía', effect: 'La persona recupera el acceso a la empresa con el rol que conservaba.' };
 
 /** Transiciones válidas del backend; el servidor las vuelve a validar. */
 const ACTIONS: Readonly<Record<string, readonly Action[]>> = {
   PENDING: [APPROVE, REJECT],
   ACTIVE: [SUSPEND, REVOKE],
   SUSPENDED: [REACTIVATE, REVOKE],
-  REVOKED: [],
+  REVOKED: [RESTORE],
 };
+
+/** Ancho del menú de acciones (debe coincidir con su `min-width` en CSS). */
+const MENU_WIDTH = 200;
 
 @Component({
   selector: 'app-platform-user-detail',
@@ -70,13 +77,14 @@ const ACTIONS: Readonly<Record<string, readonly Action[]>> = {
       .table tbody tr:hover { background: var(--c-row-hover); }
       .history { color: var(--c-mu); font-size: 0.82rem; }
       tr.revoked td { color: var(--c-mu); }
-      .acts { display: inline-flex; flex-wrap: nowrap; justify-content: center; gap: 8px; }
-      .tone-primary { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
-      .tone-neutral { background: var(--c-sf); border-color: var(--c-bd); color: var(--c-head); }
-      .tone-warn { background: var(--c-sf); border-color: #d9a441; color: var(--c-warning); }
-      .tone-warn:hover { background: var(--c-warn-soft); }
-      .tone-danger { background: var(--c-sf); border-color: #d98a84; color: var(--c-bad); }
-      .tone-danger:hover { background: var(--c-bad-soft); }
+      .kebab { all: unset; cursor: pointer; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: var(--c-text2); }
+      .kebab svg { width: 20px; height: 20px; fill: currentColor; }
+      .kebab:hover, .kebab[aria-expanded='true'] { background: var(--c-s3); }
+      .kebab:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+      .menu { position: fixed; z-index: 50; min-width: 200px; padding: 6px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-sf); box-shadow: 0 14px 34px rgb(81 83 74 / 18%); text-align: left; }
+      .menu button { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: var(--c-text); }
+      .menu button:hover, .menu button:focus-visible { background: var(--c-s3); outline: none; }
+      .menu button.danger { color: var(--c-danger); }
       .legend { display: grid; gap: 6px; margin: 4px 0 0; padding: 12px 16px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-s2); list-style: none; font-size: 0.8rem; color: var(--c-mute2); }
       .legend b { color: var(--c-head); }
     `,
@@ -94,7 +102,7 @@ const ACTIONS: Readonly<Record<string, readonly Action[]>> = {
           <section class="card" aria-labelledby="ident"><h2 id="ident">Identidad</h2>
             <dl class="facts" style="margin-top: 12px">
               <dt>Nombre</dt><dd>{{ u.fullName }}</dd><dt>Correo</dt><dd>{{ u.email }}</dd>
-              <dt>Estado</dt><dd><span class="badge" [class.badge-success]="u.isActive" [class.badge-neutral]="!u.isActive" data-testid="user-status">{{ u.isActive ? 'Activo' : 'Inactivo' }}</span></dd>
+              <dt>Estado</dt><dd data-testid="user-status"><app-status-badge [label]="status(u)" /></dd>
               <dt>Empresa</dt>
               <dd data-testid="user-company">@if (company(u); as c) { <a [routerLink]="['/plataforma/organizaciones', c.organization.id]">{{ c.organization.name }}</a> } @else { <span class="muted">Sin empresa</span> }</dd>
               <dt>Tipo de usuario</dt>
@@ -111,9 +119,9 @@ const ACTIONS: Readonly<Record<string, readonly Action[]>> = {
                   @for (m of u.memberships; track m.membershipId) {
                     <tr [class.revoked]="m.status === 'REVOKED'">
                       <td><a [routerLink]="['/plataforma/organizaciones', m.organization.id]">{{ m.organization.name }}</a>@if (m.status === 'REVOKED') { <span class="history"> · anterior</span> }</td>
-                      <td><app-status-badge [label]="labels[m.status]" /></td>
+                      <td><app-status-badge [label]="memberStatus(m.status)" /></td>
                       <td>{{ roles(m.roles) }}</td>
-                      <td><span class="acts">@for (a of actionsFor(m); track a.label) { <button type="button" class="btn btn-sm" [class]="'btn btn-sm tone-' + a.tone" [title]="a.effect" (click)="change(u.fullName, m, a)">{{ a.label }}</button> }</span></td>
+                      <td><button type="button" class="kebab" [attr.data-testid]="'menu-' + m.membershipId" aria-haspopup="menu" [attr.aria-expanded]="menu()?.membership?.membershipId === m.membershipId" [attr.aria-label]="'Acciones de la membresía en ' + m.organization.name" (click)="toggleMenu(u.fullName, m, $event)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="12" cy="19" r="1.8" /></svg></button></td>
                     </tr>
                   } @empty { <tr><td colspan="4" class="muted">Sin membresías visibles.</td></tr> }
                 </tbody>
@@ -121,12 +129,24 @@ const ACTIONS: Readonly<Record<string, readonly Action[]>> = {
             </div>
             <ul class="legend" aria-label="Qué hace cada acción">
               <li><b>Suspender:</b> quita el acceso de forma temporal; se puede reactivar.</li>
-              <li><b>Revocar:</b> retira a la persona de la empresa de forma definitiva; no se puede deshacer.</li>
+              <li><b>Revocar:</b> retira a la persona de la empresa y le quita el acceso.</li>
+              <li><b>Anular revocación:</b> devuelve a la persona su acceso como activa, con el rol que conservaba.</li>
+              <li><b>Eliminar:</b> quita de la lista una membresía ya revocada; la cuenta de la persona se conserva.</li>
             </ul>
           </section>
         }
       </app-resource-state>
     </div>
+    @if (menu(); as open) {
+      <div class="menu" role="menu" [style.top.px]="open.y" [style.left.px]="open.x">
+        @for (a of actionsFor(open.membership); track a.label) {
+          <button type="button" role="menuitem" [class.danger]="a.danger" [title]="a.effect" (click)="change(open.userName, open.membership, a)">{{ a.label }}</button>
+        }
+        @if (open.membership.status === 'REVOKED') {
+          <button type="button" role="menuitem" class="danger" data-testid="remove-membership" (click)="remove(open.userName, open.membership)">Eliminar</button>
+        }
+      </div>
+    }
   `,
 })
 export class PlatformUserDetailComponent {
@@ -136,7 +156,10 @@ export class PlatformUserDetailComponent {
   private readonly toast = inject(ToastService);
   private readonly feedback = inject(ActionFeedbackService);
   private readonly destroyRef = inject(DestroyRef);
-  protected readonly labels = MEMBERSHIP_LABELS;
+  protected readonly memberStatus = memberStatus;
+  protected readonly status = personStatus;
+  /** Menú de acciones abierto (posición fija: la tabla recorta lo que sobresale). */
+  protected readonly menu = signal<{ userName: string; membership: ManagedMembership; x: number; y: number } | null>(null);
   protected readonly hueOf = hueOf;
   protected readonly initialsOf = initialsOf;
 
@@ -156,8 +179,41 @@ export class PlatformUserDetailComponent {
   protected roles(codes: readonly string[]): string { return codes.map(roleLabel).join(', ') || 'Sin roles'; }
   protected actionsFor(m: ManagedMembership): readonly Action[] { return ACTIONS[m.status] ?? []; }
 
+  @HostListener('document:click')
+  @HostListener('document:keydown.escape')
+  @HostListener('window:scroll')
+  protected closeMenu(): void {
+    this.menu.set(null);
+  }
+
+  protected toggleMenu(userName: string, membership: ManagedMembership, event: Event): void {
+    event.stopPropagation();
+
+    if (this.menu()?.membership.membershipId === membership.membershipId) {
+      this.menu.set(null);
+
+      return;
+    }
+
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+
+    this.menu.set({ userName, membership, x: Math.max(8, rect.right - MENU_WIDTH), y: rect.bottom + 6 });
+  }
+
+  protected async remove(userName: string, m: ManagedMembership): Promise<void> {
+    this.menu.set(null);
+    const accepted = await this.confirm.confirm({ title: 'Eliminar membresía', message: `¿Eliminar la membresía revocada de ${userName} en ${m.organization.name}? Dejará de aparecer; su cuenta se conserva y se le puede invitar de nuevo.`, confirmLabel: 'Eliminar', danger: true });
+    if (!accepted) return;
+    this.feedback.start('Eliminando membresía…');
+    this.facade.removeMembership(m.organization.id, m.membershipId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => { this.feedback.finish('Membresía eliminada'); this.facade.loadDetail(this.id()); },
+      error: (error: unknown) => { this.feedback.close(); this.toast.error(toAppError(error)); },
+    });
+  }
+
   protected async change(userName: string, m: ManagedMembership, a: Action): Promise<void> {
-    const accepted = await this.confirm.confirm({ title: `${a.label} membresía`, message: `¿${a.label} la membresía de ${userName} en ${m.organization.name}? ${a.effect}`, confirmLabel: a.label, danger: a.tone === 'danger' });
+    this.menu.set(null);
+    const accepted = await this.confirm.confirm({ title: a.phrase ? a.label : `${a.label} membresía`, message: `¿${a.phrase ?? `${a.label} la membresía`} de ${userName} en ${m.organization.name}? ${a.effect}`, confirmLabel: a.label, danger: a.danger });
     if (!accepted) return;
     this.feedback.start('Actualizando membresía…');
     this.facade.changeMembershipStatus(m.organization.id, m.membershipId, a.status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({

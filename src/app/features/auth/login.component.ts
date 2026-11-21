@@ -40,13 +40,13 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
 
       /* ── Panel de marca ── */
       .brand-panel { --mx: 30%; --my: 25%; position: relative; isolation: isolate; overflow: hidden; color: #fff; padding: clamp(28px, 4vw, 56px); display: flex; flex-direction: column; gap: clamp(22px, 3.6vh, 44px);
-        background: linear-gradient(160deg, #51534a 0%, #51534a 55%, #51534a 120%); }
+        background: radial-gradient(900px circle at 85% 8%, #5d5f56 0%, transparent 60%), linear-gradient(160deg, #484a42 0%, #51534a 55%, #484a42 120%); }
       .brand-panel::before { content: ''; position: absolute; inset: 0; z-index: -2; pointer-events: none;
         background: radial-gradient(420px circle at var(--mx) var(--my), rgb(252 76 2 / 22%), transparent 70%); }
       .brand-panel::after { content: ''; position: absolute; inset: 0; z-index: -2; pointer-events: none; background-image: linear-gradient(rgb(255 255 255 / 5%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 5%) 1px, transparent 1px); background-size: 52px 52px; mask-image: radial-gradient(ellipse 70% 60% at 15% 95%, #000, transparent 75%); }
       .blob { position: absolute; z-index: -3; border-radius: 50%; filter: blur(70px); pointer-events: none; will-change: transform; }
       .b1 { width: 380px; height: 380px; left: -120px; top: -90px; background: #fc4c02; opacity: 0.28; animation: drift1 22s ease-in-out infinite alternate; }
-      .b2 { width: 320px; height: 320px; right: -80px; bottom: 6%; background: #fd7035; opacity: 0.13; animation: drift2 26s ease-in-out infinite alternate; }
+      .b2 { width: 320px; height: 320px; right: -80px; bottom: 6%; background: #00b398; opacity: 0.2; animation: drift2 26s ease-in-out infinite alternate; }
       .b3 { width: 280px; height: 280px; left: 28%; bottom: -120px; background: #fc4c02; opacity: 0.3; animation: drift1 30s ease-in-out infinite alternate-reverse; }
       @keyframes drift1 { to { transform: translate3d(90px, 60px, 0) scale(1.15); } }
       @keyframes drift2 { to { transform: translate3d(-110px, -70px, 0) scale(1.2); } }
@@ -57,9 +57,11 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
       .truck { offset-path: path('${ROUTE}'); offset-rotate: 0deg; animation: travel 9s linear infinite; }
       .truck.t2 { animation-delay: -4.5s; animation-duration: 11s; }
       @keyframes travel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
-      .ping { transform-box: fill-box; transform-origin: center; animation: ping 3.2s ease-out infinite; }
-      .ping.p2 { animation-delay: 1s; } .ping.p3 { animation-delay: 2s; }
-      @keyframes ping { 0% { transform: scale(0.5); opacity: 0.6; } 80%, 100% { transform: scale(2.8); opacity: 0; } }
+      .ping { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ping 12s ease-out infinite; animation-delay: calc(var(--i) * 3s); }
+      @keyframes ping { 0%, 4% { transform: scale(0.5); opacity: 0; } 6% { opacity: 0.7; } 20%, 100% { transform: scale(3.4); opacity: 0; } }
+      .node-label { fill: #fff; font: 700 13px 'Museo Sans', Arial, sans-serif; opacity: 0.55; animation: nodeLabel 12s ease-in-out infinite; animation-delay: calc(var(--i) * 3s); }
+      .node-label.goal { fill: #66d1c1; }
+      @keyframes nodeLabel { 0%, 30%, 100% { opacity: 0.55; } 6%, 22% { opacity: 1; } }
 
       .reveal { opacity: 0; transform: translateY(14px); animation: reveal 0.8s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: calc(var(--d, 0) * 1ms); }
       @keyframes reveal { to { opacity: 1; transform: none; } }
@@ -71,30 +73,31 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
       .desc { margin: 0; color: #dcdddb; font-size: 1.1rem; line-height: 1.6; max-width: 34rem; }
       .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; counter-reset: step; }
       .step { counter-increment: step; display: inline-flex; align-items: center; gap: 9px; padding: 9px 18px 9px 10px; border-radius: 999px; font-weight: 600; font-size: 0.96rem; color: #eeeeed;
-        background: rgb(255 255 255 / 7%); border: 1px solid rgb(255 255 255 / 14%); backdrop-filter: blur(6px); animation: lit 12s ease-in-out infinite; animation-delay: calc(var(--i) * 3s); }
+        background: rgb(72 74 66 / 82%); border: 1px solid rgb(255 255 255 / 14%); backdrop-filter: blur(14px); animation: lit 12s ease-in-out infinite; animation-delay: calc(var(--i) * 3s); }
       .step::before { content: counter(step, decimal-leading-zero); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgb(255 255 255 / 10%); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.02em; }
+      .step:last-child { animation-name: lit-goal; }
       .step svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-      @keyframes lit { 0%, 30%, 100% { background: rgb(255 255 255 / 7%); border-color: rgb(255 255 255 / 14%); color: #eeeeed; transform: none; box-shadow: none; }
-        6%, 22% { background: rgb(252 76 2 / 22%); border-color: rgb(252 76 2 / 70%); color: #fff; transform: translateY(-3px); box-shadow: 0 10px 28px -10px rgb(252 76 2 / 75%); } }
+      @keyframes lit { 0%, 30%, 100% { background: rgb(72 74 66 / 82%); border-color: rgb(255 255 255 / 14%); color: #eeeeed; transform: none; box-shadow: none; }
+        6%, 22% { background: color-mix(in srgb, #fc4c02 24%, rgb(72 74 66)); border-color: rgb(252 76 2 / 70%); color: #fff; transform: translateY(-3px); box-shadow: 0 10px 28px -10px rgb(252 76 2 / 75%); } }
+      @keyframes lit-goal { 0%, 30%, 100% { background: rgb(72 74 66 / 82%); border-color: rgb(255 255 255 / 14%); color: #eeeeed; transform: none; box-shadow: none; }
+        6%, 22% { background: color-mix(in srgb, #00b398 26%, rgb(72 74 66)); border-color: rgb(0 179 152 / 75%); color: #fff; transform: translateY(-3px); box-shadow: 0 10px 28px -10px rgb(0 179 152 / 75%); } }
       .tagline { margin: 0; display: inline-flex; align-items: center; gap: 10px; color: #fff; font-weight: 600; letter-spacing: 0.01em; }
-      .tagline::before { content: ''; width: 28px; height: 3px; border-radius: 2px; background: #fc4c02; flex: none; }
+      .tagline::before { content: ''; width: 28px; height: 3px; border-radius: 2px; background: #00b398; flex: none; }
       .signature { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; color: #dcdddb; font-size: 0.88rem; }
 
       /* ── Panel de acceso ── */
       .form-panel { position: relative; overflow: hidden; isolation: isolate; display: grid; place-items: center; padding: clamp(24px, 4vw, 48px) 20px; background-color: var(--c-bg); background-image: radial-gradient(circle at 1px 1px, rgb(81 83 74 / 16%) 1.2px, transparent 0); background-size: 26px 26px; }
       .form-panel::before { content: ''; position: absolute; z-index: -1; width: 420px; height: 420px; right: -140px; top: -120px; border-radius: 50%; background: radial-gradient(circle, rgb(252 76 2 / 18%), transparent 68%); }
       .form-panel::after { content: ''; position: absolute; z-index: -1; width: 520px; height: 520px; left: -200px; bottom: -260px; border-radius: 50%; border: 1.5px solid rgb(252 76 2 / 12%); box-shadow: 0 0 0 60px rgb(252 76 2 / 4%), 0 0 0 120px rgb(252 76 2 / 3%); }
-      @property --ang { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
-      form { position: relative; width: min(460px, 100%); display: flex; flex-direction: column; gap: 20px; padding: clamp(24px, 3.2vw, 40px); background: rgb(255 255 255 / 82%); backdrop-filter: blur(14px); border: 1px solid #fff; border-radius: 26px; box-shadow: 0 1px 2px rgb(81 83 74 / 6%), 0 32px 80px -24px rgb(81 83 74 / 38%); }
-      form::before { content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 2px; pointer-events: none; background: conic-gradient(from var(--ang), transparent 0 55%, #fc4c02 78%, #fd9467 88%, transparent 100%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: spinborder 7s linear infinite; }
-      @keyframes spinborder { to { --ang: 360deg; } }
+      /* Tarjeta con volumen sin inclinación: luz interior, hojas apiladas y sombra profunda. */
+      form { position: relative; width: min(460px, 100%); display: flex; flex-direction: column; gap: 20px; padding: clamp(24px, 3.2vw, 40px); background: linear-gradient(160deg, #fff 0%, #f3f4f3 100%); border: 1px solid #fff; border-radius: 26px; box-shadow: inset 0 2px 0 #fff, inset 0 -3px 0 rgb(81 83 74 / 9%), 0 12px 0 -4px rgb(0 179 152 / 24%), 0 24px 0 -8px rgb(0 179 152 / 11%), 0 46px 70px -22px rgb(81 83 74 / 55%); }
       form { transition: box-shadow 0.3s, border-color 0.3s; }
-      form:focus-within { box-shadow: 0 1px 2px rgb(81 83 74 / 6%), 0 32px 80px -24px rgb(252 76 2 / 38%), 0 0 0 6px rgb(252 76 2 / 8%); }
+      form:focus-within { box-shadow: inset 0 2px 0 #fff, inset 0 -3px 0 rgb(81 83 74 / 9%), 0 12px 0 -4px rgb(0 179 152 / 30%), 0 24px 0 -8px rgb(0 179 152 / 14%), 0 46px 70px -22px rgb(81 83 74 / 55%), 0 0 0 6px rgb(0 179 152 / 10%); }
       form h1 { font-size: clamp(1.6rem, 2.4vw, 2.05rem); letter-spacing: -0.02em; }
       .caps { display: inline-flex; align-items: center; gap: 6px; color: var(--c-warning); font-size: 0.85rem; font-weight: 600; }
       form .input { transition: border-color 0.15s, box-shadow 0.2s; }
-      form .input { min-height: 50px; padding-left: 46px; border-radius: 12px; }
-      form .input:focus { outline: none; border-color: #fc4c02; box-shadow: 0 0 0 4px rgb(252 76 2 / 18%); }
+      form .input { min-height: 50px; padding-left: 46px; border-radius: 12px; box-shadow: inset 0 2px 5px rgb(81 83 74 / 12%); }
+      form .input:focus { outline: none; border-color: #fc4c02; box-shadow: inset 0 2px 5px rgb(81 83 74 / 12%), 0 0 0 4px rgb(252 76 2 / 18%); }
       .inp { position: relative; }
       .lead { position: absolute; left: 15px; top: 50%; width: 20px; height: 20px; margin-top: -10px; fill: none; stroke: var(--c-gray-700); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; transition: stroke 0.2s; }
       .inp:focus-within .lead { stroke: #fc4c02; }
@@ -104,11 +107,11 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
       .pw button { position: absolute; top: 3px; right: 3px; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--c-gray-700); cursor: pointer; }
       .pw button:hover { background: rgb(81 83 74 / 8%); }
       .pw svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-      .cta { position: relative; overflow: hidden; min-height: 52px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #fc4c02, #e24d0d); font-size: 1.02rem; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 8px 20px -8px rgb(252 76 2 / 70%); transition: transform 0.15s, box-shadow 0.2s, filter 0.2s; }
+      .cta { position: relative; overflow: hidden; min-height: 52px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #fc4c02, #e24d0d); font-size: 1.02rem; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 5px 0 #b83a00, 0 16px 24px -8px rgb(252 76 2 / 65%); transition: transform 0.12s, box-shadow 0.12s, filter 0.2s; }
       .cta::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 28%) 50%, transparent 70%); transform: translateX(-120%); }
-      .cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 26px -8px rgb(252 76 2 / 80%); filter: brightness(1.05); }
+      .cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 0 #b83a00, 0 20px 28px -8px rgb(252 76 2 / 70%); filter: brightness(1.05); }
       .cta:hover:not(:disabled)::after { transform: translateX(120%); transition: transform 0.7s; }
-      .cta:active:not(:disabled) { transform: translateY(0); }
+      .cta:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 #b83a00, 0 6px 12px -6px rgb(252 76 2 / 60%); }
       .cta .arrow { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.25s; }
       .cta:hover:not(:disabled) .arrow { transform: translateX(5px); }
       .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 40%); border-top-color: #fff; animation: spin 0.8s linear infinite; }
@@ -131,10 +134,11 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
         .headline { font-size: 1.3rem; max-width: 24rem; }
         .blob { filter: blur(50px); }
         .form-panel { align-items: start; padding-top: 24px; padding-bottom: 36px; }
-        form { padding: 20px 18px; border-radius: 18px; }
+        form { padding: 20px 18px; border-radius: 18px; box-shadow: inset 0 2px 0 #fff, 0 8px 0 -3px rgb(0 179 152 / 24%), 0 24px 40px -20px rgb(81 83 74 / 50%); }
       }
       @media (prefers-reduced-motion: reduce) {
-        .blob, form::before, .flow, .truck, .ping, .reveal, .headline em, .step, .wipe { animation: none !important; }
+        .ping { opacity: 0; }
+        .blob, .flow, .truck, .ping, .reveal, .headline em, .step, .step:last-child, .wipe { animation: none !important; }
         .wipe { display: none; }
         .reveal { opacity: 1; transform: none; }
         .truck { display: none; }
@@ -163,9 +167,16 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
           <path d="${ROUTE}" fill="none" stroke="url(#lg-route)" stroke-width="5" stroke-linecap="round" />
           <path class="flow" d="${ROUTE}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2" stroke-linecap="round" />
           <path d="M-20 560C90 560 150 520 230 490S360 430 400 380" fill="none" stroke="#fff" opacity=".14" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2 12" />
-          <g fill="#fc4c02"><circle cx="270" cy="600" r="7" /><circle cx="470" cy="440" r="7" /></g>
-          <g fill="#fd7035"><circle class="ping" cx="270" cy="600" r="7" opacity=".5" /><circle class="ping p2" cx="470" cy="440" r="7" opacity=".5" /><circle class="ping p3" cx="600" cy="210" r="7" opacity=".5" /></g>
-          <circle cx="600" cy="210" r="7" fill="#fd7035" />
+          <g fill="#fc4c02"><circle cx="270" cy="600" r="7" /><circle cx="470" cy="440" r="7" /><circle cx="546.3" cy="336.3" r="7" /></g>
+          <circle cx="628.7" cy="150.1" r="7" fill="#00b398" />
+          <g>
+            <circle class="ping" style="--i: 0" cx="270" cy="600" r="7" fill="#fd7035" /><circle class="ping" style="--i: 1" cx="470" cy="440" r="7" fill="#fd7035" />
+            <circle class="ping" style="--i: 2" cx="546.3" cy="336.3" r="7" fill="#fd7035" /><circle class="ping" style="--i: 3" cx="628.7" cy="150.1" r="7" fill="#00b398" />
+          </g>
+          <g>
+            <text class="node-label" style="--i: 0" x="288" y="604">Registra</text><text class="node-label" style="--i: 1" x="488" y="444">Mide</text>
+            <text class="node-label" style="--i: 2" x="564" y="340">Compara</text><text class="node-label goal" text-anchor="end" style="--i: 3" x="612" y="154">Reduce</text>
+          </g>
           <circle class="truck" r="5" fill="#fff" /><circle class="truck t2" r="4" fill="#fd7035" />
         </svg>
 
@@ -262,7 +273,7 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
           </p>
           <!-- El manual de marca autoriza el logo CLI solo sobre fondo blanco: la tarjeta lo es en ambos temas. -->
           <div data-testid="login-cli-logo" style="display: flex; justify-content: center; padding-top: 18px; border-top: 1px solid var(--c-bd)">
-            <img src="brand/logo-cli.svg" alt="Centro Latinoamericano de Innovación en Logística (CLI)" width="98" height="64" style="display: block" />
+            <img src="brand/logo-cli.svg" alt="Centro Latinoamericano de Innovación en Logística (CLI)" width="160" height="101" style="display: block" />
           </div>
           } @else {
             <app-login-success [firstName]="firstName()" [destination]="destination()" (skip)="skipTransition()" />

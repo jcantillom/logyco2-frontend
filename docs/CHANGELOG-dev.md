@@ -9,16 +9,59 @@ archivos de código · docs actualizados.
 - El texto «reducir emisiones.» del titular (`.headline em`) pasa de aguamarina a naranja #FC4C02.
 - La animación `lit` de `features/auth/login.component.ts` resaltaba cada paso en verde lima (`rgb(157 232 53)`); ahora usa el naranja de LOGYCA (`rgb(252 76 2)`, fondo al 22 % y borde al 70 %).
 
+## 2026-11-21 · feat · Configuración por entorno con `.env` (adiós a `environment.production.ts`)
+- **Antes:** `environment.ts` y `environment.production.ts` con valores fijos en el código y `fileReplacements` en el build; producción exigía editar un archivo al desplegar.
+- **Ahora:** `.env` (local, ignorado; plantilla `.env.example`) o variables del proceso (pipeline): `APP_ENV`, `API_BASE_URL`, `API_PREFIX`, `SESSION_PERSISTENCE`. `scripts/generate-env.mjs` las valida (origen http(s) sin barra final, prefijo con `/`, `memory` obligatorio en producción, vacío solo en producción) y genera `src/environments/environment.ts` (ignorado por Git) antes de `start`, `build`, `build:prod`, `watch`, `test`, `test:ci` y `lint` (hooks `pre*` de npm). `build:prod` exige `APP_ENV=production`. Se eliminan `environment.production.ts`, los `fileReplacements` y la bandera `production` de `AppConfig` (nadie la leía).
+- **Probado:** el script rechaza producción con sesión `tab`, URL con barra final, vacío en desarrollo, prefijo inválido y variables ausentes; con variables de producción el bundle contiene el `API_BASE_URL` indicado; `npm run lint`, `npm run test:ci` (602 de 602) y `build:prod` sin avisos.
+- Docs: `README.md`, `CLAUDE.md`, `docs/tooling.md`, `docs/core.md`, `docs/architecture.md`.
+
 ## 2026-11-21 · style · Login: apariencia más moderna y dinámica, sin cambiar su enfoque
 - **Panel de marca:** titular más grande (hasta 3,8 rem) con degradado naranja animado en «reducir emisiones.»; pasos «Registra / Mide / Compara / Reduce» numerados (contador CSS) que al iluminarse suben con un halo naranja; cuadrícula tenue de fondo; la ruta del mapa se desvanece detrás del texto para no competir con él.
-- **Tarjeta de acceso:** más grande y translúcida, con borde cónico naranja que gira (`@property --ang`), iconos de correo y candado dentro de los campos, foco naranja con halo, botón de 52 px con flecha que se desplaza al pasar el cursor, y trama de puntos en el fondo del panel.
+- **Tarjeta de acceso:** más grande y translúcida, con borde verde aguamarina fijo de 2 px alrededor (antes era un borde cónico animado; ahora es una línea sólida, sin animación), iconos de correo y candado dentro de los campos, foco naranja con halo, botón de 52 px con flecha que se desplaza al pasar el cursor, y trama de puntos en el fondo del panel.
+- **Segunda pasada:** los nodos del mapa llevan el nombre de cada paso (Registra, Mide, Compara, Reduce) y pulsan sincronizados con las píldoras (mismo ciclo de 12 s); el panel de marca gana profundidad con un halo y un degradado más oscuro. Con movimiento reducido se desactivan los pulsos.
+- **Armonía (tercera pasada):** el login usa dos colores con roles fijos, como el logo: naranja = acción y energía (titular, ruta, nodos, botón, pasos 1–3) y verde aguamarina = identidad eco (todo el isotipo) (meta «Reduce» en la ruta y en los pasos, línea del lema, resplandor del fondo). Los nodos del mapa se corrigieron para quedar exactamente sobre la ruta (antes dos estaban fuera de la curva; medido: distancia < 0,1 unidades, igual que los puntos que viajan). Las píldoras de los pasos son opacas para que la ruta y el punto blanco no se transparenten.
 - **Estructura:** el estado de éxito (check, saludo, hitos y camión) pasa a `login-success.component.ts` (`LoginSuccessComponent`), lo que baja el CSS de `login.component.ts` por debajo del presupuesto de 12 kB (había subido a 13,05 kB). Lógica, textos, `data-testid` y accesibilidad sin cambios; con movimiento reducido se desactivan las animaciones nuevas.
 - Verificado en el navegador (estado inicial, enfoque y errores de validación) y con `ng test` sobre `features/auth` (45 de 45), `ng build` de producción sin avisos. Docs: `docs/features/auth.md`.
 
+## 2026-11-21 · feat · Acción «Anular revocación» para una membresía revocada
+- **Decisión del responsable:** tanto el administrador de la empresa como el superadministrador pueden anular una revocación (el backend ahora admite `REVOKED → ACTIVE`; ver su changelog). La membresía vuelve a **Activa** con el rol que conservaba.
+- **Dónde:** menú de tres puntos de cada membresía en el detalle de usuario de la consola (`/plataforma/usuarios/:id`) y menú de acciones de la lista «Usuarios» de la empresa. Pide confirmación («¿Anular la revocación de la membresía de … en …?»). La ayuda y la leyenda dejan de decir que revocar es definitivo; la leyenda de «Anular revocación» es corta («devuelve a la persona su acceso como activa, con el rol que conservaba») y las restricciones las informa el servidor al rechazar.
+- **Errores:** si la persona ya pertenece a otra empresa o si otra persona ocupa el cupo de administrador, el servidor responde 409; el catálogo de errores ahora tiene sus mensajes (`USER_BELONGS_TO_OTHER_ORGANIZATION`, `ORG_ADMIN_ALREADY_EXISTS`, que faltaban).
+- **Pruebas:** detalle de usuario (menú de la revocada con «Anular revocación» y «Eliminar»; anular envía `ACTIVE` tras confirmar) y lista de la empresa; `ng test` 609 de 609, `build` de producción sin avisos, `lint` sin errores.
+- Docs: `docs/features/platform.md`, `docs/features/users.md`.
+
+## 2026-11-21 · fix · Consola · Usuarios: estado coherente y menú de tres puntos en el detalle
+- **Fallo:** en el detalle de un usuario revocado (`/plataforma/usuarios/:id`) la sección Identidad decía «Activo» (solo miraba si la **cuenta** está activa) mientras la tabla de Membresía decía «Revocada»; además la fila revocada no tenía ninguna acción. La lista de usuarios tenía el mismo criterio de solo cuenta.
+- **Corrección:** `personStatus` (`platform-labels.ts`) decide el estado de la persona en un solo lugar: cuenta inactiva → «Inactivo»; con membresía vigente → su estado (Activo, Suspendido, Pendiente); solo con membresías revocadas → «Revocado»; sin membresías → estado de la cuenta. Lo usan el detalle (insignia de Identidad) y la píldora de la lista.
+- **Mismo texto en toda la consola:** la tabla de Membresía usaba el rótulo femenino de la membresía («Revocada», «Activa», «Pendiente de aprobación») y la identidad el de la persona («Revocado»). Ahora ambas usan `memberStatus` (`platform-labels.ts`: Activo, Pendiente, Suspendido, Revocado), también `personStatus` y la lista. Una prueba compara el texto de la identidad con el de la fila.
+- **Acciones:** cada membresía del detalle tiene un menú de tres puntos verticales (posición fija, para que la tabla no lo recorte) con sus transiciones (Aprobar/Rechazar, Suspender/Revocar, Reactivar) y, en la revocada, **Eliminar** (`DELETE` de la membresía; la cuenta se conserva), con confirmación. Nuevo `PlatformUsersFacade.removeMembership`. Se retiran los botones en línea y sus estilos `tone-*`; `Action` pasa de `tone` a `danger`.
+- **Pruebas:** detalle (menú por fila, aprobar desde el menú con y sin confirmación, eliminar, estado Revocado/Inactivo/vigente) y lista (estado por membresía); `ng test` completo, `build` de producción y `lint` sin errores. Comprobado en el navegador con el usuario real revocado.
+- Docs: `docs/features/platform.md`.
+
+## 2026-11-21 · style · Login: se quita el borde verde de la tarjeta
+- Se elimina el anillo de 2 px (`form::before`) que rodeaba el formulario; la tarjeta conserva su borde blanco, la luz interior, las hojas apiladas y la sombra.
+
+## 2026-11-21 · style · Dona «Empresas por tipo» del resumen con el verde de la paleta
+- El segundo tipo de la dona usaba un tinte claro (`--c-chart-8`, #99E1D6); ahora usa el verde aguamarina de la paleta (`--c-chart-2`, #00B398). La lista de colores por tipo pasa a naranja, aguamarina, gris, ámbar y aguamarina claro (sin repetir el mismo verde si hay más de dos tipos). Se elimina el token `--c-chart-8`, que quedó sin uso.
+- Archivos: `features/platform/platform-dashboard.component.ts`, `styles.scss`.
+
+## 2026-11-21 · style · Camión de la animación de carga y de éxito en los colores de LOGYCA
+- La cabina del camión (pantalla de éxito tras iniciar sesión y aviso «Esto toma solo un momento») pasa del naranja oscurecido (`--c-accent`, fuera de la paleta) al verde aguamarina de la paleta (`--c-secondary`, #00B398); la carga sigue en el naranja de LOGYCA (`--c-primary`, #FC4C02), las ruedas en el gris #51534A y los bujes en blanco.
+- Archivos: `features/auth/login-success.component.ts`, `shared/ui/action-feedback-host.component.ts`.
+- Los «chulos» de la pantalla de éxito (check grande con su disco y anillo, y los tres hitos) vuelven a ser naranja (`--c-primary`); el check del aviso de acciones (eliminar, revocar) sigue verde.
+
+## 2026-11-21 · style · Login: el logo del CLI bajo el formulario, más grande y legible
+- El logo (`brand/logo-cli.svg`, vectorial) pasa de 98×64 px a 160×101 px, con la proporción real de su `viewBox` (106×67; antes se deformaba un poco). El lema «Centro Latinoamericano de Innovación en Logística» ahora se lee. Alt y `data-testid` sin cambios.
+
+## 2026-11-21 · style · Login: tarjeta con efecto 3D fijo (sin movimiento con el cursor)
+- Se quita la inclinación de la tarjeta que seguía al cursor (manejadores `onFormPointerMove/Leave` y variables `--rx/--ry`).
+- Efecto 3D sin inclinación: la tarjeta queda recta (sin `transform`), con fondo sólido en degradado, luz interior superior, dos «hojas» verdes apiladas y centradas debajo con `box-shadow` y sombra profunda; campos con sombra interior; botón «Iniciar sesión» con borde inferior que se hunde al pulsar. Entra con el `reveal` común del login.
+- Verificado en el navegador; `ng build` de producción sin avisos; `ng test` de `features/auth`.
+
 ## 2026-11-21 · style · Check de confirmación en verde y «CO₂» del logo en naranja LOGYCA
 - El check del aviso de acciones (eliminar, revocar, …) pasa del naranja del acento al verde aguamarina de la paleta (`--c-secondary`, #00B398; disco y anillo con sus tintes `--c-secondary-100`/`-300`).
-- En el logo, el «CO₂» del wordmark (rol `accent`) pasa a #FC4C02 con fondo claro y oscuro (antes verde profundo y lima); el isotipo y «LoGy» no cambian. Versión monocroma sin cambios.
-- Isotipo: la hoja, las tres barras de la carga del camión y la curva pasan al mismo naranja (#FC4C02) con fondo claro y oscuro (rol `markAccent`); el camión y la nube no cambian.
+- En el logo, el «CO₂» del wordmark pasó primero a naranja y luego, por armonía con la hoja y la curva, a verde aguamarina (ver abajo).
+- Isotipo (versión final): la hoja, las tres barras de la carga del camión, la curva bajo el camión y el «CO₂» del wordmark van en el verde aguamarina autorizado (#00B398, rol `markAccent`/`accent`); camión y nube sin cambios. El naranja queda para el resto de la marca en pantalla (titular, ruta, botón).
 - Archivos: `shared/ui/action-feedback-host.component.ts`, `shared/ui/logo.component.ts` y su spec. Docs: `docs/shared.md`.
 
 ## 2026-11-21 · refactor · LoGyCO₂ Intelligence: el componente de 967 líneas se divide en contenedor, tres secciones y un diálogo

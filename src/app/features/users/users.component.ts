@@ -52,6 +52,8 @@ interface MembershipAction {
   readonly status: MembershipTargetStatus;
   readonly label: string;
   readonly danger: boolean;
+  /** Cómo se nombra la acción en la confirmación; por defecto «<etiqueta> la membresía». */
+  readonly phrase?: string;
 }
 
 /** Transiciones válidas del backend (`_TRANSITIONS`); el servidor las vuelve a validar. */
@@ -68,7 +70,7 @@ const ACTIONS: Readonly<Record<string, readonly MembershipAction[]>> = {
     { status: 'ACTIVE', label: 'Reactivar', danger: false },
     { status: 'REVOKED', label: 'Revocar', danger: true },
   ],
-  REVOKED: [],
+  REVOKED: [{ status: 'ACTIVE', label: 'Anular revocación', danger: false, phrase: 'Anular la revocación de la membresía' }],
 };
 
 @Component({
@@ -534,8 +536,8 @@ export class UsersComponent {
   protected async changeStatus(userName: string, membership: ManagedMembership, action: MembershipAction): Promise<void> {
     this.menuFor.set(null);
     const accepted = await this.confirm.confirm({
-      title: `${action.label} membresía`,
-      message: `¿${action.label} la membresía de ${userName} en ${membership.organization.name}?`,
+      title: action.phrase ? action.label : `${action.label} membresía`,
+      message: `¿${action.phrase ?? `${action.label} la membresía`} de ${userName} en ${membership.organization.name}?`,
       confirmLabel: action.label,
       danger: action.danger,
     });

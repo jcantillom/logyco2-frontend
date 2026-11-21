@@ -26,7 +26,7 @@ describe('persistencia de sesión por pestaña', () => {
       providers: [
         provideRouter([]),
         { provide: AuthRepository, useValue: repo },
-        { provide: APP_CONFIG, useValue: { production: false, apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1', sessionPersistence: mode } },
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1', sessionPersistence: mode } },
       ],
     });
 

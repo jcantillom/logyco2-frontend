@@ -74,7 +74,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           <svg viewBox="0 0 34 22">
             <path class="streak" d="M-4 8h6M-6 13h8M-3 18h5" />
             <rect x="2" y="3" width="19" height="12" rx="2" style="fill: var(--c-primary)" />
-            <path d="M21 7h6l5 4v4H21z" style="fill: var(--c-accent)" />
+            <path d="M21 7h6l5 4v4H21z" style="fill: var(--c-secondary)" />
             <circle class="wheel" cx="9" cy="17" r="3.2" fill="#51534a" /><circle class="wheel" cx="26" cy="17" r="3.2" fill="#51534a" />
             <circle cx="9" cy="17" r="1" fill="#fff" /><circle cx="26" cy="17" r="1" fill="#fff" />
           </svg>

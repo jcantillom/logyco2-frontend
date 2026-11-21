@@ -20,7 +20,7 @@ describe('repositorios HTTP de identidad', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: APP_CONFIG, useValue: { production: false, apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: 'http://api.test', apiPrefix: '/api/v1' } },
         HttpAuthRepository, HttpOrganizationsRepository, HttpUsersRepository, HttpInvitationsRepository, HttpMembershipsRepository,
       ],
     });

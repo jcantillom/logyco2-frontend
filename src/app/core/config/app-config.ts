@@ -1,7 +1,6 @@
 import { InjectionToken } from '@angular/core';
 
 export interface AppConfig {
-  readonly production: boolean;
   /** Origen del backend FastAPI, sin barra final ni prefijo de versión. */
   readonly apiBaseUrl: string;
   /** Prefijo de versión de la API. */

@@ -67,8 +67,21 @@ describe('Usuarios y accesos: vista de la empresa', () => {
     expect(openMenu('u2')).toEqual(['Editar', 'Suspender', 'Revocar']);
   });
 
-  it('a quien ya está revocado se le ofrece «Eliminar», que pide confirmación y borra la membresía', async () => {
-    expect(openMenu('u3')).toEqual(['Editar', 'Eliminar']);
+  it('a quien ya está revocado se le ofrece «Anular revocación» y «Eliminar»; anular pide confirmación y envía ACTIVE', async () => {
+    expect(openMenu('u3')).toEqual(['Editar', 'Anular revocación', 'Eliminar']);
+    const ask = spyOn(TestBed.inject(ConfirmService), 'confirm').and.resolveTo(true);
+
+    Array.from(el().querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((b) => b.textContent!.trim() === 'Anular revocación')!.click();
+    await fixture.whenStable();
+
+    expect(ask.calls.mostRecent().args[0].message).toContain('Anular la revocación de la membresía');
+    const patch = http.expectOne(`${API}/organizations/${ORG_ENVIA.id}/memberships/m-u3`);
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.body).toEqual({ status: 'ACTIVE' });
+  });
+
+  it('eliminar a quien ya está revocado pide confirmación y borra la membresía', async () => {
+    openMenu('u3');
     const confirm = TestBed.inject(ConfirmService);
     spyOn(confirm, 'confirm').and.resolveTo(true);
 

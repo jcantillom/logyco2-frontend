@@ -43,7 +43,8 @@ __screenshots__/
 Thumbs.db
 
 # ───────────────────────── LoGyCO₂ · secretos y artefactos locales ─────────────────────────
-# El frontend no debe contener secretos: solo URLs públicas en src/environments.
+# Configuración por entorno: `.env` no se versiona; `environment.ts` lo genera scripts/generate-env.mjs.
+/src/environments/environment.ts
 .env
 .env.*
 !.env.example

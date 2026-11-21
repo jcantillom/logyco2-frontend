@@ -5,7 +5,7 @@
 > cuando el doc marque `[?]` o necesites verificar un detalle puntual.
 >
 > Marcas: **[V]** verificado en código · **[?]** no comprobado. Referencias como `ruta:línea`.
-> Línea base del análisis: 2026-11-17; revisión de coherencia con el código el 2026-11-21 (601 specs correctas).
+> Línea base del análisis: 2026-11-17; revisión de coherencia con el código el 2026-11-21 (609 specs correctas).
 
 ## Mapa de documentos
 

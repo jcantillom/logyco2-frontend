@@ -40,7 +40,8 @@ describe('PlatformUsersComponent: solicitudes pendientes y aprobación', () => {
     expect(headers).toEqual(['Usuario', 'Correo electrónico', 'Empresa a la que pertenece', 'Tipo de usuario', 'Estado']);
 
     const rows = Array.from(el().querySelectorAll('tbody tr')).map((r) => Array.from(r.querySelectorAll('th, td')).map((c) => c.textContent!.replace(/\s+/g, ' ').trim()));
-    expect(rows[0].slice(0, 5)).toEqual(['LGLuis Gómez', 'luis@x.co', 'EENVIA', 'Analista', 'Activo']); // iniciales del logo + nombre
+    expect(rows[0].slice(0, 5)).toEqual(['LGLuis Gómez', 'luis@x.co', 'EENVIA', 'Analista', 'Pendiente']); // iniciales del logo + nombre; el estado sale de su membresía
+    expect(rows[1].slice(4, 5)).toEqual(['Activo']);
   });
 
   it('el contador muestra el ícono y solo el número; el texto completo queda para lectores de pantalla y tooltip', () => {
