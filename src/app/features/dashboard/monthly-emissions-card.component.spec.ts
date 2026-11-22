@@ -87,19 +87,19 @@ describe('MonthlyEmissionsCardComponent', () => {
     expect(retried).toBeTrue();
   });
 
-  it('mide ≈ 200–220 px con la gráfica y en el estado pendiente', () => {
+  it('mide ≈ 256 px con la gráfica y en el estado pendiente', () => {
     render({ monthly: DATA, slots: SLOTS });
     el().style.width = '540px';
     fixture.detectChanges();
     const height = q('.cc')!.getBoundingClientRect().height;
 
-    expect(height).toBeGreaterThanOrEqual(200);
-    expect(height).toBeLessThanOrEqual(235);
+    expect(height).toBeGreaterThanOrEqual(250);
+    expect(height).toBeLessThanOrEqual(275);
 
     TestBed.resetTestingModule();
     render({ slots: SLOTS });
     el().style.width = '540px';
-    expect(Math.round(q('.cc')!.getBoundingClientRect().height)).toBe(210);
+    expect(Math.round(q('.cc')!.getBoundingClientRect().height)).toBe(256);
   });
 
   it('usa solo tokens: sin hexadecimales ni rgb() y solo las tintas 14/20/40/60/80 %', () => {

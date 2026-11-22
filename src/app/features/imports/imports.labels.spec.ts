@@ -1,4 +1,4 @@
-import { formatSize, pendingAction, sampleRowsShort, tripsCount, share, hasVehiclesToReview, percent, phaseLabel, sampleRows, skippedReasonLabel, vehiclesSummary } from './imports.labels';
+import { DIVIPOLA_URL, MAX_EXAMPLES, OSM_COPYRIGHT_URL, ROUTES_ATTRIBUTION, exampleText, formatSize, pendingAction, routesCount, sampleRowsShort, tripsCount, share, hasVehiclesToReview, percent, phaseLabel, sampleRows, skippedReasonLabel, vehiclesSummary } from './imports.labels';
 
 describe('imports.labels', () => {
   it('traduce las fases de la revisión y usa un texto neutro para las que no conoce', () => {
@@ -52,7 +52,7 @@ describe('imports.labels', () => {
   });
 
   it('cada código de motivo conocido tiene una acción en lenguaje llano y uno desconocido no inventa ninguna', () => {
-    expect(pendingAction('MISSING_DISTANCE_WITH_ROUTE')).toBe('Agrega la distancia en km de cada viaje.');
+    expect(pendingAction('MISSING_DISTANCE_WITH_ROUTE')).toBe('Revisa el municipio de origen y destino, o agrega la distancia en km del viaje.');
     expect(pendingAction('DISTANCE_WITHOUT_EFFICIENCY')).toBe('Agrega el rendimiento del vehículo (km por galón, litro o m³).');
     expect(pendingAction('MISSING_ENERGY_DATA')).toBe('Agrega el consumo de combustible, o la distancia y el rendimiento.');
     expect(pendingAction('MISSING_UNIT')).toBe('Indica la unidad correcta (gal, l, m3 o kWh).');
@@ -73,5 +73,25 @@ describe('imports.labels', () => {
   it('los viajes se cuentan con separador de miles y plural correcto', () => {
     expect(tripsCount(1)).toBe('1 viaje');
     expect(tripsCount(2_645_000)).toBe('2.645.000 viajes');
+  });
+
+  it('los hallazgos de las distancias por ruta tienen su acción en lenguaje llano', () => {
+    expect(pendingAction('PLACE_NOT_RECOGNIZED')).toBe('Revisa el nombre del municipio y del departamento.');
+    expect(pendingAction('SAME_PLACE')).toBe('Si el viaje fue dentro del municipio, agrega la distancia en km; si no, revisa el origen y el destino.');
+    expect(pendingAction('ROUTES_UNAVAILABLE')).toBe('No pudimos calcular algunas rutas ahora. Vuelve a subir el archivo más tarde o agrega la distancia en km.');
+    expect(pendingAction('ROUTE_LIMIT')).toBe('Había más rutas distintas de las que se calculan por carga; agrega la distancia en km a los viajes restantes.');
+  });
+
+  it('los ejemplos se rotulan «Ej.: …» y se muestran hasta 5; las rutas se cuentan en singular y plural', () => {
+    expect(exampleText('Origen: Villa Fantasma, Valle del Cauca')).toBe('Ej.: Origen: Villa Fantasma, Valle del Cauca');
+    expect(MAX_EXAMPLES).toBe(5);
+    expect(routesCount(1)).toBe('1 ruta por municipio');
+    expect(routesCount(1234)).toBe('1.234 rutas por municipio');
+  });
+
+  it('la atribución nombra a OpenStreetMap y a DANE DIVIPOLA y los enlaces son los oficiales', () => {
+    expect(ROUTES_ATTRIBUTION).toBe('Distancias por carretera © colaboradores de OpenStreetMap · DANE DIVIPOLA');
+    expect(OSM_COPYRIGHT_URL).toBe('https://www.openstreetmap.org/copyright');
+    expect(DIVIPOLA_URL).toBe('https://www.datos.gov.co/d/gdxc-w37w');
   });
 });

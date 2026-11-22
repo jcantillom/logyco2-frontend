@@ -20,11 +20,11 @@ describe('imports.mappers', () => {
   });
 
   it('toImportCounts pasa a camelCase', () => {
-    expect(toImportCounts({ total: 4, in_progress: 1, completed: 2, failed: 1, vehicles_pending: 2, rows_read: 100, rows_calculable: 80, rows_pending: 20, rows_real: 50, rows_estimated: 30, vehicles_new_pending: 3, vehicles_changed_pending: 1, period_from: '2026-01-05', period_to: '2026-03-28', distance_km: 1234.5, cargo_ton: 56.7, rows_with_distance: 90, rows_with_cargo: 80 })).toEqual({ total: 4, inProgress: 1, completed: 2, failed: 1, vehiclesPending: 2, rowsRead: 100, rowsCalculable: 80, rowsPending: 20, rowsReal: 50, rowsEstimated: 30, vehiclesNewPending: 3, vehiclesChangedPending: 1, periodFrom: '2026-01-05', periodTo: '2026-03-28', distanceKm: 1234.5, cargoTon: 56.7, rowsWithDistance: 90, rowsWithCargo: 80 });
+    expect(toImportCounts({ total: 4, in_progress: 1, completed: 2, failed: 1, vehicles_pending: 2, rows_read: 100, rows_calculable: 80, rows_pending: 20, rows_real: 50, rows_estimated: 30, vehicles_new_pending: 3, vehicles_changed_pending: 1, period_from: '2026-01-05', period_to: '2026-03-28', distance_km: 1234.5, cargo_ton: 56.7, rows_with_distance: 90, rows_with_cargo: 80, distance_from_routes_km: 321.5 })).toEqual({ total: 4, inProgress: 1, completed: 2, failed: 1, vehiclesPending: 2, rowsRead: 100, rowsCalculable: 80, rowsPending: 20, rowsReal: 50, rowsEstimated: 30, vehiclesNewPending: 3, vehiclesChangedPending: 1, periodFrom: '2026-01-05', periodTo: '2026-03-28', distanceKm: 1234.5, cargoTon: 56.7, rowsWithDistance: 90, rowsWithCargo: 80, distanceFromRoutesKm: 321.5 });
   });
 
   it('toImportCounts tolera que falten las sumas de filas (cuentan 0)', () => {
-    expect(toImportCounts({ total: 1, in_progress: 0, completed: 1, failed: 0, vehicles_pending: 0 })).toEqual(jasmine.objectContaining({ rowsRead: 0, rowsCalculable: 0, rowsPending: 0, periodFrom: null, periodTo: null, rowsReal: 0, rowsEstimated: 0, vehiclesNewPending: 0, vehiclesChangedPending: 0, distanceKm: 0, cargoTon: 0, rowsWithDistance: 0, rowsWithCargo: 0 }));
+    expect(toImportCounts({ total: 1, in_progress: 0, completed: 1, failed: 0, vehicles_pending: 0 })).toEqual(jasmine.objectContaining({ rowsRead: 0, rowsCalculable: 0, rowsPending: 0, periodFrom: null, periodTo: null, rowsReal: 0, rowsEstimated: 0, vehiclesNewPending: 0, vehiclesChangedPending: 0, distanceKm: 0, cargoTon: 0, rowsWithDistance: 0, rowsWithCargo: 0, distanceFromRoutesKm: 0 }));
   });
 
   it('un estado desconocido no se presenta como terminado bien y un formato desconocido es «no reconocido»', () => {
@@ -42,7 +42,7 @@ describe('imports.mappers', () => {
     expect(review!.columns[2]).toEqual(jasmine.objectContaining({ found: false, sourceHeader: null, filledRows: 0 }));
     expect(review!.methods).toEqual({ realConsumption: 120, estimatedConsumption: 50, pending: 30 });
     expect(review!.pendingReasons).toEqual([{ code: 'MISSING_DISTANCE_WITH_ROUTE', label: 'Hay origen y destino pero falta la distancia', rows: 20, sampleRows: [4, 9] }]);
-    expect(review!.issues[0]).toEqual({ code: 'INVALID_PLATE', severity: 'WARNING', field: 'placa', message: 'Hay placas con formato inválido.', rows: 3, sampleRows: [7, 8, 12] });
+    expect(review!.issues[0]).toEqual({ code: 'INVALID_PLATE', severity: 'WARNING', field: 'placa', message: 'Hay placas con formato inválido.', rows: 3, sampleRows: [7, 8, 12], examples: [] });
     expect(review!.vehicles).toEqual({ distinctPlates: 18, invalidPlates: 3 });
     expect(review!.trips).toEqual({ distinctTripIds: 190, repeatedTripIds: 5 });
   });
@@ -72,5 +72,21 @@ describe('imports.mappers', () => {
   it('toImportPeriod pasa a camelCase y tolera que falten las cifras (0)', () => {
     expect(toImportPeriod({ period_from: '2026-01-05', period_to: '2026-03-28', imports: 2, rows_read: 500 })).toEqual({ from: '2026-01-05', to: '2026-03-28', imports: 2, rowsRead: 500 });
     expect(toImportPeriod({ period_from: '2026-01-05', period_to: '2026-03-28' })).toEqual({ from: '2026-01-05', to: '2026-03-28', imports: 0, rowsRead: 0 });
+  });
+
+  it('toImportDetail mapea las rutas por municipio, los km por ruta y los ejemplos de los hallazgos; con una respuesta vieja usa null, 0 y []', () => {
+    const routes = { level: 'MUNICIPALITY', approximate: true, provider: 'OSRM', dataset_version: 'v1', pairs_total: 12, pairs_resolved: 10, pairs_unresolved: 2, rows_resolved: 900, rows_unresolved: 30, rows_by_unique_name: 4 };
+    const review = toImportDetail(importDetailDto({ review: reviewDto({ routes, totals: { distance_from_routes_km: 4321.5 }, issues: [{ code: 'PLACE_NOT_RECOGNIZED', severity: 'WARNING', field: null, message: 'No reconocimos algunos lugares.', rows: 5, sample_rows: [3], examples: ['Origen: Villa Fantasma, Valle del Cauca'] }] }) })).review!;
+
+    expect(review.routes).toEqual({ level: 'MUNICIPALITY', approximate: true, provider: 'OSRM', datasetVersion: 'v1', pairsTotal: 12, pairsResolved: 10, pairsUnresolved: 2, rowsResolved: 900, rowsUnresolved: 30, rowsByUniqueName: 4 });
+    expect(review.totals.distanceFromRoutesKm).toBe(4321.5);
+    expect(review.issues[0].examples).toEqual(['Origen: Villa Fantasma, Valle del Cauca']);
+
+    const old = toImportDetail(importDetailDto({ review: reviewDto() })).review!;
+
+    expect(old.routes).toBeNull();
+    expect(old.totals.distanceFromRoutesKm).toBe(0);
+    expect(old.issues.every((i) => Array.isArray(i.examples) && i.examples.length === 0)).toBeTrue();
+    expect(toImportDetail(importDetailDto({ review: reviewDto({ routes: { ...routes, rows_by_unique_name: undefined } }) })).review!.routes!.rowsByUniqueName).toBe(0);
   });
 });

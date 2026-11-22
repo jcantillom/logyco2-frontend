@@ -96,7 +96,7 @@ describe('BarChartComponent', () => {
     render(THREE);
     const svg = el().querySelector('svg')!;
 
-    expect(svg.getAttribute('height')).toBe('140');
+    expect(svg.getAttribute('height')).toBe('150');
     expect(Number(svg.getAttribute('width'))).toBeGreaterThan(0);
   });
 });

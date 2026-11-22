@@ -135,7 +135,7 @@ describe('ImportReviewDialogComponent: revisión de una carga', () => {
     const items = qa('[data-testid="reasons"] > li').map(flat);
 
     expect(items).toEqual([
-      '20 viajes Motivo MISSING_DISTANCE_WITH_ROUTE Ej.: filas 4 y 9 Qué hacer: Agrega la distancia en km de cada viaje.',
+      '20 viajes Motivo MISSING_DISTANCE_WITH_ROUTE Ej.: filas 4 y 9 Qué hacer: Revisa el municipio de origen y destino, o agrega la distancia en km del viaje.',
       '9 viajes Motivo OTRO',
       '5 viajes Motivo MISSING_UNIT Ej.: fila 2 Qué hacer: Indica la unidad correcta (gal, l, m3 o kWh).',
     ]);
@@ -318,6 +318,72 @@ describe('ImportReviewDialogComponent: revisión de una carga', () => {
 
       expect(q('app-import-vehicles-section')).toBeNull();
       expect(q('[data-testid="detected-vehicles"]')).toBeNull();
+    });
+  });
+
+  describe('distancias por ruta', () => {
+    const routes = { level: 'MUNICIPALITY', approximate: true, provider: 'OSRM', dataset_version: 'v1', pairs_total: 12, pairs_resolved: 10, pairs_unresolved: 2, rows_resolved: 1_250_000, rows_unresolved: 30, rows_by_unique_name: 4 };
+    const withRoutes = (overrides: Record<string, unknown> = {}, issues = reviewDto().issues) => importDetailDto({ review: reviewDto({ routes: { ...routes, ...overrides }, totals: { distance_from_routes_km: 5000 }, issues }) });
+
+    it('con rutas dice cuántas rutas por municipio (aproximadas), los viajes con distancia por ruta y sin ruta, y los reconocidos por nombre único', () => {
+      open(withRoutes());
+
+      expect(text('[data-testid="review-routes"]')).toBe('Distancias por ruta: 10 rutas por municipio (aproximadas)');
+      expect(text('[data-testid="review-routes-rows"]')).toBe('1.250.000 viajes con distancia por ruta · 30 sin ruta');
+      expect(text('[data-testid="review-routes-unique"]')).toBe('4 viajes se reconocieron por el nombre único del municipio');
+      expect(q('[data-testid="review-verdict"] [data-testid="review-routes"]')).not.toBeNull();
+    });
+
+    it('omite la segunda cifra si todas tienen ruta y la línea del nombre único si es 0; singular con una ruta', () => {
+      open(withRoutes({ rows_unresolved: 0, rows_by_unique_name: 0, pairs_resolved: 1, rows_resolved: 1 }));
+
+      expect(text('[data-testid="review-routes"]')).toBe('Distancias por ruta: 1 ruta por municipio (aproximadas)');
+      expect(text('[data-testid="review-routes-rows"]')).toBe('1 viaje con distancia por ruta');
+      expect(q('[data-testid="review-routes-unique"]')).toBeNull();
+    });
+
+    it('con rutas aparece la atribución al pie con los dos enlaces en pestaña nueva y rel seguro', () => {
+      open(withRoutes());
+      const links = qa('[data-testid="review-attribution"] a');
+
+      expect(text('[data-testid="review-attribution"]')).toBe('Distancias por carretera © colaboradores de OpenStreetMap (ODbL) · Municipios: DANE, DIVIPOLA (CC BY-SA 4.0)');
+      expect(links.map((l) => l.getAttribute('href'))).toEqual(['https://www.openstreetmap.org/copyright', 'https://www.datos.gov.co/d/gdxc-w37w']);
+      expect(links.every((l) => l.getAttribute('target') === '_blank' && l.getAttribute('rel') === 'noopener noreferrer')).toBeTrue();
+    });
+
+    it('sin rutas no hay líneas de rutas ni atribución', () => {
+      open();
+
+      expect(q('[data-testid="review-routes"]')).toBeNull();
+      expect(q('[data-testid="review-routes-rows"]')).toBeNull();
+      expect(q('[data-testid="review-attribution"]')).toBeNull();
+    });
+
+    it('un lugar no reconocido aparece en «Qué hacer» con su acción y hasta 5 ejemplos, sin repetir texto técnico', () => {
+      const examples = ['Origen: A, X', 'Destino: B, X', 'Origen: C, Y', 'Origen: D, Y', 'Origen: E, Z', 'Origen: F, Z', 'Origen: G, Z'];
+      open(withRoutes({}, [{ code: 'PLACE_NOT_RECOGNIZED', severity: 'WARNING', field: null, message: 'No reconocimos algunos lugares.', rows: 7, sample_rows: [3], examples }]));
+      const todo = flat(q('[data-testid="review-todo"]')!);
+
+      expect(todo).toContain('No reconocimos algunos lugares.');
+      expect(todo).toContain('Qué hacer: Revisa el nombre del municipio y del departamento.');
+      expect(qa('[data-testid="todo-examples"] li').map((l) => l.textContent)).toEqual(['Ej.: Origen: A, X', 'Ej.: Destino: B, X', 'Ej.: Origen: C, Y', 'Ej.: Origen: D, Y', 'Ej.: Origen: E, Z']);
+    });
+
+    it('las rutas no disponibles y el tope de rutas también traen su acción', () => {
+      open(withRoutes({}, [
+        { code: 'ROUTES_UNAVAILABLE', severity: 'WARNING', field: null, message: 'El motor de rutas no respondió.', rows: 40, sample_rows: [] },
+        { code: 'ROUTE_LIMIT', severity: 'INFO', field: null, message: 'Se alcanzó el tope de rutas.', rows: 10, sample_rows: [] },
+      ]));
+      const todo = flat(q('[data-testid="review-todo"]')!);
+
+      expect(todo).toContain('No pudimos calcular algunas rutas ahora. Vuelve a subir el archivo más tarde o agrega la distancia en km.');
+      expect(todo).toContain('Había más rutas distintas de las que se calculan por carga; agrega la distancia en km a los viajes restantes.');
+    });
+
+    it('los hallazgos siguen en «Avisos del archivo» con el texto del servidor', () => {
+      open(withRoutes({}, [{ code: 'PLACE_NOT_RECOGNIZED', severity: 'WARNING', field: null, message: 'No reconocimos algunos lugares.', rows: 7, sample_rows: [] }]));
+
+      expect(text('[data-testid="issues"]')).toContain('No reconocimos algunos lugares.');
     });
   });
 });

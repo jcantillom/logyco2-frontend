@@ -5,6 +5,7 @@ import { ImportCounts } from '../../domain/models/imports';
 import { ACCENT_CARD_STYLES } from '../../shared/ui/accent-card.styles';
 import { HEADER_CHIP_STYLES } from '../../shared/ui/icon-chip.styles';
 import { createRotation } from '../../shared/ui/rotation';
+import { ROUTES_ATTRIBUTION } from '../imports/imports.labels';
 import { fuelResults, totalsView } from './result.view';
 
 const PENDING = 'Se activa al calcular tu huella';
@@ -80,7 +81,7 @@ const BOX = 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9';
     `,
   ],
   template: `
-    <section class="rc acard" aria-labelledby="rc-title" data-testid="period-result">
+    <section class="rc acard" aria-labelledby="rc-title" [attr.title]="attribution()" [attr.aria-describedby]="totals().distance.extra ? 'rc-routes' : null" data-testid="period-result">
       <header class="head hdr">
         <span class="ico chip" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="leafIcon" /></svg></span>
         <div class="ht">
@@ -135,6 +136,7 @@ const BOX = 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9';
                     <dd>
                       <span class="row">@if (totals().distance.value; as v) { <b class="v" data-testid="result-distance-value">{{ v }}</b><span class="unit">{{ totals().distance.unit }}</span> } @else { <b class="v none" data-testid="result-distance-value">—</b> }</span>
                       @if (totals().distance.note) { <span class="note" data-testid="result-distance-note">{{ totals().distance.note }}</span> }
+                      @if (totals().distance.extra; as extra) { <span class="sr-only" id="rc-routes" data-testid="result-distance-routes">{{ extra }}</span> }
                     </dd>
                   </span>
                 </div>
@@ -179,6 +181,15 @@ export class ResultCardComponent {
   protected readonly rotation = createRotation({ count: () => this.items().length, active: () => true });
   protected readonly current = computed(() => this.items()[this.rotation.index() % Math.max(1, this.items().length)] ?? null);
   protected readonly totals = computed(() => totalsView(this.counts()));
+  /**
+   * Con distancias por ruta, «de ellos N km calculados por ruta (aprox.)» y la atribución de los datos van en el `title` de la tarjeta y en su descripción
+   * accesible (`aria-describedby`): una línea visible más haría crecer la tarjeta por encima de ≈ 215 px.
+   */
+  protected readonly attribution = computed(() => {
+    const extra = this.totals().distance.extra;
+
+    return extra ? `${extra}. ${ROUTES_ATTRIBUTION}` : null;
+  });
 
   /** Nombre corto para las píldoras: sin la aclaración entre paréntesis. */
   protected shortName(name: string): string {

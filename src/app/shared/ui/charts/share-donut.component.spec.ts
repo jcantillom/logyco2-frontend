@@ -66,10 +66,10 @@ describe('ShareDonutComponent', () => {
     expect(el().scrollWidth).toBeLessThanOrEqual(el().clientWidth + 1);
   });
 
-  it('el diámetro es de ≈ 112 px', () => {
+  it('el diámetro es de ≈ 150 px', () => {
     render();
 
-    expect(el().querySelector('svg')!.getBoundingClientRect().width).toBe(112);
+    expect(el().querySelector('svg')!.getBoundingClientRect().width).toBe(150);
   });
 
   it('usa solo tokens de marca: sin hexadecimales ni rgb() y solo las tintas 14/20/40/60/80 %', () => {

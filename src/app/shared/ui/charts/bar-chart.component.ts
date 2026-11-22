@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRe
 import { BarBox, BarDatum, barLayout, formatTick } from './bar-chart';
 
 /** Alto fijo del SVG (unidades = píxeles: el ancho se mide del contenedor y el texto no se estira). */
-export const BAR_CHART_HEIGHT = 140;
+export const BAR_CHART_HEIGHT = 150;
 const DEFAULT_WIDTH = 560;
 const CHAR = 5.4;
 

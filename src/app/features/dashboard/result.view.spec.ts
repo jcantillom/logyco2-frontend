@@ -4,7 +4,7 @@ import { formatKg, formatTons, fuelResults, totalsView } from './result.view';
 
 const counts = (overrides: Partial<ImportCounts> = {}): ImportCounts => ({
   total: 1, inProgress: 0, completed: 1, failed: 0, vehiclesPending: 0, rowsRead: 100, rowsCalculable: 80, rowsPending: 20, rowsReal: 50, rowsEstimated: 30, vehiclesNewPending: 0, vehiclesChangedPending: 0,
-  periodFrom: null, periodTo: null, distanceKm: 0, cargoTon: 0, rowsWithDistance: 0, rowsWithCargo: 0, ...overrides,
+  periodFrom: null, periodTo: null, distanceKm: 0, cargoTon: 0, rowsWithDistance: 0, rowsWithCargo: 0, distanceFromRoutesKm: 0, ...overrides,
 });
 
 describe('resultado del periodo (lógica pura)', () => {
@@ -46,15 +46,15 @@ describe('resultado del periodo (lógica pura)', () => {
     it('con datos: distancia al entero en km y carga en t, y la cobertura real en viajes', () => {
       const view = totalsView(counts({ distanceKm: 1_234_567.4, cargoTon: 48.26, rowsWithDistance: 3_300_000, rowsWithCargo: 1 }));
 
-      expect(view.distance).toEqual({ value: '1.234.567', unit: 'km', note: 'en 3.300.000 viajes con distancia' });
-      expect(view.cargo).toEqual({ value: '48,3', unit: 't', note: 'en 1 viaje con carga' });
+      expect(view.distance).toEqual({ value: '1.234.567', unit: 'km', note: 'en 3.300.000 viajes con distancia', extra: null });
+      expect(view.cargo).toEqual({ value: '48,3', unit: 't', note: 'en 1 viaje con carga', extra: null });
     });
 
     it('sin cargas completadas: «—» y «Sube un archivo para ver…»', () => {
       const view = totalsView(counts({ rowsRead: 0 }));
 
-      expect(view.distance).toEqual({ value: null, unit: 'km', note: 'Sube un archivo para ver la distancia total' });
-      expect(view.cargo).toEqual({ value: null, unit: 't', note: 'Sube un archivo para ver la carga transportada' });
+      expect(view.distance).toEqual({ value: null, unit: 'km', note: 'Sube un archivo para ver la distancia total', extra: null });
+      expect(view.cargo).toEqual({ value: null, unit: 't', note: 'Sube un archivo para ver la carga transportada', extra: null });
     });
 
     it('con cargas pero sin ese dato en ningún viaje no inventa un 0: «Ningún viaje trae…»', () => {
@@ -66,7 +66,15 @@ describe('resultado del periodo (lógica pura)', () => {
     });
 
     it('sin counts (sin permiso) solo «—» y sin nota', () => {
-      expect(totalsView(null)).toEqual({ distance: { value: null, unit: 'km', note: '' }, cargo: { value: null, unit: 't', note: '' } });
+      expect(totalsView(null)).toEqual({ distance: { value: null, unit: 'km', note: '', extra: null }, cargo: { value: null, unit: 't', note: '', extra: null } });
+    });
+
+    it('con distancias por ruta añade «de ellos N km calculados por ruta (aprox.)»; sin ellas, no', () => {
+      const view = totalsView(counts({ distanceKm: 1_234_567, rowsWithDistance: 90, distanceFromRoutesKm: 120_000.4 }));
+
+      expect(view.distance.extra).toBe('de ellos 120.000 km calculados por ruta (aprox.)');
+      expect(view.cargo.extra).toBeNull();
+      expect(totalsView(counts({ distanceKm: 10, rowsWithDistance: 1 })).distance.extra).toBeNull();
     });
   });
 });

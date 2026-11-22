@@ -1,7 +1,7 @@
-/** Estilos comunes de las tarjetas de gráficas del Resumen: compactas (≈ 200–220 px), cabecera con chip de 34 px, título de 1 rem y apoyo en una línea. */
+/** Estilos comunes de las tarjetas de gráficas del Resumen: medianas (≈ 256 px, caben con el resto del Resumen sin scroll) para que se vea bien la gráfica, cabecera con chip de 34 px, título de 1 rem y apoyo en una línea. */
 export const CHART_CARD_STYLES = `
       :host { display: block; min-width: 0; }
-      .cc { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 210px; padding: 12px 16px; border: 1px solid var(--c-bd); border-radius: 18px; background: var(--c-sf); box-shadow: var(--shadow); }
+      .cc { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 256px; padding: 12px 16px; border: 1px solid var(--c-bd); border-radius: 18px; background: var(--c-sf); box-shadow: var(--shadow); }
       .cc .hdr { display: flex; align-items: center; gap: 10px; min-width: 0; }
       .cc .hdr .ico.chip { width: 34px; height: 34px; border-radius: 11px; }
       .cc .hdr .ico.chip svg { width: 18px; height: 18px; }
@@ -13,13 +13,13 @@ export const CHART_CARD_STYLES = `
       /* Marco vacío y neutro del gráfico (estado pendiente / sin cálculo en el periodo): decorativo, sin datos ni cifras; solo el texto de estado es accesible. */
       .cc .note { margin: 0; font-size: 0.82rem; color: var(--c-text2); }
       .cc .frame { display: flex; flex-direction: column; gap: 6px; }
-      .cc .plot { position: relative; height: 88px; margin-left: 4px; border-bottom: 1px solid var(--c-bd); }
+      .cc .plot { position: relative; height: 110px; margin-left: 4px; border-bottom: 1px solid var(--c-bd); }
       .cc .plot i { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--c-bd); opacity: 0.8; }
       .cc .slots { position: absolute; inset: 0; display: flex; }
       .cc .slots span { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.8rem; color: var(--c-mute2); }
       .cc .months { display: flex; justify-content: space-between; gap: 4px; margin-left: 4px; font-size: 0.68rem; color: var(--c-mu); min-height: 12px; }
       .cc .months.all { justify-content: space-around; }
-      .cc .ring { flex: none; width: 112px; height: 112px; }
+      .cc .ring { flex: none; width: 150px; height: 150px; }
       .cc .ring .track { fill: none; stroke: var(--c-s3); stroke-width: 16; }
       .cc .ring .edge { fill: none; stroke: var(--c-bd); stroke-width: 1; stroke-dasharray: 3 3; }
       .cc .ring .dash { text-anchor: middle; fill: var(--c-mute2); font-size: 16px; font-weight: 800; }

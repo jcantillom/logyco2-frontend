@@ -103,7 +103,7 @@ export function formatSize(bytes: number): string {
 
 /** Acción concreta, en lenguaje llano, para cada motivo por el que un viaje queda pendiente; el motivo mismo lo redacta el servidor. */
 const PENDING_ACTIONS: Readonly<Record<string, string>> = {
-  MISSING_DISTANCE_WITH_ROUTE: 'Agrega la distancia en km de cada viaje.',
+  MISSING_DISTANCE_WITH_ROUTE: 'Revisa el municipio de origen y destino, o agrega la distancia en km del viaje.',
   DISTANCE_WITHOUT_EFFICIENCY: 'Agrega el rendimiento del vehículo (km por galón, litro o m³).',
   MISSING_ENERGY_DATA: 'Agrega el consumo de combustible, o la distancia y el rendimiento.',
   MISSING_UNIT: 'Indica la unidad correcta (gal, l, m3 o kWh).',
@@ -111,7 +111,23 @@ const PENDING_ACTIONS: Readonly<Record<string, string>> = {
   ELECTRIC_NEEDS_KWH: 'Registra el consumo eléctrico en kWh.',
   NO_EMISSION_FACTOR: 'Este combustible aún no tiene factor de emisión verificado: no se puede calcular por ahora.',
   INVALID_VALUES: 'Corrige los valores que no son números o están fuera de rango.',
+  // Hallazgos (no motivos pendientes) del cálculo de distancias por ruta.
+  PLACE_NOT_RECOGNIZED: 'Revisa el nombre del municipio y del departamento.',
+  SAME_PLACE: 'Si el viaje fue dentro del municipio, agrega la distancia en km; si no, revisa el origen y el destino.',
+  ROUTES_UNAVAILABLE: 'No pudimos calcular algunas rutas ahora. Vuelve a subir el archivo más tarde o agrega la distancia en km.',
+  ROUTE_LIMIT: 'Había más rutas distintas de las que se calculan por carga; agrega la distancia en km a los viajes restantes.',
 };
+
+/** Cuántos ejemplos de un hallazgo se muestran bajo su motivo. */
+export const MAX_EXAMPLES = 5;
+
+/** «Ej.: Origen: Villa Fantasma, Valle del Cauca». */
+export const exampleText = (example: string): string => `Ej.: ${example}`;
+
+/** Atribución obligatoria de los datos de rutas (OpenStreetMap, ODbL) y de municipios (DANE, DIVIPOLA, CC BY-SA 4.0). */
+export const OSM_COPYRIGHT_URL = 'https://www.openstreetmap.org/copyright';
+export const DIVIPOLA_URL = 'https://www.datos.gov.co/d/gdxc-w37w';
+export const ROUTES_ATTRIBUTION = 'Distancias por carretera © colaboradores de OpenStreetMap · DANE DIVIPOLA';
 
 /** Qué hacer para resolver un motivo pendiente; `null` si el cliente no conoce el código (no se inventa una acción). */
 export const pendingAction = (code: string): string | null => PENDING_ACTIONS[code] ?? null;
@@ -127,3 +143,6 @@ export function sampleRowsShort(rows: readonly number[]): string {
 
 /** «1 viaje» / «2.645.000 viajes». */
 export const tripsCount = (value: number): string => `${formatCount(value)} ${value === 1 ? 'viaje' : 'viajes'}`;
+
+/** «12 rutas por municipio» / «1 ruta por municipio». */
+export const routesCount = (pairs: number): string => `${formatCount(pairs)} ${pairs === 1 ? 'ruta' : 'rutas'} por municipio`;

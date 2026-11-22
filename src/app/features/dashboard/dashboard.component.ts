@@ -40,7 +40,7 @@ import { ImportsOverviewFacade } from './imports-overview.facade';
       .row.b { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       .row.c { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); } .row.c.single { grid-template-columns: minmax(0, 1fr); }
       .team { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-      .team li { display: flex; align-items: center; gap: 12px; padding: 8px 4px; border-bottom: 1px solid var(--c-bd); } 
+      .team li { display: flex; align-items: center; gap: 12px; padding: 4px 4px; border-bottom: 1px solid var(--c-bd); } 
       .team .av { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--c-ok-soft); color: var(--c-accent); font-weight: 700; font-size: 0.76rem; }
       .team .who { min-width: 0; flex: 1; } .team .who strong { display: block; color: var(--c-head); font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .team .who small { display: block; color: var(--c-mu); font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .team .rl { flex: none; font-size: 0.74rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--c-s3); color: var(--c-text2); }

@@ -20,6 +20,8 @@ export interface TotalView {
   readonly value: string | null;
   readonly unit: string;
   readonly note: string;
+  /** Segunda línea muy discreta (solo en la distancia, con rutas): «de ellos 120.000 km calculados por ruta (aprox.)». */
+  readonly extra: string | null;
 }
 
 export interface TotalsView {
@@ -48,21 +50,22 @@ const trips = (count: number): string => `${WHOLE.format(count)} ${count === 1 ?
  * terminadas («—» y «Sube un archivo…»); con cargas pero sin ese dato en ningún viaje («—» y «Ningún viaje trae…»); sin `counts` (sin permiso) solo «—».
  */
 export function totalsView(counts: ImportCounts | null): TotalsView {
-  const metric = (value: string, unit: string, withData: number, noun: string, missing: string, upload: string): TotalView => {
-    if (!counts) return { value: null, unit, note: '' };
+  const metric = (value: string, unit: string, withData: number, noun: string, missing: string, upload: string, extra: string | null = null): TotalView => {
+    if (!counts) return { value: null, unit, note: '', extra: null };
 
-    if (counts.rowsRead === 0) return { value: null, unit, note: upload };
+    if (counts.rowsRead === 0) return { value: null, unit, note: upload, extra: null };
 
-    if (withData === 0) return { value: null, unit, note: missing };
+    if (withData === 0) return { value: null, unit, note: missing, extra: null };
 
-    return { value, unit, note: `en ${trips(withData)} con ${noun}` };
+    return { value, unit, note: `en ${trips(withData)} con ${noun}`, extra };
   };
 
   const km = formatKg(counts?.distanceKm ?? 0);
+  const routeKm = counts?.distanceFromRoutesKm ?? 0;
   const tons = formatTons(counts?.cargoTon ?? 0);
 
   return {
-    distance: metric(km, 'km', counts?.rowsWithDistance ?? 0, 'distancia', 'Ningún viaje trae distancia', 'Sube un archivo para ver la distancia total'),
+    distance: metric(km, 'km', counts?.rowsWithDistance ?? 0, 'distancia', 'Ningún viaje trae distancia', 'Sube un archivo para ver la distancia total', routeKm > 0 ? `de ellos ${formatKg(routeKm)} km calculados por ruta (aprox.)` : null),
     cargo: metric(tons, 't', counts?.rowsWithCargo ?? 0, 'carga', 'Ningún viaje trae carga', 'Sube un archivo para ver la carga transportada'),
   };
 }

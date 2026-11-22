@@ -43,7 +43,7 @@ const BARS = 'M5 20V11M12 20V4M19 20v-6M3 20h18';
               </div>
             }
           }
-          @default { <span class="skeleton" style="height: 120px" role="status" aria-busy="true" data-testid="chart-skeleton"><span class="sr-only">Cargando…</span></span> }
+          @default { <span class="skeleton" style="height: 150px" role="status" aria-busy="true" data-testid="chart-skeleton"><span class="sr-only">Cargando…</span></span> }
         }
       </div>
     </section>

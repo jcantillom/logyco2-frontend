@@ -47,6 +47,8 @@ export interface ImportCounts {
   readonly cargoTon: number;
   readonly rowsWithDistance: number;
   readonly rowsWithCargo: number;
+  /** De `distanceKm`, los km calculados por ruta (aproximados); 0 si no hubo. */
+  readonly distanceFromRoutesKm: number;
 }
 
 /** Un periodo distinto de las cargas terminadas: del primer al último viaje, con cuántas cargas lo traen y cuántas filas se leyeron. */
@@ -100,6 +102,23 @@ export interface ReviewIssue {
   readonly message: string;
   readonly rows: number;
   readonly sampleRows: readonly number[];
+  /** Hasta 10 textos de ejemplo (p. ej. «Origen: Villa Fantasma, Valle del Cauca»); vacío salvo en algunos hallazgos. */
+  readonly examples: readonly string[];
+}
+
+/** Distancias por ruta entre municipios (OSRM sobre OpenStreetMap), aproximadas; `null` en la revisión si no se usaron. */
+export interface ImportRoutes {
+  readonly level: string;
+  readonly approximate: boolean;
+  readonly provider: string;
+  readonly datasetVersion: string;
+  readonly pairsTotal: number;
+  readonly pairsResolved: number;
+  readonly pairsUnresolved: number;
+  readonly rowsResolved: number;
+  readonly rowsUnresolved: number;
+  /** Viajes cuyo municipio se reconoció por su nombre único (sin el departamento). */
+  readonly rowsByUniqueName: number;
 }
 
 export interface ImportReview {
@@ -113,6 +132,10 @@ export interface ImportReview {
   readonly trips: { readonly distinctTripIds: number; readonly repeatedTripIds: number };
   /** Fechas del primer y del último viaje de esta carga; `null` si el archivo no las trae. */
   readonly period: { readonly from: string; readonly to: string } | null;
+  /** Rutas por municipio usadas para calcular distancias; `null` si no se usaron (o la respuesta no las trae). */
+  readonly routes: ImportRoutes | null;
+  /** Kilómetros de esta carga que salen de las rutas (0 si no hubo). */
+  readonly totals: { readonly distanceFromRoutesKm: number };
 }
 
 export interface ImportDetail extends ImportSummary {

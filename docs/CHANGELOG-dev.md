@@ -3,6 +3,14 @@
 Bitácora de avance. Entrada más reciente arriba. Formato por entrada: fecha · tipo · resumen ·
 archivos de código · docs actualizados.
 
+## 2026-11-22 · style · Tarjetas de gráficas más altas, sin scroll de página
+- Pedido del responsable: «aumenta de tamano vertical las card de Emisiones de CO₂ por mes y Emisiones por tipo de combustible para que se vean mejor los graficos y la dona». Altura mínima de 210 a 256 px (`CHART_CARD_STYLES`), barras de 140 a 150 px (`BAR_CHART_HEIGHT`), dona de 112 a 150 px, marco vacío y esqueletos a juego. Después, «ajusta para que evites el scroll»: se probó 340 px y la página pasaba 104 px de la ventana; se dejó en 256 px y las filas de «Usuarios» pasan de 8 a 4 px de relleno vertical. Medido en navegador (ventana de 1707 × 1144): documento 1144 = ventana, sin scroll. Pruebas ajustadas a las nuevas medidas; docs: `features/dashboard.md`.
+
+## 2026-11-22 · feat · Distancias por ruta en la revisión y en el Resumen (T2 de route-distances)
+- Pedido del responsable: calcular la distancia por carretera entre origen y destino cuando el Excel trae municipios pero no km (OSRM/OpenStreetMap), guardarla y usarla para el CO₂. Backend T1 listo; el frontend consume el contrato aditivo (`review.routes`, `review.totals.distance_from_routes_km`, `issue.examples`, `counts.distance_from_routes_km`; tolerante a respuestas viejas).
+- Diálogo de revisión: líneas de «Distancias por ruta» bajo el veredicto, atribución (OpenStreetMap ODbL y DANE DIVIPOLA CC BY-SA 4.0) solo con rutas, y «Qué hacer» con `PLACE_NOT_RECOGNIZED` (hasta 5 ejemplos), `ROUTES_UNAVAILABLE`, `SAME_PLACE` (mismo origen y destino) y `ROUTE_LIMIT`; `MISSING_DISTANCE_WITH_ROUTE` con texto nuevo. «Resultado del periodo»: los km por ruta y la atribución van en el título y la descripción accesible (sin crecer la tarjeta).
+- **Docs:** `features/imports.md`, `features/dashboard.md`, `tasks/route-distances.md` (T2, L3). Verificación: `ng test` 1354 correctos, build sin advertencias, `ng lint` 0 errores.
+
 ## 2026-11-22 · design · Gráficas del Resumen: marco vacío visible en el estado pendiente (T2t de imports-queue)
 - Pedido del responsable: «no veo la dona en la card de Emisiones por tipo de combustible». Mientras no exista el cálculo (y en «No hay cálculo para este periodo») las dos tarjetas dibujan un marco vacío y neutro, sin datos ni cifras: anillo tenue con «—» y «Sin cálculo» y leyenda de esqueleto estático en la dona; línea base, rejilla discontinua y etiquetas de mes del periodo en las barras. Decorativo (`aria-hidden`); el texto de estado es el canal accesible. Altura de ≈ 210 px sin cambios.
 - **Docs:** `features/dashboard.md`, `tasks/imports-queue.md` (L21). Verificación: `ng test` 1339 correctos, build sin advertencias, `ng lint` 0 errores.

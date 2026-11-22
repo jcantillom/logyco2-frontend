@@ -17,8 +17,8 @@ const PCT = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFr
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
-      :host { display: flex; align-items: center; gap: 18px; min-width: 0; }
-      svg { flex: none; width: 112px; height: 112px; }
+      :host { display: flex; align-items: center; gap: 24px; min-width: 0; }
+      svg { flex: none; width: 150px; height: 150px; }
       .slice { fill: none; stroke-width: 16; }
       .total { text-anchor: middle; fill: var(--c-head); font-size: 15px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
       .unit { text-anchor: middle; fill: var(--c-text2); font-size: 8px; font-weight: 600; }

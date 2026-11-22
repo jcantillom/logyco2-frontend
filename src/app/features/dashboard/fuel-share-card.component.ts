@@ -47,7 +47,7 @@ const DROP = 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z';
               </div>
             }
           }
-          @default { <span class="skeleton" style="height: 112px" role="status" aria-busy="true" data-testid="chart-skeleton"><span class="sr-only">Cargando…</span></span> }
+          @default { <span class="skeleton" style="height: 150px" role="status" aria-busy="true" data-testid="chart-skeleton"><span class="sr-only">Cargando…</span></span> }
         }
       </div>
     </section>

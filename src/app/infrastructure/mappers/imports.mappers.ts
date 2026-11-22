@@ -8,6 +8,7 @@ import {
   ImportFormat,
   ImportPeriod,
   ImportReview,
+  ImportRoutes,
   ImportStatus,
   ImportSummary,
   IssueSeverity,
@@ -25,6 +26,7 @@ import {
   ImportPeriodDto,
   ImportDetailDto,
   ImportReviewDto,
+  ImportRoutesDto,
   ImportSummaryDto,
   PendingReasonDto,
   ReviewIssueDto,
@@ -104,6 +106,20 @@ const toIssue = (dto: ReviewIssueDto): ReviewIssue => ({
   message: dto.message,
   rows: dto.rows,
   sampleRows: dto.sample_rows,
+  examples: dto.examples ?? [],
+});
+
+const toRoutes = (dto: ImportRoutesDto): ImportRoutes => ({
+  level: dto.level,
+  approximate: dto.approximate,
+  provider: dto.provider,
+  datasetVersion: dto.dataset_version,
+  pairsTotal: dto.pairs_total,
+  pairsResolved: dto.pairs_resolved,
+  pairsUnresolved: dto.pairs_unresolved,
+  rowsResolved: dto.rows_resolved,
+  rowsUnresolved: dto.rows_unresolved,
+  rowsByUniqueName: dto.rows_by_unique_name ?? 0,
 });
 
 const toReview = (dto: ImportReviewDto): ImportReview => ({
@@ -116,6 +132,8 @@ const toReview = (dto: ImportReviewDto): ImportReview => ({
   vehicles: { distinctPlates: dto.vehicles.distinct_plates, invalidPlates: dto.vehicles.invalid_plates },
   trips: { distinctTripIds: dto.trips.distinct_trip_ids, repeatedTripIds: dto.trips.repeated_trip_ids },
   period: dto.period?.from && dto.period.to ? { from: dto.period.from, to: dto.period.to } : null,
+  routes: dto.routes ? toRoutes(dto.routes) : null,
+  totals: { distanceFromRoutesKm: dto.totals?.distance_from_routes_km ?? 0 },
 });
 
 export const toImportDetail = (dto: ImportDetailDto): ImportDetail => ({ ...toImportSummary(dto), review: dto.review ? toReview(dto.review) : null });
@@ -141,6 +159,7 @@ export const toImportCounts = (dto: ImportCountsDto): ImportCounts => ({
   cargoTon: dto.cargo_ton ?? 0,
   rowsWithDistance: dto.rows_with_distance ?? 0,
   rowsWithCargo: dto.rows_with_cargo ?? 0,
+  distanceFromRoutesKm: dto.distance_from_routes_km ?? 0,
 });
 
 export const toImportCreated = (dto: ImportCreatedDto): ImportCreated => ({ id: dto.id, status: importStatus(dto.status), duplicate: dto.duplicate });

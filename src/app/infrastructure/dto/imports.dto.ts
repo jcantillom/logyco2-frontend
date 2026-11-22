@@ -49,6 +49,7 @@ export interface ImportCountsDto {
   readonly cargo_ton?: number;
   readonly rows_with_distance?: number;
   readonly rows_with_cargo?: number;
+  readonly distance_from_routes_km?: number;
 }
 
 export interface ImportPeriodDto {
@@ -81,6 +82,20 @@ export interface ReviewIssueDto {
   readonly message: string;
   readonly rows: number;
   readonly sample_rows: readonly number[];
+  readonly examples?: readonly string[];
+}
+
+export interface ImportRoutesDto {
+  readonly level: string;
+  readonly approximate: boolean;
+  readonly provider: string;
+  readonly dataset_version: string;
+  readonly pairs_total: number;
+  readonly pairs_resolved: number;
+  readonly pairs_unresolved: number;
+  readonly rows_resolved: number;
+  readonly rows_unresolved: number;
+  readonly rows_by_unique_name?: number;
 }
 
 export interface ImportReviewDto {
@@ -93,6 +108,8 @@ export interface ImportReviewDto {
   readonly vehicles: { readonly distinct_plates: number; readonly invalid_plates: number };
   readonly trips: { readonly distinct_trip_ids: number; readonly repeated_trip_ids: number };
   readonly period?: { readonly from: string | null; readonly to: string | null } | null;
+  readonly routes?: ImportRoutesDto | null;
+  readonly totals?: { readonly distance_from_routes_km?: number } | null;
 }
 
 export interface ImportDetailDto extends ImportSummaryDto {

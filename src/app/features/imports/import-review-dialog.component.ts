@@ -2,14 +2,14 @@ import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { AppError } from '../../core/errors/app-error';
 import { toAppError } from '../../core/errors/http-error-mapper';
-import { ImportColumn, ImportReview, ImportSummary, PendingReason, ReviewIssue } from '../../domain/models/imports';
+import { ImportColumn, ImportReview, ImportRoutes, ImportSummary, ReviewIssue } from '../../domain/models/imports';
 import { periodKind, periodRangeLabel } from '../../domain/models/period';
 import { CloseOnBackdropDirective } from '../../shared/ui/close-on-backdrop.directive';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import { ExcelIconComponent } from '../../shared/ui/excel-icon.component';
 import { TruckProgressComponent } from '../../shared/ui/truck-progress.component';
 import { ImportsFacade } from './imports.facade';
-import { FORMAT_LABELS, REQUIREMENT_LABELS, SEVERITY_LABELS, formatCount, formatSize, isRunning, pendingAction, percent, phaseLabel, sampleRowsShort, share, tripsCount } from './imports.labels';
+import { DIVIPOLA_URL, FORMAT_LABELS, MAX_EXAMPLES, OSM_COPYRIGHT_URL, exampleText, routesCount, REQUIREMENT_LABELS, SEVERITY_LABELS, formatCount, formatSize, isRunning, pendingAction, percent, phaseLabel, sampleRowsShort, share, tripsCount } from './imports.labels';
 
 /** Trazos de los íconos (viewBox 24, sin relleno). */
 const ICONS = {
@@ -18,6 +18,15 @@ const ICONS = {
   pending: 'M12 4l9 16H3zM12 10v4M12 17.5v.01',
   close: 'M6 6l12 12M18 6L6 18',
 } as const;
+
+/** Un renglón de «Qué hacer»: un motivo pendiente o un hallazgo con acción, con sus ejemplos. */
+interface TodoItem {
+  readonly code: string;
+  readonly label: string;
+  readonly rows: number;
+  readonly sampleRows: readonly number[];
+  readonly examples: readonly string[];
+}
 
 /** Cuántos motivos pendientes se ven de entrada; el resto va plegado. */
 const VISIBLE_REASONS = 3;
@@ -92,6 +101,12 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       ul.items .txt { flex: 1 1 auto; min-width: 0; color: var(--c-text); }
       ul.items .txt small { display: block; margin-top: 2px; color: var(--c-mu); font-size: 0.9rem; }
       .muted { margin: 0; color: var(--c-mu); font-size: 0.9rem; }
+      .verdict p.period.small { margin-top: 2px; font-size: 0.8rem; }
+      .todo .ex { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 0.82rem; color: var(--c-mu); }
+      ol.todo .ex li { padding: 0; border: 0; border-radius: 0; background: none; }
+      .attrib { margin: 0; font-size: 0.78rem; color: var(--c-mu); }
+      .attrib a { color: var(--c-accent); text-underline-offset: 2px; }
+      .attrib a:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; border-radius: 4px; }
       .foot { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; color: var(--c-mu); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
       .note { margin: 0; color: var(--c-text2); font-size: 0.9rem; }
       .prog { display: flex; flex-direction: column; gap: 6px; }
@@ -163,6 +178,11 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
                   <p data-testid="verdict-support">{{ count(calculable()) }} de {{ trips(r.rowsRead) }} tienen los datos necesarios.</p>
                 }
                 @if (periodLine(r); as line) { <p class="period" data-testid="review-period">{{ line }}</p> }
+                @if (r.routes; as routes) {
+                  <p class="period" data-testid="review-routes">Distancias por ruta: {{ routesCount(routes.pairsResolved) }} (aproximadas)</p>
+                  <p class="period small" data-testid="review-routes-rows">{{ routesRows(routes) }}</p>
+                  @if (routes.rowsByUniqueName > 0) { <p class="period small" data-testid="review-routes-unique">{{ tripsCount(routes.rowsByUniqueName) }} {{ routes.rowsByUniqueName === 1 ? 'se reconoció' : 'se reconocieron' }} por el nombre único del municipio</p> }
+                }
               </section>
 
               <ul class="split" aria-label="Desglose de los viajes" data-testid="review-breakdown">
@@ -232,6 +252,9 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
                 </ul>
               }
 
+              @if (r.routes) {
+                <p class="attrib" data-testid="review-attribution">Distancias por carretera © colaboradores de <a [href]="osmUrl" target="_blank" rel="noopener noreferrer">OpenStreetMap (ODbL)</a> · Municipios: <a [href]="divipolaUrl" target="_blank" rel="noopener noreferrer">DANE, DIVIPOLA (CC BY-SA 4.0)</a></p>
+              }
               <p class="foot" data-testid="counters"><span>{{ plates(r.vehicles.distinctPlates) }}</span><span>·</span><span>{{ trips(r.trips.distinctTripIds) }}</span></p>
               <p class="note" data-testid="honest-note">Esta revisión todavía no guarda viajes ni calcula emisiones.</p>
             }
@@ -248,6 +271,7 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       <li>
         <div class="top"><strong>{{ trips(p.rows) }}</strong><span>{{ p.label }}</span>@if (p.sampleRows.length > 0) { <small>{{ samples(p.sampleRows) }}</small> }</div>
         @if (action(p.code); as a) { <p class="do"><b>Qué hacer:</b> {{ a }}</p> }
+        @if (p.examples.length > 0) { <ul class="ex" data-testid="todo-examples">@for (e of p.examples; track $index) { <li>{{ example(e) }}</li> }</ul> }
       </li>
     </ng-template>
   `,
@@ -270,6 +294,11 @@ export class ImportReviewDialogComponent {
   protected readonly size = formatSize;
   protected readonly trips = tripsCount;
   protected readonly action = pendingAction;
+  protected readonly example = exampleText;
+  protected readonly routesCount = routesCount;
+  protected readonly tripsCount = tripsCount;
+  protected readonly osmUrl = OSM_COPYRIGHT_URL;
+  protected readonly divipolaUrl = DIVIPOLA_URL;
   protected readonly retryError = signal<AppError | null>(null);
 
   protected readonly detail = computed(() => {
@@ -295,6 +324,13 @@ export class ImportReviewDialogComponent {
 
     return m ? m.realConsumption + m.estimatedConsumption : 0;
   });
+  /** «1.250 viajes con distancia por ruta · 30 sin ruta» (la segunda cifra se omite si es 0). */
+  protected routesRows(routes: ImportRoutes): string {
+    const resolved = `${tripsCount(routes.rowsResolved)} con distancia por ruta`;
+
+    return routes.rowsUnresolved > 0 ? `${resolved} · ${formatCount(routes.rowsUnresolved)} sin ruta` : resolved;
+  }
+
   /** «Periodo de los viajes: Ene 2026 a Mar 2026 (Trimestral)»; `null` si la carga no trae fechas. */
   protected periodLine(review: ImportReview): string | null {
     const period = review.period;
@@ -313,7 +349,17 @@ export class ImportReviewDialogComponent {
   });
 
   /** Motivos pendientes del servidor, del que afecta a más viajes al que afecta a menos. */
-  protected readonly reasons = computed<readonly PendingReason[]>(() => [...(this.detail()?.review?.pendingReasons ?? [])].sort((a, b) => b.rows - a.rows));
+  /**
+   * Lo que hay que hacer: los motivos por los que un viaje queda pendiente y los hallazgos que traen una acción (lugares no reconocidos, rutas no
+   * disponibles, tope de rutas), de más a menos viajes; los hallazgos aportan hasta `MAX_EXAMPLES` ejemplos.
+   */
+  protected readonly reasons = computed<readonly TodoItem[]>(() => {
+    const review = this.detail()?.review;
+    const reasons = (review?.pendingReasons ?? []).map((p): TodoItem => ({ code: p.code, label: p.label, rows: p.rows, sampleRows: p.sampleRows, examples: [] }));
+    const issues = (review?.issues ?? []).filter((i) => pendingAction(i.code) !== null).map((i): TodoItem => ({ code: i.code, label: i.message, rows: i.rows, sampleRows: i.sampleRows, examples: i.examples.slice(0, MAX_EXAMPLES) }));
+
+    return [...reasons, ...issues].sort((a, b) => b.rows - a.rows);
+  });
   protected readonly visibleReasons = computed(() => this.reasons().slice(0, VISIBLE_REASONS));
   protected readonly hiddenReasons = computed(() => this.reasons().slice(VISIBLE_REASONS));
   /** Avisos con los errores primero (el orden del servidor se conserva dentro de cada severidad). */

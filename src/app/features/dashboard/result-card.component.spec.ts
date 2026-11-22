@@ -11,7 +11,7 @@ const FUELS: FootprintByFuel = [
 ];
 const COUNTS: ImportCounts = {
   total: 2, inProgress: 0, completed: 2, failed: 0, vehiclesPending: 0, rowsRead: 3_400_000, rowsCalculable: 3_000_000, rowsPending: 400_000, rowsReal: 2_000_000, rowsEstimated: 1_000_000, vehiclesNewPending: 0, vehiclesChangedPending: 0,
-  periodFrom: '2026-01-05', periodTo: '2026-03-28', distanceKm: 1_234_567, cargoTon: 48.3, rowsWithDistance: 3_300_000, rowsWithCargo: 2_900_000,
+  periodFrom: '2026-01-05', periodTo: '2026-03-28', distanceKm: 1_234_567, cargoTon: 48.3, rowsWithDistance: 3_300_000, rowsWithCargo: 2_900_000, distanceFromRoutesKm: 0,
 };
 
 describe('ResultCardComponent', () => {
@@ -250,6 +250,39 @@ describe('ResultCardComponent', () => {
 
     it('mide ≈ 190–210 px de alto', () => {
       render({ counts: COUNTS, periodLabel: 'Ene 2026 a Mar 2026' });
+      el().style.width = '540px';
+      const height = q('.rc')!.getBoundingClientRect().height;
+
+      expect(height).toBeGreaterThanOrEqual(185);
+      expect(height).toBeLessThanOrEqual(215);
+    });
+  });
+
+  describe('distancias por ruta', () => {
+    const WITH_ROUTES: ImportCounts = { ...COUNTS, distanceFromRoutesKm: 120_000.4 };
+
+    it('con km por ruta lo dice en el título y en la descripción accesible, sin añadir una línea visible', () => {
+      render({ counts: WITH_ROUTES });
+      const section = q('[data-testid="period-result"]')!;
+      const extra = q('[data-testid="result-distance-routes"]')!;
+
+      expect(text('result-distance-note')).toBe('en 3.300.000 viajes con distancia');
+      expect(extra.textContent).toBe('de ellos 120.000 km calculados por ruta (aprox.)');
+      expect(extra.classList).toContain('sr-only');
+      expect(section.getAttribute('aria-describedby')).toBe(extra.id);
+      expect(section.getAttribute('title')).toBe('de ellos 120.000 km calculados por ruta (aprox.). Distancias por carretera © colaboradores de OpenStreetMap · DANE DIVIPOLA');
+    });
+
+    it('sin km por ruta no hay descripción ni título', () => {
+      render({ counts: COUNTS });
+
+      expect(q('[data-testid="result-distance-routes"]')).toBeNull();
+      expect(q('[data-testid="period-result"]')!.hasAttribute('title')).toBeFalse();
+      expect(q('[data-testid="period-result"]')!.hasAttribute('aria-describedby')).toBeFalse();
+    });
+
+    it('la tarjeta conserva su altura (≈ 190–215 px) también con distancias por ruta', () => {
+      render({ counts: WITH_ROUTES, periodLabel: 'Ene 2026 a Mar 2026' });
       el().style.width = '540px';
       const height = q('.rc')!.getBoundingClientRect().height;
 

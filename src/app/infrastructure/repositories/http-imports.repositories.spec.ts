@@ -91,9 +91,9 @@ describe('HttpImportsRepository', () => {
     let counts: unknown = null;
 
     repo.counts(ORG).subscribe((c) => (counts = c));
-    http.expectOne(`${IMPORTS_URL}/counts`).flush({ data: { total: 9, in_progress: 2, completed: 5, failed: 2, vehicles_pending: 3, rows_read: 1000, rows_calculable: 900, rows_pending: 100, rows_real: 600, rows_estimated: 300, vehicles_new_pending: 4, vehicles_changed_pending: 2, period_from: '2026-01-05', period_to: '2026-03-28', distance_km: 1000, cargo_ton: 12.5, rows_with_distance: 9, rows_with_cargo: 8 } });
+    http.expectOne(`${IMPORTS_URL}/counts`).flush({ data: { total: 9, in_progress: 2, completed: 5, failed: 2, vehicles_pending: 3, rows_read: 1000, rows_calculable: 900, rows_pending: 100, rows_real: 600, rows_estimated: 300, vehicles_new_pending: 4, vehicles_changed_pending: 2, period_from: '2026-01-05', period_to: '2026-03-28', distance_km: 1000, cargo_ton: 12.5, rows_with_distance: 9, rows_with_cargo: 8, distance_from_routes_km: 77.123 } });
 
-    expect(counts).toEqual({ total: 9, inProgress: 2, completed: 5, failed: 2, vehiclesPending: 3, rowsRead: 1000, rowsCalculable: 900, rowsPending: 100, rowsReal: 600, rowsEstimated: 300, vehiclesNewPending: 4, vehiclesChangedPending: 2, periodFrom: '2026-01-05', periodTo: '2026-03-28', distanceKm: 1000, cargoTon: 12.5, rowsWithDistance: 9, rowsWithCargo: 8 });
+    expect(counts).toEqual({ total: 9, inProgress: 2, completed: 5, failed: 2, vehiclesPending: 3, rowsRead: 1000, rowsCalculable: 900, rowsPending: 100, rowsReal: 600, rowsEstimated: 300, vehiclesNewPending: 4, vehiclesChangedPending: 2, periodFrom: '2026-01-05', periodTo: '2026-03-28', distanceKm: 1000, cargoTon: 12.5, rowsWithDistance: 9, rowsWithCargo: 8, distanceFromRoutesKm: 77.123 });
   });
 
   it('counts con periodo envía period_from y period_to; sin periodo no envía ninguno', () => {

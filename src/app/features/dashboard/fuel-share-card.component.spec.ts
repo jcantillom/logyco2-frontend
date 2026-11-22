@@ -86,19 +86,19 @@ describe('FuelShareCardComponent', () => {
     expect(retried).toBeTrue();
   });
 
-  it('mide ≈ 200–220 px con la dona y en el estado pendiente', () => {
+  it('mide ≈ 256 px con la dona y en el estado pendiente', () => {
     render({ byFuel: FUELS });
     el().style.width = '540px';
     fixture.detectChanges();
     const height = q('.cc')!.getBoundingClientRect().height;
 
-    expect(height).toBeGreaterThanOrEqual(195);
-    expect(height).toBeLessThanOrEqual(230);
+    expect(height).toBeGreaterThanOrEqual(250);
+    expect(height).toBeLessThanOrEqual(275);
 
     TestBed.resetTestingModule();
     render();
     el().style.width = '540px';
-    expect(Math.round(q('.cc')!.getBoundingClientRect().height)).toBe(210);
+    expect(Math.round(q('.cc')!.getBoundingClientRect().height)).toBe(256);
   });
 
   describe('marco vacío (pendiente y sin cálculo en el periodo)', () => {
@@ -110,7 +110,7 @@ describe('FuelShareCardComponent', () => {
 
       expect(ring).not.toBeNull();
       expect(ring.getAttribute('aria-hidden')).toBe('true');
-      expect(ring.getBoundingClientRect().width).toBe(112);
+      expect(ring.getBoundingClientRect().width).toBe(150);
       expect(ring.querySelector('.track')!.getAttribute('r')).toBe('38');
       expect(getComputedStyle(ring.querySelector('.track')!).strokeWidth).toBe('16px');
       expect(getComputedStyle(ring.querySelector('.edge')!).strokeDasharray).not.toBe('none');

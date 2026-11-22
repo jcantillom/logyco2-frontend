@@ -21,7 +21,7 @@ export const importSummaryDto = (overrides: Partial<ImportSummaryDto> = {}): Imp
   ...overrides,
 });
 
-export const importCountsDto = (overrides: Partial<ImportCountsDto> = {}): ImportCountsDto => ({ total: 0, in_progress: 0, completed: 0, failed: 0, vehicles_pending: 0, rows_read: 0, rows_calculable: 0, rows_pending: 0, rows_real: 0, rows_estimated: 0, vehicles_new_pending: 0, vehicles_changed_pending: 0, period_from: null, period_to: null, distance_km: 0, cargo_ton: 0, rows_with_distance: 0, rows_with_cargo: 0, ...overrides });
+export const importCountsDto = (overrides: Partial<ImportCountsDto> = {}): ImportCountsDto => ({ total: 0, in_progress: 0, completed: 0, failed: 0, vehicles_pending: 0, rows_read: 0, rows_calculable: 0, rows_pending: 0, rows_real: 0, rows_estimated: 0, vehicles_new_pending: 0, vehicles_changed_pending: 0, period_from: null, period_to: null, distance_km: 0, cargo_ton: 0, rows_with_distance: 0, rows_with_cargo: 0, distance_from_routes_km: 0, ...overrides });
 
 export const importPeriodDto = (overrides: Partial<ImportPeriodDto> = {}): ImportPeriodDto => ({ period_from: '2026-01-05', period_to: '2026-03-28', imports: 2, rows_read: 3_400_000, ...overrides });
 
