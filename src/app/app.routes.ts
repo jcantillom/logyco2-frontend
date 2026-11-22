@@ -72,6 +72,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/vehicles/vehicles.component').then((m) => m.VehiclesComponent),
       },
       {
+        // La misma guía de la consola, en el espacio de empresa y solo para quien lo administra (`fit`: cabe en una pantalla, sin scroll de página).
+        path: 'calculo-emisiones',
+        data: { breadcrumb: 'Cálculo de emisiones', wide: true, fit: true },
+        canActivate: [permissionGuard('organizations:manage')],
+        loadComponent: () => import('./features/emissions/emissions.component').then((m) => m.EmissionsComponent),
+      },
+      {
         path: 'operaciones',
         data: {
           breadcrumb: 'Cargas y transportes',
@@ -84,13 +91,9 @@ export const routes: Routes = [
       { path: 'operaciones/:id', pathMatch: 'full', redirectTo: 'operaciones' },
       {
         path: 'cargas',
-        data: {
-          breadcrumb: 'Carga de archivos',
-          title: 'Cargas masivas de archivos',
-          description: 'Permitirá cargar archivos de forma masiva y consultar el estado de su procesamiento.',
-        },
+        data: { breadcrumb: 'Cargar información', wide: true },
         canActivate: [permissionGuard('imports:create')],
-        loadComponent: () => import('./features/system/coming-soon.component').then((m) => m.ComingSoonComponent),
+        loadComponent: () => import('./features/imports/imports.component').then((m) => m.ImportsComponent),
       },
       {
         path: 'conciliacion',

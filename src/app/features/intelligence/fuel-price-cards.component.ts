@@ -2,13 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { ResourceStateComponent } from '../../shared/ui/resource-state.component';
 import { IntelligenceFacade } from './intelligence.facade';
 
-/** Tarjetas de precios de referencia de combustibles (ACPM, gasolina y GNCV): se usan en el resumen de la consola y en el de la empresa. */
-@Component({
-  selector: 'app-fuel-price-cards',
-  imports: [ResourceStateComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [
-    `
+/** Estilos de las tarjetas de combustible del resumen (precios y factores de emisión): una sola hoja para que luzcan igual. */
+const FUEL_CARD_STYLES = `
       :host { display: block; }
       .fp-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .fp-card { display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-s2); min-width: 0; }
@@ -24,8 +19,14 @@ import { IntelligenceFacade } from './intelligence.facade';
       .fp-grid.compact { gap: 10px; } .fp-grid.compact .fp-card { padding: 6px 12px; gap: 1px; } .fp-grid.compact .fp-ico { width: 28px; height: 28px; } .fp-grid.compact .fp-ico svg { width: 16px; height: 16px; } .fp-grid.compact .fp-value { font-size: 1.25rem; }
       @media (max-width: 1200px) { .fp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       @media (max-width: 560px) { .fp-grid { grid-template-columns: 1fr; } }
-    `,
-  ],
+`;
+
+/** Tarjetas de precios de referencia de combustibles (ACPM, gasolina y GNCV): se usan en el resumen de la consola y en el de la empresa. */
+@Component({
+  selector: 'app-fuel-price-cards',
+  imports: [ResourceStateComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: [FUEL_CARD_STYLES],
   template: `
     <app-resource-state [status]="intel.summary.status()" [error]="intel.summary.error()" (retry)="intel.loadSummary()">
       <div class="fp-grid" [class.compact]="compact()">
@@ -43,6 +44,7 @@ import { IntelligenceFacade } from './intelligence.facade';
   `,
 })
 export class FuelPriceCardsComponent {
+  /** Versión baja (resumen de la empresa). */
   readonly compact = input(false);
   protected readonly intel = inject(IntelligenceFacade);
 

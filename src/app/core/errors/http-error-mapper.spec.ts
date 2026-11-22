@@ -76,4 +76,11 @@ describe('toAppError', () => {
   it('un valor desconocido produce un error genérico', () => {
     expect(toAppError('boom').kind).toBe('unknown');
   });
+
+  it('traduce los códigos de las cargas y del almacenamiento', () => {
+    expect(toAppError(httpError(409, { error: { code: 'IMPORT_NOT_REVIEWED' } })).message).toContain('revisión de esta carga aún no termina');
+    expect(toAppError(httpError(413, { error: { code: 'STORAGE_QUOTA_EXCEEDED' } })).message).toContain('espacio de almacenamiento');
+    expect(toAppError(httpError(422, { error: { code: 'SELECTION_TOO_LARGE' } })).message).toContain('demasiados vehículos');
+    expect(toAppError(httpError(503, { error: { code: 'STORAGE_UNAVAILABLE' } })).message).toContain('almacenamiento de archivos no está disponible');
+  });
 });

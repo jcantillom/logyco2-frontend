@@ -6,7 +6,6 @@ import { filter } from 'rxjs';
 import { AccessPolicy } from '../../core/auth/access-policy';
 import { OrganizationContext, reloadOnContextChange } from '../../core/org/organization-context';
 import { HomeFacade } from '../../features/dashboard/home.facade';
-import { NotificationsFacade } from '../../features/notifications/notifications.facade';
 import { OrganizationLogoStore } from '../../features/organizations/logo.store';
 import { ActionsBellComponent } from './actions-bell.component';
 import { ToastService } from '../../core/notifications/toast.service';
@@ -49,6 +48,12 @@ import { UserMenuComponent } from './user-menu.component';
       .burger, .header-logo { display: none; }
       main { padding: 22px 28px 22px; display: flex; flex-direction: column; gap: 16px; max-width: 1280px; width: 100%; margin: 0 auto; outline: none; }
       main.wide { max-width: 1680px; }
+      /* Pantallas de una sola vista (dato «fit» de la ruta): el área de contenido mide el alto de la ventana y se desplaza solo si no alcanza. */
+      @media (min-width: 901px) and (min-height: 600px) {
+        .shell.fit { height: 100dvh; min-height: 0; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+        .shell.fit .main-col { height: 100dvh; min-height: 0; overflow: hidden; }
+        .shell.fit main { flex: 1 1 0; min-height: 0; overflow-y: auto; padding-top: 14px; padding-bottom: 16px; scrollbar-width: thin; }
+      }
       @media (max-width: 900px) {
         .burger { display: inline-flex; }
         .header-logo { display: inline-flex; margin-right: auto; }
@@ -60,7 +65,7 @@ import { UserMenuComponent } from './user-menu.component';
   ],
   template: `
     <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
-    <div class="shell" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
+    <div class="shell" [class.fit]="fit()" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
       <aside class="sidebar" aria-label="Barra lateral">
         <a class="brand" routerLink="/resumen" aria-label="LoGyCO₂, ir al inicio">
           @if (collapsed()) {
@@ -122,7 +127,7 @@ import { UserMenuComponent } from './user-menu.component';
           <div class="crumbs"><app-breadcrumbs rootLabel="Mi empresa" rootLink="/resumen" /></div>
           <span class="spacer"></span>
           <app-context-switch />
-          <app-actions-bell [alerts]="home.actions()" [pending]="home.pending()" [notifications]="true" />
+          <app-actions-bell [alerts]="home.actions()" [pending]="home.pending()" [withNotifications]="hasNotifications()" />
           <app-user-menu [identity]="true" />
         </header>
         <main id="main-content" tabindex="-1" [class.wide]="wide()">
@@ -148,7 +153,6 @@ export class ShellComponent {
   private readonly toast = inject(ToastService);
   protected readonly context = inject(OrganizationContext);
   protected readonly home = inject(HomeFacade);
-  private readonly notifications = inject(NotificationsFacade);
   protected readonly logo = inject(OrganizationLogoStore);
   protected readonly help = HELP_ITEM;
 
@@ -157,6 +161,8 @@ export class ShellComponent {
   protected readonly mobileOpen = signal(false);
   /** Vistas con tablas y tarjetas (`data: { wide: true }` en la ruta) usan más ancho del área de contenido. */
   protected readonly wide = signal(false);
+  /** Vistas que caben en una pantalla sin scroll de página (`data: { fit: true }` en la ruta). */
+  protected readonly fit = signal(false);
   protected readonly companyOpen = signal(false);
   protected readonly multiple = computed(() => this.context.memberships().length > 1);
   protected readonly roleText = computed(() => {
@@ -164,6 +170,9 @@ export class ShellComponent {
 
     return roles.map((role) => roleLabel(role.code)).join(' · ') || 'Sin rol';
   });
+
+  /** Los avisos de vehículos son para quien decide sobre ellos o sube las cargas; sin empresa activa no hay avisos ni peticiones. */
+  protected readonly hasNotifications = computed(() => !!this.context.activeOrganizationId() && this.access.canAny(['vehicles:manage', 'imports:create']));
 
   private readonly visible = computed(() => NAV_ITEMS.filter((item) => this.access.canAny(item.requires)));
   /** Solo los grupos con alguna opción visible para la persona (permisos). */
@@ -176,12 +185,11 @@ export class ShellComponent {
     effect(() => this.root.style.setProperty('--dlg-left', this.collapsed() ? 'var(--sidebar-w-collapsed)' : 'var(--sidebar-w)'));
     inject(DestroyRef).onDestroy(() => this.root.style.removeProperty('--dlg-left'));
     this.wide.set(this.deepestData('wide') === true);
+    this.fit.set(this.deepestData('fit') === true);
     reloadOnContextChange(() => {
       this.home.load();
       this.logo.load();
-      this.notifications.start();
     });
-    inject(DestroyRef).onDestroy(() => this.notifications.stop());
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
@@ -191,6 +199,7 @@ export class ShellComponent {
         this.mobileOpen.set(false);
         this.companyOpen.set(false);
         this.wide.set(this.deepestData('wide') === true);
+        this.fit.set(this.deepestData('fit') === true);
       });
   }
 

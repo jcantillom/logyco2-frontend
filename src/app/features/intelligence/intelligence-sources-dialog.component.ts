@@ -18,7 +18,7 @@ import { statusLabel, statusOf } from './intelligence.labels';
     `,
   ],
   template: `
-    <dialog #sourcesDialog class="dialog dialog-pro" aria-labelledby="sources-title" style="width: min(900px, calc(100vw - 32px))">
+    <dialog #sourcesDialog class="dialog dialog-pro" aria-labelledby="sources-title" style="width: min(900px, calc(100vw - var(--dlg-left, 0px) - 32px))">
       <header class="dp-head">
         <span class="dp-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 15l2 2 4-4" /></svg></span>
         <div><h2 id="sources-title">Fuentes y actualización</h2><p>Cada indicador conserva su fuente, su fecha de publicación y la de adquisición.</p></div>

@@ -13,6 +13,7 @@ validar (`MAX_DISTANCE_KM = 100000`, `MAX_EFFICIENCY = 100`, en `emissions.valid
 
 ## 2. Ruta y menú [V]
 `/plataforma/calculo-emisiones` (miga «Plataforma / Cálculo de emisiones»; ítem «Cálculo de emisiones» del grupo «Descarbonización»). Solo SUPER_ADMIN
+**También en el espacio de empresa (solo ORG_ADMIN):** ruta `/calculo-emisiones` (misma pantalla `EmissionsComponent`, `data: { breadcrumb: 'Cálculo de emisiones', wide: true, fit: true }`, miga «Mi empresa / Cálculo de emisiones») y grupo «Descarbonización» del menú de la empresa (justo después de «Huella de carbono») con el ítem «Cálculo de emisiones». Ítem y ruta se protegen con `organizations:manage`, que entre los roles de empresa solo tiene ORG_ADMIN; ORG_ANALYST, ORG_VIEWER y GUILD_VIEWER no ven el grupo y la URL directa termina en «acceso denegado». Los endpoints de `/emissions` los puede leer cualquier persona autenticada. El dato de ruta `fit` hace que el shell de empresa mida el alto de la ventana (clase `fit`, solo ≥ 901 × 600 px) para que la guía quepa sin scroll de página, como en la consola.
 (guard del padre `/plataforma`).
 
 ## 3. Diseño y componentes [V]
@@ -37,7 +38,7 @@ a 3 por fila; a menos de 768 px van en una fila con desplazamiento horizontal.
 Utilidades: `emissions.format.ts` (formato `es-CO`, `formatFixed2`, `pbvMax`, `safeHttpUrl`, rótulos de tipo y ejes, estados del factor) y `emissions.validators.ts`
 (`parseDecimal`, `positiveDecimal`).
 
-El mismo dato (factores por combustible, `EmissionsFacade.fuels`) alimenta la tarjeta «Factor de emisión» del Resumen de plataforma, que rota cada 3 s: ver `features/platform.md`.
+El mismo dato (factores por combustible, `EmissionsFacade.fuels`) alimenta la tarjeta «Factor de emisión» (`FactorRotatorCardComponent`, `factor-rotator-card.component.ts`, antes `PlatformFactorCardComponent`) del Resumen de plataforma y del Resumen de empresa, que rota cada 3 s: ver `features/platform.md`.
 
 ### Estilo: paleta autorizada de LOGYCA 2025 [V]
 Solo la paleta de marca de `styles.scss` (naranja 1655 C `--c-primary`, aguamarina 3275 C `--c-secondary`, gris 418 C `--c-head`/`--c-gray`, blanco) con tintes **solo al 20/40/60/80 %** (`color-mix(in srgb, <token> N%, var(--c-sf))` o los tokens `--c-primary-400/600`); sin hexadecimales en los archivos de la guía y sin `--c-accent` en gráficos (una spec lo comprueba, igual que los porcentajes). La cabecera de la página no lleva icono: el título y el subtítulo empiezan en el borde izquierdo, como en las demás pantallas.

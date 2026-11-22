@@ -63,6 +63,14 @@ export const FACTOR_STATUS: Readonly<Record<FactorVerification, FactorStatusView
   INVALID_CONFIGURATION: { label: 'Configuración inválida: avisa a quien administra la plataforma', badge: 'badge-danger', showValue: false },
 };
 
+/** Estado de verificación de un factor en las tarjetas del resumen: texto corto y color semántico de la insignia. */
+export const FACTOR_PILLS: Readonly<Record<FactorVerification, { text: string; badge: string }>> = {
+  VERIFIED: { text: 'Verificado', badge: 'badge-success' },
+  PENDING_VALIDATION: { text: 'Pendiente de validación', badge: 'badge-warning' },
+  NOT_CONFIGURED: { text: 'Sin configurar', badge: 'badge-neutral' },
+  INVALID_CONFIGURATION: { text: 'Inválido', badge: 'badge-danger' },
+};
+
 /** Unidad legible: `kg_CO2/gal` → «kg CO₂/gal», `kg_CO2/m3` → «kg CO₂/m³», `km/m3` → «km/m³». */
 export const unitLabel = (unit: string): string => unit.replace('_CO2', ' CO₂').replace(/m3$/, 'm³');
 

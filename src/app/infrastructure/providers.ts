@@ -10,7 +10,9 @@ import {
   UsersRepository,
 } from '../domain/repositories/identity.repositories';
 import { EmissionsRepository } from '../domain/repositories/emissions.repositories';
-import { NotificationsRepository, PlatformVehiclesRepository, VehiclesRepository } from '../domain/repositories/vehicles.repositories';
+import { ImportsRepository } from '../domain/repositories/imports.repositories';
+import { NotificationsRepository } from '../domain/repositories/notifications.repositories';
+import { PlatformVehiclesRepository, VehiclesRepository } from '../domain/repositories/vehicles.repositories';
 import { IntelligenceRepository } from '../domain/repositories/intelligence.repositories';
 import { OnboardingRepository } from '../domain/repositories/onboarding.repositories';
 import {
@@ -26,7 +28,9 @@ import {
   HttpSuperAdminsRepository,
 } from './repositories/http-platform-admin.repositories';
 import { HttpEmissionsRepository } from './repositories/http-emissions.repositories';
-import { HttpNotificationsRepository, HttpPlatformVehiclesRepository, HttpVehiclesRepository } from './repositories/http-vehicles.repositories';
+import { HttpImportsRepository } from './repositories/http-imports.repositories';
+import { HttpNotificationsRepository } from './repositories/http-notifications.repositories';
+import { HttpPlatformVehiclesRepository, HttpVehiclesRepository } from './repositories/http-vehicles.repositories';
 import { HttpHealthRepository } from './repositories/http-health.repository';
 import { HttpIntelligenceRepository } from './repositories/http-intelligence.repository';
 import { HttpOnboardingRepository } from './repositories/http-onboarding.repository';
@@ -65,9 +69,12 @@ export function provideRepositories(): EnvironmentProviders {
     { provide: RbacRepository, useClass: HttpRbacRepository },
     // Guía de cálculo de emisiones (vehículos, factor del diésel B2 y simulación).
     { provide: EmissionsRepository, useClass: HttpEmissionsRepository },
-    // Inventario de vehículos de la empresa (análisis de archivos y notificaciones incluidos).
-    { provide: VehiclesRepository, useClass: HttpVehiclesRepository },
+    // Cargas de la empresa: plantilla, subida y revisión del Excel.
+    { provide: ImportsRepository, useClass: HttpImportsRepository },
+    // Avisos del usuario en la empresa (campana).
     { provide: NotificationsRepository, useClass: HttpNotificationsRepository },
+    // Inventario de vehículos de la empresa.
+    { provide: VehiclesRepository, useClass: HttpVehiclesRepository },
     // Supervisión de la consola de plataforma: inventario de cualquier empresa, solo lectura.
     { provide: PlatformVehiclesRepository, useClass: HttpPlatformVehiclesRepository },
   ]);

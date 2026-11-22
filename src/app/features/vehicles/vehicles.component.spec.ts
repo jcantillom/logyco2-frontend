@@ -5,7 +5,7 @@ import { buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { provideTestApp, signInAs } from '../../../testing/providers';
 import { pagedBody, summaryDto, vehicleDetailDto, vehicleDto, VEHICLES_ORG_URL } from '../../../testing/vehicles';
 import { SessionStore } from '../../core/auth/session.store';
-import { AnalysisSummaryDto, VehicleDto } from '../../infrastructure/dto/vehicles.dto';
+import { VehicleDto } from '../../infrastructure/dto/vehicles.dto';
 import { catalogDto } from '../emissions/emissions.fixtures';
 import { VehiclesComponent } from './vehicles.component';
 
@@ -22,8 +22,6 @@ describe('VehiclesComponent: Mis vehículos', () => {
   const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
   const q = <T extends HTMLElement = HTMLElement>(selector: string): T | null => el().querySelector<T>(selector);
   const text = (selector: string): string => (q(selector)?.textContent ?? '').replace(/\s+/g, ' ').trim();
-  const recentRequest = (): TestRequest => http.expectOne((r) => r.url === `${VEHICLES_ORG_URL}/vehicle-analyses` && r.params.get('page_size') === '5');
-  const pendingRequest = (): TestRequest => http.expectOne((r) => r.url === `${VEHICLES_ORG_URL}/vehicle-analyses` && r.params.get('has_pending') === 'true');
   const listRequest = (): TestRequest => http.expectOne((r) => r.url === `${VEHICLES_ORG_URL}/vehicles`);
 
   function render(roles: string[] = ['ORG_ADMIN']): void {
@@ -34,10 +32,8 @@ describe('VehiclesComponent: Mis vehículos', () => {
     fixture.detectChanges();
   }
 
-  function init(items: VehicleDto[] = [vehicleDto()], roles: string[] = ['ORG_ADMIN'], total = items.length, runs: AnalysisSummaryDto[] = [], pendingRuns: AnalysisSummaryDto[] = []): void {
+  function init(items: VehicleDto[] = [vehicleDto()], roles: string[] = ['ORG_ADMIN'], total = items.length): void {
     render(roles);
-    recentRequest().flush(pagedBody(runs));
-    pendingRequest().flush(pagedBody(pendingRuns));
     http.expectOne(`${VEHICLES_ORG_URL}/vehicles/summary`).flush({ data: summaryDto });
     listRequest().flush(pagedBody(items, total));
     http.expectOne(`${EMISSIONS}/vehicles`).flush({ data: catalogDto() });
@@ -49,23 +45,21 @@ describe('VehiclesComponent: Mis vehículos', () => {
     fixture.detectChanges();
   };
 
-  it('muestra el título, el subtítulo y los 4 conteos reales del servidor', () => {
+  it('muestra el título, el subtítulo y los 2 conteos reales del servidor', () => {
     init();
 
     expect(text('h1')).toBe('Mis vehículos');
     expect(el().querySelector('app-page-hero p')!.textContent!.length).toBeGreaterThan(10);
     const tiles = Array.from(el().querySelectorAll('[data-testid="vehicle-tiles"] .kpi')).map((t) => t.textContent!.replace(/\s+/g, ' ').trim());
-    expect(tiles).toEqual(['Registrados12', 'Nuevos pendientes3', 'Con inconsistencias2', 'Inactivos1']);
+    expect(tiles).toEqual(['Registrados12', 'Inactivos1']);
   });
 
-  it('«Nuevos pendientes» y «Con inconsistencias» están deshabilitados con su explicación; «Registrados» e «Inactivos» filtran', () => {
+  it('solo hay dos tarjetas (Registrados e Inactivos) que filtran; ya no existen «Nuevos pendientes» ni «Con inconsistencias»', () => {
     init();
 
-    for (const id of ['tile-pending', 'tile-conflicts']) {
-      const tile = q<HTMLButtonElement>(`[data-testid="${id}"]`)!;
-      expect(tile.disabled).withContext(id).toBeTrue();
-      expect(tile.title).toBe('Disponible al analizar un archivo');
-    }
+    expect(q('[data-testid="tile-pending"]')).toBeNull();
+    expect(q('[data-testid="tile-conflicts"]')).toBeNull();
+    expect(el().textContent).not.toMatch(/Nuevos pendientes|Con inconsistencias/);
 
     click('[data-testid="tile-inactive"]');
     const req = listRequest();
@@ -82,7 +76,7 @@ describe('VehiclesComponent: Mis vehículos', () => {
 
   it('muestra un esqueleto mientras carga el resumen y un error con reintento si falla', () => {
     render();
-    expect(el().querySelectorAll('[data-testid="vehicle-tiles"] .skeleton').length).toBe(4);
+    expect(el().querySelectorAll('[data-testid="vehicle-tiles"] .skeleton').length).toBe(2);
 
     http.expectOne(`${VEHICLES_ORG_URL}/vehicles/summary`).flush({ error: { code: 'INTERNAL_ERROR' } }, { status: 500, statusText: 'x' });
     fixture.detectChanges();
@@ -91,14 +85,14 @@ describe('VehiclesComponent: Mis vehículos', () => {
     click('[data-testid="vehicle-tiles"] [role="alert"] button');
     http.expectOne(`${VEHICLES_ORG_URL}/vehicles/summary`).flush({ data: summaryDto });
     fixture.detectChanges();
-    expect(el().querySelectorAll('[data-testid="vehicle-tiles"] .kpi').length).toBe(4);
+    expect(el().querySelectorAll('[data-testid="vehicle-tiles"] .kpi').length).toBe(2);
   });
 
   it('la tabla tiene semántica de tabla, las columnas pedidas y una fila por vehículo con los datos reales', () => {
     init([vehicleDto(), vehicleDto({ id: 'veh-2', plate: 'XYZ987', plate_original: 'XYZ987', configuration_code: 'C1', configuration_recognized: false, fuel_type: 'NATURAL_GAS', model_year: null })]);
 
     expect(Array.from(el().querySelectorAll('thead th')).map((th) => th.textContent!.trim())).toEqual([
-      'Placa', 'Configuración', 'Tipo', 'Combustible', 'Modelo', 'Estado', 'Fecha de registro', 'Última aparición', 'Acciones',
+      'Placa', 'Configuración', 'Tipo', 'Combustible', 'Modelo', 'Estado', 'Fecha de registro', 'Acciones',
     ]);
     expect(el().querySelector('table caption')).not.toBeNull();
     const rows = Array.from(el().querySelectorAll('tbody tr'));
@@ -111,7 +105,8 @@ describe('VehiclesComponent: Mis vehículos', () => {
     expect(rows[1].textContent).toContain('No reconocida');
     expect(rows[1].textContent).toContain('Gas natural');
     expect(rows[1].textContent).not.toContain('Como llegó');
-    expect(rows[0].querySelector('button')!.textContent).toContain('Ver detalle');
+    expect(rows[0].querySelector('button')!.getAttribute('title')).toBe('Ver detalle');
+    expect(rows[0].querySelector('button svg')).not.toBeNull();
     expect(rows[0].querySelector('button')!.getAttribute('aria-label')).toBe('Ver detalle de ABC123');
   });
 
@@ -183,22 +178,32 @@ describe('VehiclesComponent: Mis vehículos', () => {
     req.flush(pagedBody([vehicleDto()], 25, 10, 2));
   });
 
-  it('sin vehículos explica por qué y ofrece «Analizar archivo Excel» solo con imports:create', () => {
-    init([], ['ORG_ANALYST']);
+  it('sin vehículos lo dice y, con vehicles:manage, invita a registrar el primero; no hay nada sobre analizar archivos', () => {
+    init([], ['ORG_ADMIN']);
 
-    expect(text('[data-testid="vehicles-empty"] h2')).toBe('Aún no tienes vehículos registrados');
-    expect(text('[data-testid="vehicles-empty"] p')).toContain('analizas un archivo de operaciones');
-    expect(q<HTMLButtonElement>('[data-testid="analyze-file"]')!.disabled).toBeFalse();
-    expect(q('[data-testid="register-empty"]')).toBeNull();
-    expect(q('[data-testid="register-vehicle"]')).toBeNull();
+    expect(text('[data-testid="vehicles-empty"] h2')).toBe('Aún no tienes vehículos registrados.');
+    expect(text('[data-testid="vehicles-empty"] p')).toBe('Registra el primero con «Registrar vehículo».');
+    expect(q('[data-testid="register-empty"]')).not.toBeNull();
+    expect(text('[data-testid="vehicles-empty"]')).not.toMatch(/archivo|Excel/i);
   });
 
   it('el espacio vacío de un rol de solo lectura no ofrece acciones', () => {
     init([], ['ORG_VIEWER']);
 
-    expect(q('[data-testid="vehicles-empty"]')).not.toBeNull();
-    expect(q('[data-testid="analyze-file"]')).toBeNull();
+    expect(text('[data-testid="vehicles-empty"] h2')).toBe('Aún no tienes vehículos registrados.');
     expect(q('[data-testid="register-empty"]')).toBeNull();
+    expect(q('[data-testid="register-vehicle"]')).toBeNull();
+  });
+
+  it('no existe ninguna función de analizar archivos de Excel en la pantalla', () => {
+    init([], ['ORG_ADMIN']);
+
+    expect(q('[data-testid="analyze-file"]')).toBeNull();
+    expect(q('[data-testid="analyze-top"]')).toBeNull();
+    expect(q('[data-testid="recent-analyses"]')).toBeNull();
+    expect(q('[data-testid="analysis-wizard"]')).toBeNull();
+    expect(q('input[type="file"]')).toBeNull();
+    expect(el().textContent).not.toMatch(/Analizar archivo|Excel|Cargas recientes/);
   });
 
   it('«Registrar vehículo» solo aparece con vehicles:manage', () => {
@@ -217,7 +222,6 @@ describe('VehiclesComponent: Mis vehículos', () => {
     fixture.detectChanges();
 
     expect(text('[data-testid="vehicles-empty"] h2')).toBe('Sin resultados');
-    expect(q('[data-testid="analyze-file"]')).toBeNull();
 
     click('[data-testid="clear-filters"]');
     const req = listRequest();
@@ -287,7 +291,7 @@ describe('VehiclesComponent: Mis vehículos', () => {
     click('[data-testid="view-detail"]');
     http.expectOne(`${VEHICLES_ORG_URL}/vehicles/veh-1`).flush({ data: vehicleDetailDto() });
     fixture.detectChanges();
-    const markers = (c: string): boolean => (c.includes('.kpi') && c.includes('.tbl')) || (c.includes('.confirm') && c.includes('.fixed')) || c.includes('dialog.panel');
+    const markers = (c: string): boolean => c.includes('.kpi') || (c.includes('.confirm') && c.includes('.fixed')) || c.includes('dialog.panel');
     const withDetail = componentCss().filter(markers);
     click('[data-testid="edit-vehicle"]');
     const own = [...new Set([...withDetail, ...componentCss().filter(markers)])];
@@ -299,7 +303,7 @@ describe('VehiclesComponent: Mis vehículos', () => {
     expect(all).toContain('--c-primary');
     expect(all).toContain('--c-head');
     expect(all).toMatch(/\.kpi \.ico \{[^}]*display: grid; place-items: center/);
-    expect(all).toMatch(/\.kpi \.ico svg \{[^}]*width: 19px[^}]*fill: color-mix\(in srgb, currentColor 14%[^}]*stroke: currentColor; stroke-width: 1\.5/);
+    expect(all).toMatch(/\.kpi \.ico svg \{[^}]*width: var\(--kpi-glyph, 26px\)[^}]*fill: color-mix\(in srgb, currentColor 14%[^}]*stroke: currentColor; stroke-width: 1\.6/);
     expect(all).not.toMatch(/background[^;}]*--c-secondary/);
     const percents = Array.from(all.matchAll(/color-mix\(in srgb, [^,]+ (\d+)%/g)).map((m) => Number(m[1]));
     for (const percent of percents) expect([14, 20, 40, 60, 80]).withContext(`color-mix ${percent}%`).toContain(percent);
@@ -550,5 +554,13 @@ describe('VehiclesComponent: Mis vehículos', () => {
 
       expect(q('[data-testid="edit-vehicle"]')).toBeNull();
     });
+  });
+
+  it('en la lista, un vehículo registrado desde Excel indica su origen y uno manual no', () => {
+    init([vehicleDto({ id: 'v-1', plate: 'ABC123', source: 'IMPORT' }), vehicleDto({ id: 'v-2', plate: 'DEF456', plate_original: 'DEF456', source: 'MANUAL' })]);
+
+    const rows = Array.from(el().querySelectorAll('[data-testid="vehicle-table"] tbody tr'));
+    expect(rows[0].querySelector('[data-testid="source-import"]')!.textContent!.trim()).toBe('Origen: Excel');
+    expect(rows[1].querySelector('[data-testid="source-import"]')).toBeNull();
   });
 });

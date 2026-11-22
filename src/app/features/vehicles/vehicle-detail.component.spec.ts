@@ -56,7 +56,7 @@ describe('VehicleDetailComponent: detalle de un vehículo', () => {
     open();
 
     expect(text('[data-testid="ownership"]')).toBe('Sin declarar');
-    expect(text('.hint')).toBe('La aparición de la placa en tus archivos no implica que el vehículo sea de tu empresa.');
+    expect(text('dl.facts')).not.toContain('archivos');
   });
 
   it('una propiedad declarada se traduce', () => {
@@ -65,7 +65,7 @@ describe('VehicleDetailComponent: detalle de un vehículo', () => {
     expect(text('[data-testid="ownership"]')).toBe('Contratado');
   });
 
-  it('muestra características, origen y apariciones con el combustible por su nombre', () => {
+  it('muestra características, origen y fecha de registro con el combustible por su nombre', () => {
     open();
 
     expect(fact('Configuración')).toBe('C2');
@@ -73,15 +73,9 @@ describe('VehicleDetailComponent: detalle de un vehículo', () => {
     expect(fact('Combustible')).toBe('Diésel');
     expect(fact('Modelo')).toBe('2018');
     expect(fact('Capacidad')).toBe('8 t');
-    expect(fact('Origen del registro')).toBe('Archivo de operaciones');
-    expect(fact('Primera aparición')).toMatch(/^1 mar 2026$/i);
-    expect(fact('Última aparición')).toMatch(/^2 may 2026$/i);
-  });
-
-  it('el origen manual se rotula «Registro manual»', () => {
-    open(vehicleDetailDto({ source: 'MANUAL' }));
-
     expect(fact('Origen del registro')).toBe('Registro manual');
+    expect(fact('Fecha de registro')).toMatch(/^2 mar 2026$/i);
+    expect(text('dl.facts')).not.toMatch(/aparición/i);
   });
 
   it('el historial lista evento, actor, fecha y cambios de campo antes → después', () => {
@@ -93,31 +87,22 @@ describe('VehicleDetailComponent: detalle de un vehículo', () => {
     expect(items[0]).toContain('Por Ana Prueba');
     expect(items[0]).toMatch(/1 (abr|apr) 2026/i);
     expect(items[0]).toContain('Combustible: Gasolina → Diésel');
-    expect(items[1]).toContain('Confirmado desde un análisis de archivo');
-    expect(items[1]).toContain('Proceso automático');
+    expect(items[1]).toContain('Registro manual');
   });
 
   it('un evento nuevo del servidor se rotula de forma genérica y la propiedad en el historial se traduce', () => {
-    open(vehicleDetailDto({ history: [{ id: 'h', event: 'ALGO_NUEVO', at: '2026-04-01T09:30:00Z', actor_name: 'Ana', changes: [{ field: 'ownership', before: 'UNKNOWN', after: 'OWN' }], run_id: null }] }));
+    open(vehicleDetailDto({ history: [{ id: 'h', event: 'ALGO_NUEVO', at: '2026-04-01T09:30:00Z', actor_name: 'Ana', changes: [{ field: 'ownership', before: 'UNKNOWN', after: 'OWN' }] }] }));
 
     expect(text('[data-testid="history"]')).toContain('Cambio registrado');
     expect(text('[data-testid="history"]')).toContain('Propiedad: Sin declarar → Propio');
   });
 
-  it('sin historial lo dice y sin archivos no muestra esa sección', () => {
-    open(vehicleDetailDto({ history: [], runs: [] }));
+  it('sin historial lo dice, y no hay lista de archivos donde apareció el vehículo', () => {
+    open(vehicleDetailDto({ history: [] }));
 
     expect(text('section[aria-labelledby="vd-history"]')).toContain('Todavía no hay cambios registrados.');
     expect(el().querySelector('[data-testid="runs"]')).toBeNull();
-  });
-
-  it('lista los archivos donde apareció con su número de apariciones', () => {
-    open(vehicleDetailDto({ runs: [{ run_id: 'r1', file_name: 'a.xlsx', at: '2026-03-01T10:00:00Z', occurrences: 1 }, { run_id: 'r2', file_name: 'b.xlsx', at: '2026-04-01T10:00:00Z', occurrences: 5 }] }));
-    const runs = Array.from(el().querySelectorAll('[data-testid="runs"] > li')).map((li) => li.textContent!.replace(/\s+/g, ' ').trim());
-
-    expect(runs[0]).toContain('a.xlsx');
-    expect(runs[0]).toContain('1 aparición');
-    expect(runs[1]).toContain('5 apariciones');
+    expect(text('.body')).not.toContain('Archivos donde apareció');
   });
 
   it('dibuja la configuración con el diagrama compartido, emparejada por código con el catálogo, y su nombre', () => {
@@ -169,5 +154,22 @@ describe('VehicleDetailComponent: detalle de un vehículo', () => {
     http.expectOne(`${VEHICLES_ORG_URL}/vehicles/veh-1`).flush({ data: vehicleDetailDto() });
     fixture.detectChanges();
     expect(text('dl.facts')).toContain('ABC123');
+  });
+
+  it('un vehículo registrado desde Excel muestra el origen «Excel» y los eventos IMPORTED e IMPORT_UPDATED en español', () => {
+    open(
+      vehicleDetailDto({
+        source: 'IMPORT',
+        history: [
+          { id: 'h-2', event: 'IMPORT_UPDATED', at: '2026-04-01T09:30:00Z', actor_name: 'Ana', changes: [{ field: 'fuel_type', before: 'GASOLINE', after: 'DIESEL' }] },
+          { id: 'h-1', event: 'IMPORTED', at: '2026-03-02T10:00:00Z', actor_name: 'Ana', changes: [] },
+        ],
+      }),
+    );
+
+    expect(fact('Origen del registro')).toBe('Excel');
+    expect(text('[data-testid="history"]')).toContain('Actualizado desde Excel');
+    expect(text('[data-testid="history"]')).toContain('Registrado desde Excel');
+    expect(text('[data-testid="history"]')).toContain('Combustible: Gasolina → Diésel');
   });
 });

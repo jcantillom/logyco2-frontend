@@ -104,8 +104,8 @@ describe('PlatformDashboardComponent: resumen ejecutivo con datos reales', () =>
     for (const id of ['kpi-active', 'kpi-inactive', 'kpi-without-admin']) expect(kpis.querySelector(`[data-testid="${id}"]`)).toBeNull();
     expect(kpis.querySelectorAll('.kpi').length).toBe(4);
     expect(kpis.querySelectorAll('a.kpi').length).toBe(3);
-    expect(kpis.querySelector('app-platform-factor-card [data-testid="kpi-emission-factor"]')).not.toBeNull();
-    expect(kpis.lastElementChild!.tagName.toLowerCase()).toBe('app-platform-factor-card');
+    expect(kpis.querySelector('app-factor-rotator-card [data-testid="kpi-emission-factor"]')).not.toBeNull();
+    expect(kpis.lastElementChild!.tagName.toLowerCase()).toBe('app-factor-rotator-card');
   });
 
   it('las variaciones salen del período: porcentaje con base previa, número de nuevos si no la había', () => {

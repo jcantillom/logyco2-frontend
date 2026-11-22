@@ -8,30 +8,27 @@ import { Vehicle, VehicleFilter, VehicleStatus, VehicleSummary } from '../../dom
 import { PaginationComponent } from '../../shared/ui/pagination.component';
 import { ResourceStateComponent } from '../../shared/ui/resource-state.component';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
+import { KPI_TILE_STYLES } from '../../shared/ui/kpi-tile.styles';
+import { TRUCK_ICON } from '../../shared/ui/icons';
 import { VehicleInventory } from './vehicle-inventory';
-import { FUEL_OPTIONS, STATUS_LABELS, fuelLabel } from './vehicles.labels';
+import { FUEL_OPTIONS, SOURCE_LABELS, STATUS_LABELS, fuelLabel } from './vehicles.labels';
 
 /** Trazos de los íconos (viewBox 24, sin relleno). */
 const ICONS = {
-  plate: 'M3 7h18v10H3zM6.5 12h2M11 12h2M15.5 12h2',
-  pending: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
-  alert: 'M12 4l9 16H3zM12 10v4M12 17.5v.01',
+  truck: TRUCK_ICON,
   off: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zM8 12h8',
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-5-5',
   filter: 'M3 5h18l-7 8v6l-4-2v-4z',
   plus: 'M12 5v14M5 12h14',
-  upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 .01 0',
 } as const;
 
-const PENDING_HINT = 'Disponible al analizar un archivo';
-
 interface Tile {
-  readonly id: 'registered' | 'pending' | 'conflicts' | 'inactive';
+  readonly id: 'registered' | 'inactive';
   readonly label: string;
   readonly value: number;
   readonly icon: string;
   readonly tone: string;
-  readonly disabled: boolean;
   readonly action: () => void;
 }
 
@@ -45,21 +42,11 @@ interface Tile {
   imports: [DatePipe, NgTemplateOutlet, ReactiveFormsModule, PaginationComponent, ResourceStateComponent, StatusBadgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
+    KPI_TILE_STYLES,
     `
       :host { display: block; }
       svg.i { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
       .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-      .kpi { --tone: var(--c-primary); --tone-bg: var(--c-ok-soft); all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'label label' 'line ico'; align-items: center; column-gap: 10px; row-gap: 4px; min-height: 84px; padding: 12px 16px; border: 1px solid var(--c-bd); border-radius: 14px; background: var(--c-sf); box-shadow: var(--shadow); transition: border-color 0.15s, box-shadow 0.15s; }
-      .kpi:hover:not(:disabled) { border-color: var(--c-primary); box-shadow: 0 8px 18px color-mix(in srgb, var(--c-head) 20%, transparent); }
-      .kpi:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
-      .kpi:disabled { cursor: not-allowed; opacity: 0.75; }
-      .kpi.warn { --tone: var(--c-warning); --tone-bg: var(--c-warn-soft); }
-      .kpi.bad { --tone: var(--c-danger); --tone-bg: var(--c-bad-soft); }
-      .kpi.neutral { --tone: var(--c-mute2); --tone-bg: var(--c-s3); }
-      .kpi .label { grid-area: label; font-size: 0.78rem; font-weight: 600; color: var(--c-mu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .kpi .value { grid-area: line; font-size: 1.7rem; font-weight: 750; line-height: 1.1; letter-spacing: -0.03em; color: var(--c-head); }
-      .kpi .ico { grid-area: ico; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--tone-bg); color: var(--tone); }
-      .kpi .ico svg { width: 19px; height: 19px; fill: color-mix(in srgb, currentColor 14%, transparent); stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
       .kpis .skeleton { height: 84px; border-radius: 14px; }
       .panel { border: 1px solid var(--c-bd); border-radius: 16px; background: var(--c-sf); padding: 16px 20px; box-shadow: var(--shadow); }
       .tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -78,12 +65,17 @@ interface Tile {
       .tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.87rem; }
       .tbl th { text-align: left; padding: 10px 14px; font-weight: 600; font-size: 0.82rem; color: var(--c-text2); background: var(--c-s2); white-space: nowrap; border-bottom: 1px solid var(--c-bd); }
       .tbl td { padding: 9px 14px; border-bottom: 1px solid var(--c-bd); vertical-align: middle; }
+      .tbl thead th:not(:first-child), .tbl td { text-align: center; }
       .tbl tbody tr:last-child td { border-bottom: 0; }
       .tbl tbody tr:hover td { background: color-mix(in srgb, var(--c-s2) 60%, transparent); }
       .tbl tbody th { padding: 9px 14px; border-bottom: 1px solid var(--c-bd); background: none; font-size: inherit; font-weight: 700; letter-spacing: 0.03em; color: var(--c-head); text-align: left; }
       .tbl tbody tr:last-child th { border-bottom: 0; }
       .tbl small { display: block; color: var(--c-mu); font-size: 0.76rem; }
       .tbl .nw { white-space: nowrap; }
+      .ibtn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 10px; cursor: pointer; background: var(--c-sf); border: 1px solid color-mix(in srgb, var(--c-primary) 40%, var(--c-sf)); color: var(--c-head); }
+      .ibtn:hover { background: var(--c-ok-soft); }
+      .ibtn:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+      .ibtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
       .empty { text-align: center; padding: 34px 16px; }
       .empty h2 { margin: 0; font-size: 1.1rem; color: var(--c-head); }
       .empty p { margin: 6px auto 14px; max-width: 460px; color: var(--c-mu); }
@@ -99,6 +91,7 @@ interface Tile {
         .tbl, .tbl tbody { display: block; }
         .tbl tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; margin-bottom: 10px; border: 1px solid var(--c-bd); border-radius: 14px; background: var(--c-sf); }
         .tbl td, .tbl tbody th { display: block; padding: 0; border: 0; background: none !important; }
+        .tbl td { text-align: left; }
         .tbl td[data-l]::before { content: attr(data-l) ': '; color: var(--c-mu); }
         .tbl .k-plate, .tbl .k-act { grid-row: 1; }
         .tbl .k-plate { grid-column: 1; }
@@ -114,7 +107,7 @@ interface Tile {
             @if (readOnly()) {
               <div class="kpi" [class]="t.tone" [attr.data-testid]="'tile-' + t.id"><ng-container *ngTemplateOutlet="body; context: { $implicit: t }" /></div>
             } @else {
-              <button type="button" class="kpi" [class]="t.tone" [attr.data-testid]="'tile-' + t.id" [disabled]="t.disabled" [attr.title]="t.disabled ? pendingHint : null" (click)="t.action()"><ng-container *ngTemplateOutlet="body; context: { $implicit: t }" /></button>
+              <button type="button" class="kpi" [class]="t.tone" [attr.data-testid]="'tile-' + t.id" (click)="t.action()"><ng-container *ngTemplateOutlet="body; context: { $implicit: t }" /></button>
             }
           }
         } @else if (source().summary.status() === 'error') {
@@ -124,7 +117,7 @@ interface Tile {
           </div>
         } @else {
           <span class="sr-only" role="status">Cargando resumen…</span>
-          @for (n of [1, 2, 3, 4]; track n) { <span class="skeleton"></span> }
+          @for (n of [1, 2]; track n) { <span class="skeleton"></span> }
         }
       </section>
       <ng-template #body let-t><span class="label">{{ t.label }}</span><b class="value">{{ t.value }}</b><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="t.icon" /></svg></span></ng-template>
@@ -170,7 +163,7 @@ interface Tile {
           @if (source().list.data(); as page) {
             @if (page.total === 0) {
               <div class="empty" data-testid="vehicles-empty">
-                <span class="empty-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path [attr.d]="icons.plate" /></svg></span>
+                <span class="empty-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path [attr.d]="icons.truck" /></svg></span>
                 @if (hasFilter()) {
                   <h2>Sin resultados</h2>
                   <p>Ningún vehículo coincide con la búsqueda o los filtros.</p>
@@ -179,16 +172,11 @@ interface Tile {
                   @if (readOnly()) {
                     <h2>Esta empresa aún no tiene vehículos registrados.</h2>
                   } @else {
-                  <h2>Aún no tienes vehículos registrados</h2>
-                  <p>Tus vehículos aparecen aquí cuando analizas un archivo de operaciones o los registras manualmente.</p>
-                  <div class="row">
-                    @if (canImport()) {
-                      <button type="button" class="btn btn-primary" data-testid="analyze-file" (click)="analyze.emit($event)">
-                        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.upload" /></svg> Analizar archivo Excel
-                      </button>
+                    <h2>Aún no tienes vehículos registrados.</h2>
+                    @if (canManage()) {
+                      <p>Registra el primero con «Registrar vehículo».</p>
+                      <div class="row"><button type="button" class="btn btn-secondary" data-testid="register-empty" (click)="register.emit($event)">Registrar vehículo</button></div>
                     }
-                    @if (canManage()) { <button type="button" class="btn btn-secondary" data-testid="register-empty" (click)="register.emit($event)">Registrar vehículo</button> }
-                  </div>
                   }
                 }
               </div>
@@ -199,21 +187,20 @@ interface Tile {
                   <thead>
                     <tr>
                       <th scope="col">Placa</th><th scope="col">Configuración</th><th scope="col">Tipo</th><th scope="col">Combustible</th><th scope="col">Modelo</th>
-                      <th scope="col">Estado</th><th scope="col">Fecha de registro</th><th scope="col">Última aparición</th><th scope="col"><span class="sr-only">Acciones</span></th>
+                      <th scope="col">Estado</th><th scope="col">Fecha de registro</th><th scope="col"><span class="sr-only">Acciones</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     @for (v of page.items; track v.id) {
                       <tr>
-                        <th scope="row" class="k-plate">{{ v.plate }}@if (v.plateOriginal !== v.plate) { <small>Como llegó: {{ v.plateOriginal }}</small> }</th>
+                        <th scope="row" class="k-plate">{{ v.plate }}@if (v.plateOriginal !== v.plate) { <small>Como llegó: {{ v.plateOriginal }}</small> }@if (v.source === 'IMPORT') { <small data-testid="source-import">Origen: {{ sourceLabels.IMPORT }}</small> }</th>
                         <td data-l="Configuración">{{ v.configurationCode ?? '—' }}@if (v.configurationCode && !v.configurationRecognized) { <small>No reconocida</small> }</td>
                         <td data-l="Tipo">{{ v.vehicleType ?? '—' }}</td>
                         <td data-l="Combustible">{{ fuelText(v.fuelType) }}</td>
                         <td data-l="Modelo">{{ v.modelYear ?? '—' }}</td>
                         <td data-l="Estado"><app-status-badge [label]="statusLabels[v.status]" /></td>
                         <td class="nw" data-l="Registro">{{ v.createdAt | date: 'd MMM y' }}</td>
-                        <td class="nw" data-l="Última aparición">{{ v.lastSeenAt | date: 'd MMM y' }}</td>
-                        <td class="k-act"><button type="button" class="btn btn-secondary btn-sm" data-testid="view-detail" [attr.aria-label]="'Ver detalle de ' + v.plate" (click)="view.emit({ vehicle: v, event: $event })">Ver detalle</button></td>
+                        <td class="k-act"><button type="button" class="ibtn" data-testid="view-detail" title="Ver detalle" [attr.aria-label]="'Ver detalle de ' + v.plate" (click)="view.emit({ vehicle: v, event: $event })"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.eye" /></svg></button></td>
                       </tr>
                     }
                   </tbody>
@@ -231,23 +218,17 @@ export class VehicleInventoryComponent {
 
   readonly source = input.required<VehicleInventory>();
   readonly readOnly = input(false);
-  /** Las tarjetas «Nuevos pendientes» e «Inconsistencias» se habilitan cuando hay una corrida con algo por decidir. */
-  readonly pendingNew = input(false);
-  readonly pendingConflicts = input(false);
   readonly view = output<{ readonly vehicle: Vehicle; readonly event: Event }>();
   readonly register = output<Event>();
-  readonly analyze = output<Event>();
-  readonly openPending = output<'new' | 'conflicts'>();
 
   protected readonly icons = ICONS;
   protected readonly statusLabels = STATUS_LABELS;
+  protected readonly sourceLabels = SOURCE_LABELS;
   protected readonly fuelOptions = FUEL_OPTIONS;
   protected readonly fuelText = fuelLabel;
-  protected readonly pendingHint = PENDING_HINT;
   protected readonly search = new FormControl('', { nonNullable: true });
   protected readonly filtersOpen = signal(false);
   protected readonly canManage = computed(() => !this.readOnly() && this.access.can('vehicles:manage'));
-  protected readonly canImport = computed(() => !this.readOnly() && this.access.can('imports:create'));
   protected readonly activeFilters = computed(() => Object.values(this.source().filter()).filter(Boolean).length);
   protected readonly hasFilter = computed(() => this.activeFilters() > 0);
 
@@ -264,10 +245,8 @@ export class VehicleInventoryComponent {
 
   protected tiles(s: VehicleSummary): readonly Tile[] {
     return [
-      { id: 'registered', label: 'Registrados', value: s.registered, icon: ICONS.plate, tone: '', disabled: false, action: () => this.applyStatus(undefined) },
-      { id: 'pending', label: 'Nuevos pendientes', value: s.pendingNew, icon: ICONS.pending, tone: 'warn', disabled: !this.pendingNew(), action: () => this.openPending.emit('new') },
-      { id: 'conflicts', label: 'Con inconsistencias', value: s.conflicts, icon: ICONS.alert, tone: 'bad', disabled: !this.pendingConflicts(), action: () => this.openPending.emit('conflicts') },
-      { id: 'inactive', label: 'Inactivos', value: s.inactive, icon: ICONS.off, tone: 'neutral', disabled: false, action: () => this.applyStatus('INACTIVE') },
+      { id: 'registered', label: 'Registrados', value: s.registered, icon: ICONS.truck, tone: '', action: () => this.applyStatus(undefined) },
+      { id: 'inactive', label: 'Inactivos', value: s.inactive, icon: ICONS.off, tone: 'neutral', action: () => this.applyStatus('INACTIVE') },
     ];
   }
 

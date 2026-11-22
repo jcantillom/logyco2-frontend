@@ -4,9 +4,12 @@ const DAY = 24 * HOUR;
 
 /** «hace un momento», «hace 5 min», «hace 3 h», «hace 2 d»; pasada una semana, la fecha corta. */
 export function relativeTime(iso: string, now: number = Date.now()): string {
-  const elapsed = Math.max(0, now - new Date(iso).getTime());
+  const time = new Date(iso).getTime();
 
-  if (Number.isNaN(elapsed)) return '';
+  if (Number.isNaN(time)) return '';
+
+  const elapsed = Math.max(0, now - time);
+
   if (elapsed < MINUTE) return 'hace un momento';
   if (elapsed < HOUR) return `hace ${Math.floor(elapsed / MINUTE)} min`;
   if (elapsed < DAY) return `hace ${Math.floor(elapsed / HOUR)} h`;

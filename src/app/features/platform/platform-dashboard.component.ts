@@ -10,7 +10,7 @@ import { FuelPriceCardsComponent } from '../intelligence/fuel-price-cards.compon
 import { IntelligenceFacade } from '../intelligence/intelligence.facade';
 import { activityLine, relativeTime } from './platform-labels';
 import { PlatformEvolutionCardComponent } from './platform-evolution-card.component';
-import { PlatformFactorCardComponent } from './platform-factor-card.component';
+import { FactorRotatorCardComponent } from '../emissions/factor-rotator-card.component';
 import { PlatformDashboardFacade } from './platform.facades';
 
 type Preset = 7 | 30 | 90;
@@ -44,7 +44,7 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
 
 @Component({
   selector: 'app-platform-dashboard',
-  imports: [FuelPriceCardsComponent, DatePipe, DecimalPipe, RouterLink, ResourceStateComponent, DonutChartComponent, PlatformEvolutionCardComponent, PlatformFactorCardComponent],
+  imports: [FuelPriceCardsComponent, DatePipe, DecimalPipe, RouterLink, ResourceStateComponent, DonutChartComponent, PlatformEvolutionCardComponent, FactorRotatorCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -244,7 +244,7 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
                 <span class="bar" aria-hidden="true"><i [style.width.%]="(m.superAdmins.active / m.superAdmins.maxActive) * 100"></i><i class="reserved" [style.width.%]="(m.superAdmins.reservedByInvitations / m.superAdmins.maxActive) * 100"></i></span>
               </span>
             </a>
-            <app-platform-factor-card class="kpi-factor" />
+            <app-factor-rotator-card class="kpi-factor" />
           </div>
         }
       </app-resource-state>

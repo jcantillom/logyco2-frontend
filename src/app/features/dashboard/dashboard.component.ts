@@ -3,63 +3,64 @@ import { RouterLink } from '@angular/router';
 import { reloadOnContextChange } from '../../core/org/organization-context';
 import { PageHeroComponent } from '../../shared/ui/page-hero.component';
 import { OrgRequiredComponent } from '../../shared/ui/org-required.component';
+import { FootprintByFuel, FootprintMonthly, FootprintSummary } from '../../domain/models/footprint';
+import { monthSlots, periodRangeLabel } from '../../domain/models/period';
 import { AccessPolicy } from '../../core/auth/access-policy';
 import { SessionStore } from '../../core/auth/session.store';
 import { FuelPriceCardsComponent } from '../intelligence/fuel-price-cards.component';
 import { IntelligenceFacade } from '../intelligence/intelligence.facade';
 import { UsersFacade } from '../users/users.facade';
 import { roleLabel } from '../../shared/ui/labels';
-import { HomeFacade } from './home.facade';
+import { ROUTE_PIN_ICON, TRUCK_ICON } from '../../shared/ui/icons';
+import { HEADER_CHIP_STYLES } from '../../shared/ui/icon-chip.styles';
+import { KpiTileComponent } from '../../shared/ui/kpi-tile.component';
+import { VehiclesFacade } from '../vehicles/vehicles.facade';
+import { FactorRotatorCardComponent } from '../emissions/factor-rotator-card.component';
+import { formatCount, share } from '../imports/imports.labels';
+import { FootprintCardComponent } from './footprint-card.component';
+import { PeriodSelectorComponent } from './period-selector.component';
+import { FuelShareCardComponent } from './fuel-share-card.component';
+import { MonthlyEmissionsCardComponent } from './monthly-emissions-card.component';
+import { ResultCardComponent } from './result-card.component';
+import { ImportsOverviewFacade } from './imports-overview.facade';
 
 /** Resumen de la empresa: solo datos reales; lo que aún no tiene backend se anuncia como «Próximamente», nunca con ejemplos. */
 @Component({
   selector: 'app-dashboard',
-  imports: [PageHeroComponent, FuelPriceCardsComponent, RouterLink, OrgRequiredComponent],
+  imports: [PageHeroComponent, FuelPriceCardsComponent, RouterLink, OrgRequiredComponent, KpiTileComponent, FactorRotatorCardComponent, FootprintCardComponent, PeriodSelectorComponent, ResultCardComponent, MonthlyEmissionsCardComponent, FuelShareCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
+    HEADER_CHIP_STYLES,
     `
       :host { display: block; } .page { gap: 12px; display: flex; flex-direction: column; min-height: calc(100dvh - 124px); }
       app-org-required { display: contents; }
-      .ico { display: grid; place-items: center; width: 50px; height: 50px; flex: none; border-radius: 16px; background: var(--c-ok-soft); color: var(--c-accent); }
-      .ico svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+      /* Barra de herramientas de una línea, alineada a la derecha entre el encabezado y las tarjetas (el hero no aloja contenido: su ilustración ocupa la esquina inferior derecha). */
+      .toolbar { display: flex; justify-content: flex-end; }
       .row { display: grid; gap: 12px; align-items: stretch; }
-      .row.b { grid-template-columns: minmax(0, 1fr); }
-      .row.c { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+      .row.b { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .row.c { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); } .row.c.single { grid-template-columns: minmax(0, 1fr); }
       .team { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-      .team li { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--c-bd); } 
-      .team .av { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--c-ok-soft); color: var(--c-accent); font-weight: 700; font-size: 0.76rem; }
+      .team li { display: flex; align-items: center; gap: 12px; padding: 8px 4px; border-bottom: 1px solid var(--c-bd); } 
+      .team .av { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--c-ok-soft); color: var(--c-accent); font-weight: 700; font-size: 0.76rem; }
       .team .who { min-width: 0; flex: 1; } .team .who strong { display: block; color: var(--c-head); font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .team .who small { display: block; color: var(--c-mu); font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .team .rl { flex: none; font-size: 0.74rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--c-s3); color: var(--c-text2); }
-      .team .rl.ORG_ADMIN { background: color-mix(in srgb, var(--c-primary) 14%, var(--c-sf)); color: color-mix(in srgb, var(--c-primary-700) 75%, var(--c-head)); } .team .rl.ORG_ANALYST { background: color-mix(in srgb, var(--c-secondary) 13%, var(--c-sf)); color: color-mix(in srgb, var(--c-secondary) 75%, var(--c-head)); }
+      .team .rl.ORG_ADMIN { background: color-mix(in srgb, var(--c-primary) 14%, var(--c-sf)); color: color-mix(in srgb, var(--c-primary-700) 80%, var(--c-head)); } .team .rl.ORG_ANALYST { background: color-mix(in srgb, var(--c-secondary) 14%, var(--c-sf)); color: color-mix(in srgb, var(--c-secondary) 80%, var(--c-head)); }
       .tstats { display: flex; gap: 14px; margin-left: auto; color: var(--c-mu); font-size: 0.78rem; text-align: right; } .tstats b { display: block; color: var(--c-head); font-size: 1.05rem; line-height: 1.1; }
       .card { border-radius: 16px; padding: 12px 18px; }
-      .card > header { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin-bottom: 8px; text-align: left; }
-      .card > header .ico { width: 36px; height: 36px; border-radius: 10px; }
-      .card > header .ico svg { width: 20px; height: 20px; }
-      .card > header h2 { margin: 0; font-size: 1.05rem; color: var(--c-head); }
-      .card > header p { margin: 0; color: var(--c-mu); font-size: 0.82rem; }
-      .card > header .more { margin: 0 0 0 auto; align-self: flex-start; white-space: nowrap; }
-      .empty { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 8px; padding: 10px 16px; border: 1px dashed var(--c-bd); border-radius: 14px; text-align: left; }
-      .e-ico { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--c-ok-soft); color: var(--c-accent); } .e-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-      .empty strong { display: block; color: var(--c-head); font-size: 0.92rem; } .empty span:not(.e-ico) { color: var(--c-mu); font-size: 0.82rem; }
+      .card > header { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin-bottom: 12px; text-align: left; }
+      .card { padding: 16px 18px; }
+      .card > header .ht { min-width: 0; }
+      .card > header h2 { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--c-head); }
+      .card > header p { margin: 1px 0 0; color: var(--c-mu); font-size: 0.78rem; }
       .more { display: inline-block; margin-top: 6px; font-size: 0.9rem; font-weight: 600; color: var(--c-accent); text-decoration: none; }
-      .todo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-      .todo a { display: flex; align-items: center; gap: 12px; padding: 6px 12px; border: 1px solid var(--c-bd); border-radius: 12px; text-decoration: none; color: var(--c-head); font-weight: 600; font-size: 0.92rem; background: var(--c-sf); }
-      .todo a:hover { border-color: var(--c-primary); }
-      .todo .warn { background: var(--c-warn-soft); border-color: var(--c-warning); }
-      .todo .warn .ico { background: transparent; color: var(--c-warning); }
-      .todo .ico { width: 30px; height: 30px; border-radius: 8px; }
-      .todo .ico svg { width: 18px; height: 18px; }
-      .todo .txt { flex: 1; min-width: 0; }
-      .todo .num { min-width: 26px; text-align: center; padding: 1px 8px; border-radius: 999px; background: var(--c-bad-soft); color: var(--c-danger); font-weight: 800; font-size: 0.8rem; }
-      .todo .soon { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--c-mu); border: 1px solid var(--c-bd); border-radius: 999px; padding: 2px 8px; }
-      .todo .go { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--c-mu); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-      .allgood { display: flex; align-items: center; gap: 10px; margin: 0; padding: 5px 12px; border-radius: 12px; background: color-mix(in srgb, var(--c-primary) 8%, var(--c-sf)); color: var(--c-text2); font-size: 0.86rem; }
-      .ok-ico { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--c-primary); color: #fff; } .ok-ico svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-      .pill { margin-left: auto; padding: 3px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; white-space: nowrap; } .pill.ok { background: var(--c-ok-soft); color: var(--c-accent); } .pill.warn { background: var(--c-warn-soft); color: var(--c-warning); }
-      .next-title { margin: 8px 0 4px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-mu); }
-      .steps .txt b { display: block; font-size: 0.88rem; } .steps .txt small { display: block; margin-top: 1px; font-size: 0.74rem; font-weight: 400; color: var(--c-mu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      @media (max-width: 1100px) { .row.b, .row.c { grid-template-columns: 1fr; } }
+      .allgood { display: flex; align-items: center; gap: 10px; margin: 0; padding: 5px 12px; border-radius: 12px; background: color-mix(in srgb, var(--c-primary) 14%, var(--c-sf)); color: var(--c-text2); font-size: 0.86rem; }
+      .kpis { container-type: inline-size; }
+      .kpis-in { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+      .kpis-in > * { min-width: 0; }
+      @container (max-width: 1180px) { .kpis-in { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+      @container (max-width: 760px) { .kpis-in { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @container (max-width: 460px) { .kpis-in { grid-template-columns: minmax(0, 1fr); } }
+      @media (max-width: 1100px) { .row.b, .row.c, .row.c.single { grid-template-columns: minmax(0, 1fr); } }
     `,
   ],
   template: `
@@ -67,64 +68,42 @@ import { HomeFacade } from './home.facade';
       <app-page-hero [title]="'Bienvenido, ' + userName()" subtitle="Sigue la huella de carbono de tu empresa y avanza en su plan de descarbonización." />
 
       <app-org-required>
-          <section class="card" aria-labelledby="emissions-soon-title" data-testid="emissions-soon">
-            <div class="empty">
-              <span class="e-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16M8 15l3-4 3 2 5-6" /></svg></span>
-              <div><strong id="emissions-soon-title">Próximamente: indicadores de emisiones, intensidad y tendencia</strong><span>Se mostrarán aquí cuando existan datos medidos de tu empresa.</span></div>
-            </div>
-          </section>
-
-          <div class="row b">
-            <section class="card" aria-labelledby="todo-title">
-              <header>
-                <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h6l1 2h3v15H5V6h3zM9 13l2 2 4-4" /></svg></span>
-                <div><h2 id="todo-title">Acciones pendientes</h2><p>Lo que requiere tu atención hoy.</p></div>
-                @if (home.organization.data()) {
-                  @if (home.pending() > 0) { <span class="pill warn" data-testid="todo-count">{{ home.pending() }} {{ home.pending() === 1 ? 'pendiente' : 'pendientes' }}</span> }
-                  @else { <span class="pill ok" data-testid="todo-count">Al día</span> }
+          <div class="toolbar">
+                      <app-period-selector data-testid="period" [periods]="imports.periods.data() ?? []" [selection]="imports.selection()" [status]="canSeeImports() ? imports.periods.status() : 'ready'" [link]="canSeeImports() ? '/cargas' : null" (selected)="imports.select($event)" (retry)="imports.load()" />
+          </div>
+          @if (showKpis()) {
+            <section class="kpis" aria-label="Indicadores de la empresa" data-testid="kpi-row">
+              <div class="kpis-in">
+                <app-footprint-card size="sm" data-testid="kpi-footprint" [summary]="footprint" [link]="canSeeImports() ? '/cargas' : null" />
+                @if (canSeeImports()) {
+                  <app-kpi-tile size="sm" data-testid="kpi-trips" label="Viajes procesados" [caption]="tripsCaption()" [icon]="icons.pin" [iconSolid]="true" [value]="tripsValue()" [status]="imports.counts.status()" link="/cargas" (retry)="imports.reloadCounts()" />
+                  <app-kpi-tile size="sm" data-testid="kpi-missing" label="Datos por completar" [caption]="missingCaption()" [icon]="icons.alert" [value]="missingValue()" [tone]="missingTone()" [status]="imports.counts.status()" link="/cargas" (retry)="imports.reloadCounts()" />
                 }
-              </header>
-              <ul class="todo" data-testid="todo">
-                @for (a of home.actions(); track a.label) {
-                  <li>
-                    <a class="warn" [routerLink]="a.path" [queryParams]="a.query">
-                      <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17h.01" /></svg></span>
-                      <span class="txt">{{ a.label }}</span><span class="num">{{ a.count }}</span>
-                      <svg class="go" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                    </a>
-                  </li>
-                } @empty {
-                  @if (home.organization.data()) {
-                    <li class="allgood"><span class="ok-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" /></svg></span>Todo en orden: no tienes acciones pendientes en tu empresa.</li>
-                  }
+                @if (canSeeVehicles()) {
+                  <app-kpi-tile size="sm" data-testid="kpi-registered" label="Vehículos registrados" [caption]="vehiclesCaption()" [icon]="icons.truck" [value]="summary()?.registered ?? 0" [status]="vehicles.summary.status()" link="/vehiculos" (retry)="vehicles.loadSummary()" />
                 }
-              </ul>
-              <h3 class="next-title">Próximos pasos</h3>
-              <ul class="todo steps">
-                <li>
-                  <a routerLink="/cargas">
-                    <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg></span>
-                    <span class="txt"><b>Cargar tu primer período</b><small>Sube tus operaciones para calcular emisiones.</small></span><span class="soon">Próximamente</span>
-                    <svg class="go" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                  </a>
-                </li>
-                <li>
-                  <a routerLink="/reduccion">
-                    <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" /></svg></span>
-                    <span class="txt"><b>Definir el plan de reducción</b><small>Fija metas y acciones para bajar tu huella.</small></span><span class="soon">Próximamente</span>
-                    <svg class="go" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                  </a>
-                </li>
-              </ul>
+                @if (canSeeImports()) {
+                  <app-kpi-tile size="sm" data-testid="kpi-running" label="Cargas en proceso" [caption]="runningCaption()" [icon]="icons.clock" [value]="counts()?.inProgress ?? 0" [status]="imports.counts.status()" link="/cargas" (retry)="imports.reloadCounts()" />
+                }
+              </div>
             </section>
+          }
+          <div class="row b">
+            <app-factor-rotator-card appearance="tile" data-testid="emission-factor" />
+            <app-period-result-card data-testid="period-result-card" [byFuel]="footprintByFuel" [counts]="canSeeImports() ? counts() ?? null : null" [periodLabel]="resultPeriodLabel()" [status]="canSeeImports() ? imports.counts.status() : 'ready'" (retry)="imports.reloadCounts()" />
           </div>
 
-          <div class="row c">
+          <div class="row b" data-testid="charts-row">
+            <app-monthly-emissions-card data-testid="monthly-chart" [monthly]="footprintMonthly" [slots]="chartSlots()" [periodLabel]="resultPeriodLabel()" [status]="chartStatus()" (retry)="imports.reloadCounts()" />
+            <app-fuel-share-card data-testid="fuel-chart" [byFuel]="footprintByFuel" [periodLabel]="resultPeriodLabel()" [status]="chartStatus()" (retry)="imports.reloadCounts()" />
+          </div>
+
+          <div class="row c" [class.single]="!canSeeTeam()">
             @if (canSeeTeam()) {
               <section class="card" aria-labelledby="team-title" data-testid="team-card">
-                <header>
-                  <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14a6.5 6.5 0 0 1 3.5 6" /></svg></span>
-                  <div><h2 id="team-title">Usuarios de la empresa</h2></div>
+                <header class="hdr">
+                  <span class="ico chip" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14a6.5 6.5 0 0 1 3.5 6" /></svg></span>
+                  <div class="ht"><h2 id="team-title">Usuarios de la empresa</h2><p>Personas con acceso a tu empresa</p></div>
                   @if (users.counts.data(); as c) { <div class="tstats"><span><b>{{ c.active + c.pending + c.suspended }}</b>en total</span><span><b>{{ c.active }}</b>activos</span>@if (c.pendingInvitations) { <span><b>{{ c.pendingInvitations }}</b>invitaciones</span> }</div> }
                 </header>
                 <ul class="team">
@@ -140,9 +119,9 @@ import { HomeFacade } from './home.facade';
               </section>
             }
             <section class="card" aria-labelledby="fuel-title" data-testid="fuel-prices">
-              <header>
-                <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M4 21h12M7 8h6M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3" /></svg></span>
-                <div><h2 id="fuel-title">Precios de combustibles</h2><p>Referencia CREG y MinEnergía.</p></div>
+              <header class="hdr">
+                <span class="ico chip" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M4 21h12M7 8h6M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3" /></svg></span>
+                <div class="ht"><h2 id="fuel-title">Precios de combustibles</h2><p>Referencia CREG y MinEnergía</p></div>
               </header>
               <app-fuel-price-cards [compact]="true" />
               <a class="more" routerLink="/intelligence">Ver detalle →</a>
@@ -153,18 +132,96 @@ import { HomeFacade } from './home.facade';
   `,
 })
 export class DashboardComponent {
-  protected readonly home = inject(HomeFacade);
   protected readonly users = inject(UsersFacade);
   private readonly session = inject(SessionStore);
   protected readonly userName = computed(() => this.session.user()?.fullName?.trim() ?? '');
   private readonly intel = inject(IntelligenceFacade);
+  protected readonly vehicles = inject(VehiclesFacade);
   private readonly access = inject(AccessPolicy);
+  protected readonly imports = inject(ImportsOverviewFacade);
+  /**
+   * Punto de conexión del cálculo de emisiones: hoy no hay dato (`null` = «pendiente»). Cuando exista `GET /organizations/{id}/emissions/footprint`,
+   * alimentar este valor con un facade (`FootprintSummary`); la tarjeta y su lógica ya están listas. No se simulan cifras.
+   */
+  protected readonly footprint: FootprintSummary | null = null;
+  /**
+   * Punto de conexión del resultado por combustible de «Resultado del periodo» (kg CO₂ del periodo calculado más reciente): hoy `null` (pendiente);
+   * cuando el endpoint `emissions/footprint` entregue `by_fuel`, alimentarlo aquí. La distancia y la carga de esa tarjeta ya son datos reales.
+   */
+  protected readonly footprintByFuel: FootprintByFuel | null = null;
+  /**
+   * Punto de conexión de «Emisiones de CO₂ por mes» (kg por mes del periodo elegido): hoy `null` (pendiente); cuando `emissions/footprint` entregue
+   * `by_month`, alimentarlo aquí. El eje X ya sigue el periodo elegido (`chartSlots`).
+   */
+  protected readonly footprintMonthly: FootprintMonthly | null = null;
+  /** Meses del periodo elegido para el eje X de las barras: del `from` al `to` (con «todos», del mínimo al máximo de la lista), los 24 más recientes. */
+  protected readonly chartSlots = computed(() => {
+    const selection = this.imports.selection();
+    const list = this.imports.periods.data() ?? [];
+
+    if (selection !== 'ALL') return monthSlots(selection.from, selection.to);
+
+    if (list.length === 0) return [];
+
+    return monthSlots(list.reduce((min, p) => (p.from < min ? p.from : min), list[0].from), list.reduce((max, p) => (p.to > max ? p.to : max), list[0].to));
+  });
+  /** Las gráficas esperan al recargar los counts al cambiar de periodo (esqueleto); sin permiso de cargas no hay nada que esperar. */
+  protected readonly chartStatus = computed(() => (this.canSeeImports() ? this.imports.counts.status() : 'ready'));
+  /** El periodo elegido en el selector, para el chip de «Resultado del periodo» («Todos los periodos» si no hay filtro). */
+  protected readonly resultPeriodLabel = computed(() => {
+    const selection = this.imports.selection();
+
+    if (!this.canSeeImports() || (selection === 'ALL' && (this.imports.periods.data() ?? []).length === 0)) return null;
+
+    return selection === 'ALL' ? 'Todos los periodos' : periodRangeLabel(selection.from, selection.to);
+  });
   /** Ver a las personas de la empresa exige administrar membresías o leer usuarios (como la vista de Usuarios). */
+  protected readonly canSeeVehicles = computed(() => this.access.can('vehicles:read'));
+  /** Las tarjetas de calculabilidad y de cargas exigen poder cargar archivos (`imports:create`). */
+  protected readonly canSeeImports = computed(() => this.access.can('imports:create'));
+  protected readonly showKpis = computed(() => this.canSeeVehicles() || this.canSeeImports());
+  protected readonly counts = computed(() => this.imports.counts.data());
+  /** Sin filas leídas todavía no hay con qué calcular un porcentaje. */
+  private readonly hasRows = computed(() => (this.counts()?.rowsRead ?? 0) > 0);
+  protected readonly tripsValue = computed(() => (this.hasRows() ? formatCount(this.counts()?.rowsRead ?? 0) : '—'));
+  protected readonly tripsCaption = computed(() => {
+    if (!this.hasRows()) return 'Sube tu primer archivo para empezar';
+
+    return this.imports.selection() === 'ALL' ? 'viajes revisados en total' : 'viajes revisados en el periodo';
+  });
+  protected readonly missingValue = computed(() => (this.hasRows() ? formatCount(this.counts()?.rowsPending ?? 0) : '—'));
+  protected readonly missingTone = computed(() => ((this.counts()?.rowsPending ?? 0) > 0 ? 'warn' : ''));
+  protected readonly missingCaption = computed(() => {
+    const c = this.counts();
+
+    if (!this.hasRows() || !c) return 'Aparecerá cuando subas un archivo';
+
+    return c.rowsPending > 0 ? `${share(c.rowsPending, c.rowsRead)} % de los viajes procesados` : 'Todo lo procesado se puede calcular';
+  });
+  protected readonly vehiclesCaption = computed(() => {
+    const pending = this.canSeeImports() ? (this.counts()?.vehiclesPending ?? 0) : 0;
+
+    return pending > 0 ? `${formatCount(pending)} ${pending === 1 ? 'carga con vehículos por revisar' : 'cargas con vehículos por revisar'}` : 'Inventario de tu empresa';
+  });
+  protected readonly runningCaption = computed(() => {
+    const failed = this.counts()?.failed ?? 0;
+
+    return `${formatCount(this.counts()?.total ?? 0)} en total · ${formatCount(failed)} ${failed === 1 ? 'fallida' : 'fallidas'}`;
+  });
+  protected readonly summary = computed(() => this.vehicles.summary.data());
+  protected readonly icons = {
+    truck: TRUCK_ICON,
+    pin: ROUTE_PIN_ICON,
+    alert: 'M12 4l9 16H3zM12 10v4M12 17h.01',
+    clock: 'M12 7v5l3 2M12 3a9 9 0 1 0 .01 0',
+    leaf: 'M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19c2-5 6-8 10-10',
+  } as const;
   protected readonly canSeeTeam = computed(() => this.access.canAny(['users:read', 'memberships:manage']));
   constructor() {
     reloadOnContextChange(() => {
-      this.home.load();
       this.intel.loadSummary();
+      if (this.canSeeVehicles()) this.vehicles.loadSummary();
+      if (this.canSeeImports()) this.imports.load();
       if (this.canSeeTeam()) {
         this.users.loadPreview();
         this.users.loadCounts();

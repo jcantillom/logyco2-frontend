@@ -70,12 +70,12 @@ describe('Consola Super Admin: pestaña «Vehículos» de una empresa (solo lect
     expect(text('tbody tr')).toContain('ABC123');
   });
 
-  it('las cuatro tarjetas muestran los conteos del servidor y no son botones; la pestaña lleva el total de registrados', () => {
+  it('las dos tarjetas muestran los conteos del servidor y no son botones; la pestaña lleva el total de registrados', () => {
     render();
     openVehicles();
     const tiles = Array.from(el().querySelectorAll('[data-testid="vehicle-tiles"] .kpi'));
 
-    expect(tiles.map((t) => t.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['Registrados12', 'Nuevos pendientes3', 'Con inconsistencias2', 'Inactivos1']);
+    expect(tiles.map((t) => t.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['Registrados12', 'Inactivos1']);
     expect(tiles.every((t) => t.tagName === 'DIV')).toBeTrue();
     expect(el().querySelectorAll('[data-testid="vehicle-tiles"] button').length).toBe(0);
     expect(text('[data-testid="vehicles-count"]')).toBe('12');
@@ -96,7 +96,7 @@ describe('Consola Super Admin: pestaña «Vehículos» de una empresa (solo lect
     expect(q('[data-testid="edit-vehicle"]')).toBeNull();
   });
 
-  it('reutiliza el detalle: diagrama del catálogo, propiedad «Sin declarar», historial y archivos', () => {
+  it('reutiliza el detalle: diagrama del catálogo, propiedad «Sin declarar» e historial', () => {
     render();
     openVehicles();
     q('[data-testid="view-detail"]')!.click();
@@ -106,9 +106,10 @@ describe('Consola Super Admin: pestaña «Vehículos» de una empresa (solo lect
 
     expect(q('app-vehicle-diagram svg[data-testid="vehicle-diagram"]')).not.toBeNull();
     expect(text('[data-testid="ownership"]')).toBe('Sin declarar');
-    expect(text('.hint')).toContain('no implica que el vehículo sea de tu empresa');
+    expect(text('dialog[data-testid="vehicle-detail"] dl.facts')).not.toMatch(/archivos|aparición/i);
     expect(el().querySelectorAll('[data-testid="history"] > li').length).toBe(2);
-    expect(text('[data-testid="runs"]')).toContain('operaciones-marzo.xlsx');
+    expect(q('[data-testid="runs"]')).toBeNull();
+    expect(text('dialog[data-testid="vehicle-detail"]')).not.toContain('Archivos donde apareció');
   });
 
   it('búsqueda, filtros y paginación se piden al servidor de plataforma con la empresa en la ruta', () => {
@@ -168,7 +169,7 @@ describe('Consola Super Admin: pestaña «Vehículos» de una empresa (solo lect
     fixture.detectChanges();
 
     expect(el().querySelectorAll('tbody tr').length).toBe(1);
-    expect(el().querySelectorAll('[data-testid="vehicle-tiles"] .kpi').length).toBe(4);
+    expect(el().querySelectorAll('[data-testid="vehicle-tiles"] .kpi').length).toBe(2);
   });
 
   it('al cambiar de empresa se descarta todo y se pide el inventario de la nueva', () => {

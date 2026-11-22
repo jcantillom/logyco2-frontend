@@ -5,7 +5,7 @@
 > cuando el doc marque `[?]` o necesites verificar un detalle puntual.
 >
 > Marcas: **[V]** verificado en código · **[?]** no comprobado. Referencias como `ruta:línea`.
-> Línea base del análisis: 2026-11-17; revisión de coherencia con el código el 2026-11-21 (935 specs correctas tras añadir «Mis vehículos»; antes 745).
+> Línea base del análisis: 2026-11-17; revisión de coherencia con el código el 2026-11-21 (934 specs correctas tras añadir «Mis vehículos»; antes 745).
 
 ## Mapa de documentos
 
@@ -20,7 +20,7 @@
 | Historial de cambios del desarrollo | [CHANGELOG-dev.md](CHANGELOG-dev.md) |
 | Bitácora de tareas de cambios grandes (specs, tareas, log) | `docs/tasks/` (un archivo por cambio grande) |
 
-Features documentadas: auth (incluye `onboarding`), dashboard, emissions, intelligence, organizations, platform, settings, system, users, vehicles.
+Features documentadas: auth (incluye `onboarding`), dashboard, emissions, imports, intelligence, organizations, platform, settings, system, users, vehicles.
 
 ## Resumen de arquitectura
 

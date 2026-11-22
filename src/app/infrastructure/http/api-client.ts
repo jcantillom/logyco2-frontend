@@ -1,6 +1,6 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable, catchError, from, map, switchMap, throwError } from 'rxjs';
 import { APP_CONFIG } from '../../core/config/app-config';
 import {
   ApiResponseDto,
@@ -59,6 +59,17 @@ export class ApiClient {
     return this.http.get(this.url(path), { responseType: 'blob' });
   }
 
+  /**
+   * GET de un archivo con su nombre (`Content-Disposition`, si el servidor lo expone; si no, `null`). Si el servidor responde con un error,
+   * su cuerpo llega como `Blob`: se lee como JSON para que el código de error estable llegue al catálogo de mensajes.
+   */
+  getFile(path: string): Observable<{ readonly blob: Blob; readonly fileName: string | null }> {
+    return this.http.get(this.url(path), { responseType: 'blob', observe: 'response' }).pipe(
+      map((response) => ({ blob: response.body as Blob, fileName: fileNameOf(response.headers.get('Content-Disposition')) })),
+      catchError((error: unknown) => (error instanceof HttpErrorResponse && error.error instanceof Blob ? readErrorBody(error) : throwError(() => error))),
+    );
+  }
+
   /** PUT con cuerpo binario (sin `multipart`). */
   putBinary<T>(path: string, body: Blob, contentType: string): Observable<T> {
     return this.http
@@ -88,4 +99,35 @@ export class ApiClient {
     }
     return result;
   }
+}
+
+/** Nombre del archivo en `Content-Disposition` (`filename*=UTF-8''…` o `filename="…"`); sin cabecera o sin nombre, `null`. */
+export function fileNameOf(header: string | null): string | null {
+  if (!header) return null;
+
+  const encoded = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header)?.[1];
+
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.trim());
+    } catch {
+      return null;
+    }
+  }
+
+  return /filename\s*=\s*"?([^";]+)"?/i.exec(header)?.[1]?.trim() || null;
+}
+
+/** Reemplaza el cuerpo `Blob` de un error por su JSON (o `null` si no lo es) y lo vuelve a lanzar con el mismo estado y cabeceras. */
+function readErrorBody(error: HttpErrorResponse): Observable<never> {
+  return from(error.error.text() as Promise<string>).pipe(
+    map((text): unknown => {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
+    }),
+    switchMap((body) => throwError(() => new HttpErrorResponse({ error: body, headers: error.headers, status: error.status, statusText: error.statusText, url: error.url ?? undefined }))),
+  );
 }

@@ -10,7 +10,7 @@ import { VehicleInventory } from './vehicle-inventory';
 import { VehiclesFacade } from './vehicles.facade';
 import { OWNERSHIP_LABELS, SOURCE_LABELS, STATUS_LABELS, changeValue, eventLabel, fieldLabel, fuelLabel } from './vehicles.labels';
 
-/** Panel de consulta de un vehículo: identificación, dibujo de su configuración, características, historial y archivos donde apareció. */
+/** Panel de consulta de un vehículo: identificación, dibujo de su configuración, características e historial. */
 @Component({
   selector: 'app-vehicle-detail',
   imports: [DatePipe, CloseOnBackdropDirective, StatusBadgeComponent, VehicleDiagramComponent],
@@ -36,12 +36,11 @@ import { OWNERSHIP_LABELS, SOURCE_LABELS, STATUS_LABELS, changeValue, eventLabel
       dl.facts dt { font-size: 0.78rem; color: var(--c-mu); }
       dl.facts dd { margin: 2px 0 0; font-weight: 600; color: var(--c-head); overflow-wrap: anywhere; }
       dl.facts dd small { display: block; font-weight: 400; color: var(--c-mu); }
-      .hint { margin: 8px 0 0; font-size: 0.82rem; color: var(--c-mu); }
-      ol.history, ul.runs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
-      ol.history li, ul.runs li { padding: 8px 12px; border: 1px solid var(--c-bd); border-radius: 10px; background: var(--c-sf); font-size: 0.86rem; }
-      ol.history .top, ul.runs .top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-      ol.history strong, ul.runs strong { color: var(--c-head); }
-      ol.history .meta, ul.runs .meta { color: var(--c-mu); font-size: 0.8rem; }
+      ol.history { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+      ol.history li { padding: 8px 12px; border: 1px solid var(--c-bd); border-radius: 10px; background: var(--c-sf); font-size: 0.86rem; }
+      ol.history .top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+      ol.history strong { color: var(--c-head); }
+      ol.history .meta { color: var(--c-mu); font-size: 0.8rem; }
       ol.history ul { margin: 4px 0 0; padding-left: 18px; color: var(--c-text2); }
       .actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--c-bd); background: var(--c-s2); }
       @media (max-width: 520px) { dl.facts { grid-template-columns: 1fr; } }
@@ -90,10 +89,8 @@ import { OWNERSHIP_LABELS, SOURCE_LABELS, STATUS_LABELS, changeValue, eventLabel
               <div><dt>Capacidad</dt><dd>{{ d.capacityTons === null ? '—' : d.capacityTons + ' t' }}</dd></div>
               <div><dt>Propiedad</dt><dd data-testid="ownership">{{ ownershipText() }}</dd></div>
               <div><dt>Origen del registro</dt><dd>{{ sourceText() }}</dd></div>
-              <div><dt>Primera aparición</dt><dd>{{ d.firstSeenAt | date: 'd MMM y' }}</dd></div>
-              <div><dt>Última aparición</dt><dd>{{ d.lastSeenAt | date: 'd MMM y' }}</dd></div>
+              <div><dt>Fecha de registro</dt><dd>{{ d.createdAt | date: 'd MMM y' }}</dd></div>
             </dl>
-            <p class="hint">La aparición de la placa en tus archivos no implica que el vehículo sea de tu empresa.</p>
           </section>
 
           <section aria-labelledby="vd-history">
@@ -119,19 +116,6 @@ import { OWNERSHIP_LABELS, SOURCE_LABELS, STATUS_LABELS, changeValue, eventLabel
             }
           </section>
 
-          @if (d.runs.length > 0) {
-            <section aria-labelledby="vd-runs">
-              <h3 id="vd-runs">Archivos donde apareció</h3>
-              <ul class="runs" data-testid="runs">
-                @for (run of d.runs; track run.runId) {
-                  <li>
-                    <div class="top"><strong>{{ run.fileName }}</strong><span class="meta">{{ run.at | date: 'd MMM y' }}</span></div>
-                    <div class="meta">{{ run.occurrences }} {{ run.occurrences === 1 ? 'aparición' : 'apariciones' }}</div>
-                  </li>
-                }
-              </ul>
-            </section>
-          }
         } @else if (inv().detail.status() === 'error') {
           <div class="alert alert-danger" role="alert">
             <div class="stack" style="gap: 4px; flex: 1"><strong>{{ inv().detail.error()?.message }}</strong></div>
@@ -176,7 +160,7 @@ export class VehicleDetailComponent {
   });
   protected readonly statusLabel = computed(() => STATUS_LABELS[this.detail()?.status ?? this.vehicle().status]);
   protected readonly ownershipText = computed(() => OWNERSHIP_LABELS[this.detail()?.ownership ?? 'UNKNOWN']);
-  protected readonly sourceText = computed(() => SOURCE_LABELS[this.detail()?.source ?? 'IMPORT']);
+  protected readonly sourceText = computed(() => SOURCE_LABELS[this.detail()?.source ?? 'MANUAL']);
   /** El dibujo sale del catálogo estático de configuraciones, emparejado por código; sin coincidencia se usa un dibujo neutro. */
   protected readonly freight = computed<FreightVehicle | null>(() => {
     const code = this.detail()?.configurationCode;

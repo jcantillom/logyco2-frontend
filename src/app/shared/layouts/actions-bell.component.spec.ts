@@ -1,186 +1,324 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { Subject } from 'rxjs';
 import { buildUser, membership, ORG_COORDINADORA, ORG_ENVIA } from '../../../testing/builders';
+import { NOTIFICATIONS_URL, notificationDto } from '../../../testing/notifications';
 import { provideTestApp, signInAs } from '../../../testing/providers';
-import { notificationDto, pagedBody, VEHICLES_ORG_URL } from '../../../testing/vehicles';
+import { pagedBody } from '../../../testing/vehicles';
 import { SessionStore } from '../../core/auth/session.store';
 import { OrganizationContext } from '../../core/org/organization-context';
 import { NotificationsFacade } from '../../features/notifications/notifications.facade';
 import { ActionsBellComponent, BellAlert } from './actions-bell.component';
 
-@Component({ imports: [ActionsBellComponent], template: '<app-actions-bell [alerts]="alerts" [pending]="pending" [notifications]="notifications" />' })
+@Component({ imports: [ActionsBellComponent], template: '<app-actions-bell [alerts]="alerts" [pending]="pending" [withNotifications]="withNotifications" />' })
 class HostComponent {
   alerts: readonly BellAlert[] = [{ label: 'Invitaciones pendientes', hint: 'Esperan aceptación.', count: 2, path: '/usuarios' }];
   pending = 2;
-  notifications = true;
+  withNotifications = false;
 }
 
-const LIST = `${VEHICLES_ORG_URL}/notifications`;
-const COUNT = `${LIST}/unread-count`;
+describe('ActionsBellComponent: acciones pendientes', () => {
+  let fixture: ComponentFixture<HostComponent>;
+  const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
+  const q = (selector: string): HTMLElement | null => el().querySelector<HTMLElement>(selector);
 
-describe('ActionsBellComponent: notificaciones y acciones pendientes', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [HostComponent], providers: provideTestApp() });
+    fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+  });
+
+  it('la insignia muestra solo las acciones pendientes', () => {
+    expect(q('[data-testid="bell-count"]')).toBeNull();
+    expect(q('.count')!.textContent!.trim()).toBe('2');
+    expect(q('[data-testid="bell"]')!.getAttribute('aria-label')).toBe('Acciones pendientes: 2');
+  });
+
+  it('el panel lista las acciones con su cantidad y no tiene sección de notificaciones', () => {
+    q('[data-testid="bell"]')!.click();
+    fixture.detectChanges();
+
+    expect(q('[data-testid="bell-panel"]')!.getAttribute('aria-label')).toBe('Acciones pendientes');
+    expect(q('[data-testid="bell-panel"] li a')!.textContent).toContain('Invitaciones pendientes');
+    expect(q('[data-testid="bell-notifications"]')).toBeNull();
+    expect(q('[data-testid="mark-all"]')).toBeNull();
+    expect(el().textContent).not.toMatch(/Notificaciones|Marcar todas/);
+  });
+
+  it('sin acciones dice que todo está al día', () => {
+    fixture = TestBed.createComponent(HostComponent);
+    fixture.componentInstance.alerts = [];
+    fixture.componentInstance.pending = 0;
+    fixture.detectChanges();
+    q('[data-testid="bell"]')!.click();
+    fixture.detectChanges();
+
+    expect(q('[data-testid="bell-empty"]')!.textContent).toContain('Todo al día');
+    expect(q('.count')).toBeNull();
+  });
+
+  it('no consulta notificaciones: abrir el panel no hace ninguna petición', () => {
+    q('[data-testid="bell"]')!.click();
+    fixture.detectChanges();
+
+    TestBed.inject(HttpTestingController).expectNone(() => true);
+    expect(q('[data-testid="notification"]')).toBeNull();
+  });
+
+  it('sin avisos activos no inicia ni consulta nada de avisos, ni siquiera al cambiar de empresa', () => {
+    const http = TestBed.inject(HttpTestingController);
+    signInAs(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN']), membership(ORG_COORDINADORA, ['ORG_ADMIN'])] }), TestBed.inject(SessionStore));
+    TestBed.inject(OrganizationContext).select(ORG_COORDINADORA.id);
+    fixture.detectChanges();
+
+    http.expectNone((r) => r.url.includes('/notifications'));
+  });
+});
+
+describe('ActionsBellComponent: campana unificada con avisos', () => {
   let fixture: ComponentFixture<HostComponent>;
   let http: HttpTestingController;
-  let navigate: jasmine.Spy;
   const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
   const q = <T extends HTMLElement = HTMLElement>(selector: string): T | null => el().querySelector<T>(selector);
+  const qa = (selector: string): HTMLElement[] => Array.from(el().querySelectorAll<HTMLElement>(selector));
   const text = (selector: string): string => (q(selector)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const listRequest = () => http.expectOne((r) => r.url === NOTIFICATIONS_URL && r.method === 'GET');
+  const twoNotices = () => [notificationDto(), notificationDto({ id: 'n-2', kind: 'VEHICLES_CHANGED', title: 'Revisa tus vehículos', read_at: '2026-03-02T08:00:00Z', payload: { import_id: 'imp-2', new: 0, changed: 2 } })];
 
-  function render(notifications = true, unread = 3): void {
+  function render(unread = 2, pending = 3): void {
     TestBed.configureTestingModule({ imports: [HostComponent], providers: provideTestApp() });
     signInAs(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN']), membership(ORG_COORDINADORA, ['ORG_ADMIN'])] }), TestBed.inject(SessionStore));
     http = TestBed.inject(HttpTestingController);
-    navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     fixture = TestBed.createComponent(HostComponent);
-    fixture.componentInstance.notifications = notifications;
+    fixture.componentInstance.pending = pending;
+    fixture.componentInstance.withNotifications = true;
     fixture.detectChanges();
-
-    if (notifications) {
-      TestBed.inject(NotificationsFacade).loadUnread();
-      http.expectOne(COUNT).flush({ data: { count: unread } });
-    }
-
+    http.expectOne(`${NOTIFICATIONS_URL}/unread-count`).flush({ data: { count: unread } });
     fixture.detectChanges();
   }
 
-  function openPanel(items = [notificationDto(), notificationDto({ id: 'n-2', read: true, severity: 'WARNING', title: 'Hay inconsistencias' })]): void {
-    q('[data-testid="bell"]')!.click();
+  function openPanel(items = twoNotices(), total = items.length, unread = 2): void {
+    q<HTMLButtonElement>('[data-testid="bell"]')!.click();
     fixture.detectChanges();
-    http.expectOne(COUNT).flush({ data: { count: 3 } });
-    http.expectOne((r) => r.url === LIST).flush(pagedBody(items));
+    http.expectOne(`${NOTIFICATIONS_URL}/unread-count`).flush({ data: { count: unread } });
+    listRequest().flush(pagedBody(items, total, 20));
     fixture.detectChanges();
   }
 
-  afterEach(() => TestBed.inject(NotificationsFacade).stop());
+  afterEach(() => http?.match(() => true));
 
-  it('la insignia suma las notificaciones sin leer y las acciones pendientes', () => {
-    render();
+  it('un solo botón: el contador suma avisos sin leer y acciones pendientes, y el nombre accesible lo dice', () => {
+    render(2, 3);
 
+    expect(qa('[data-testid="bell"]').length).toBe(1);
     expect(text('[data-testid="bell-count"]')).toBe('5');
-    expect(q('[data-testid="bell"]')!.getAttribute('aria-label')).toBe('Notificaciones y acciones pendientes: 5');
+    expect(q('[data-testid="bell"]')!.getAttribute('aria-label')).toBe('Notificaciones: 2 avisos sin leer, 3 acciones pendientes');
   });
 
-  it('sin notificaciones activas (consola de plataforma) la campana es la de siempre', () => {
-    render(false);
+  it('el contador se limita a 99+ y sin nada dice «Sin notificaciones»', () => {
+    render(120, 3);
+    expect(text('[data-testid="bell-count"]')).toBe('99+');
 
-    expect(text('[data-testid="bell-count"]')).toBe('2');
-    expect(q('[data-testid="bell"]')!.getAttribute('aria-label')).toBe('Acciones pendientes: 2');
-    q('[data-testid="bell"]')!.click();
+    TestBed.resetTestingModule();
+    render(0, 0);
+    expect(q('[data-testid="bell-count"]')).toBeNull();
+    expect(q('[data-testid="bell"]')!.getAttribute('aria-label')).toBe('Sin notificaciones');
+  });
+
+  it('el panel tiene dos pestañas con su contador y abre en «Avisos» si hay sin leer', () => {
+    render();
+    openPanel();
+
+    expect(q('[role="tablist"]')).not.toBeNull();
+    expect(qa('[role="tab"]').map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    expect(text('[data-testid="tab-notices-count"]')).toBe('2');
+    expect(text('[data-testid="tab-pending-count"]')).toBe('3');
+    expect(q('[data-testid="bell"]')!.getAttribute('aria-expanded')).toBe('true');
+    expect(qa('[data-testid="notification"]').length).toBe(2);
+  });
+
+  it('abre en «Pendientes» si no hay avisos sin leer pero sí pendientes, y en «Avisos» si tampoco hay pendientes', () => {
+    render(0, 3);
+    openPanel([], 0, 0);
+    expect(q('[data-testid="tab-pending"]')!.getAttribute('aria-selected')).toBe('true');
+    expect(q('[data-testid="bell-panel"] li a')!.textContent).toContain('Invitaciones pendientes');
+
+    TestBed.resetTestingModule();
+    render(0, 0);
+    openPanel([], 0, 0);
+    expect(q('[data-testid="tab-notices"]')!.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('las flechas, Inicio y Fin mueven entre pestañas con foco y tabindex itinerante', () => {
+    render();
+    openPanel();
+    const key = (name: string): void => {
+      q('[role="tab"][tabindex="0"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
+      fixture.detectChanges();
+    };
+
+    key('ArrowRight');
+    expect(q('[data-testid="tab-pending"]')!.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(q('[data-testid="tab-pending"]'));
+    expect(q('[data-testid="tab-pending"]')!.getAttribute('tabindex')).toBe('0');
+    expect(q('[data-testid="tab-notices"]')!.getAttribute('tabindex')).toBe('-1');
+    key('ArrowLeft');
+    expect(q('[data-testid="tab-notices"]')!.getAttribute('aria-selected')).toBe('true');
+    key('End');
+    expect(q('[data-testid="tab-pending"]')!.getAttribute('aria-selected')).toBe('true');
+    key('Home');
+    expect(q('[data-testid="tab-notices"]')!.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('«Avisos» muestra título, texto y punto de no leído; «Pendientes» lista las acciones con su cantidad', () => {
+    render();
+    openPanel();
+    const rows = qa('[data-testid="notification"]');
+
+    expect(rows[0].textContent).toContain('Vehículos nuevos en tu carga');
+    expect(rows[0].textContent).toContain('La carga trae 2 vehículos nuevos para registrar.');
+    expect(rows[0].querySelector('[data-testid="unread-dot"]')).not.toBeNull();
+    expect(rows[1].querySelector('[data-testid="unread-dot"]')).toBeNull();
+
+    q('[data-testid="tab-pending"]')!.click();
     fixture.detectChanges();
-    expect(q('[data-testid="bell-notifications"]')).toBeNull();
-    http.expectNone(LIST);
+
+    expect(q('[data-testid="bell-panel"] li a')!.textContent).toContain('Invitaciones pendientes');
+    expect(q('[data-testid="notification"]')).toBeNull();
   });
 
-  it('al abrir el panel carga la lista y muestra «Notificaciones» y «Acciones pendientes»', () => {
-    render();
-    openPanel();
+  it('sin avisos muestra el estado vacío, y cargando muestra «Cargando…»', () => {
+    render(0, 0);
+    q<HTMLButtonElement>('[data-testid="bell"]')!.click();
+    fixture.detectChanges();
+    http.expectOne(`${NOTIFICATIONS_URL}/unread-count`).flush({ data: { count: 0 } });
 
-    const sections = Array.from(el().querySelectorAll('[data-testid="bell-panel"] > section strong')).map((s) => s.textContent!.trim());
-    expect(sections).toContain('Notificaciones');
-    expect(sections).toContain('Acciones pendientes');
-    expect(el().querySelectorAll('[data-testid="notification"]').length).toBe(2);
-  });
+    expect(text('[data-testid="notifications-loading"]')).toBe('Cargando…');
 
-  it('muestra punto de no leída, título, descripción, severidad y tiempo relativo', () => {
-    render();
-    openPanel();
-    const [first, second] = Array.from(el().querySelectorAll('[data-testid="notification"]'));
-
-    expect(first.querySelector('[data-testid="unread-dot"]')).not.toBeNull();
-    expect(first.textContent).toContain('Vehículos nuevos por confirmar');
-    expect(first.textContent).toContain('Se detectaron 3 vehículos nuevos.');
-    expect(first.querySelector('.sev')!.classList).toContain('INFO');
-    expect(first.querySelector('.when')!.textContent).toMatch(/^(hace|\d)/);
-    expect(second.querySelector('[data-testid="unread-dot"]')).toBeNull();
-    expect(second.querySelector('.sev')!.classList).toContain('WARNING');
-    expect(second.classList).toContain('read');
-  });
-
-  it('al hacer clic marca como leída (POST read) y navega al enlace con su query', () => {
-    render();
-    openPanel();
-
-    q('[data-testid="notification"]')!.click();
-    http.expectOne({ method: 'POST', url: `${LIST}/n-1/read` }).flush({ data: notificationDto({ read: true }) });
+    listRequest().flush(pagedBody([]));
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith(['/vehiculos'], { queryParams: { analysis: 'run-1' } });
+    expect(text('[data-testid="notifications-empty"]')).toBe('No tienes avisos.');
+  });
+
+  it('un error al cargar la lista se dice con su mensaje y se puede reintentar', () => {
+    render();
+    q<HTMLButtonElement>('[data-testid="bell"]')!.click();
+    fixture.detectChanges();
+    http.expectOne(`${NOTIFICATIONS_URL}/unread-count`).flush({ data: { count: 2 } });
+    listRequest().flush({ error: { code: 'SERVICE_UNAVAILABLE' } }, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+
+    expect(q('[data-testid="notifications-error"]')!.getAttribute('role')).toBe('alert');
+    q<HTMLButtonElement>('.retry')!.click();
+    listRequest().flush(pagedBody([notificationDto()]));
+    fixture.detectChanges();
+
+    expect(qa('[data-testid="notification"]').length).toBe(1);
+  });
+
+  it('sin scroll interno: muestra los 5 más recientes y resume el resto; «Marcar todas» marca todos', () => {
+    render(8, 0);
+    const items = Array.from({ length: 8 }, (_, i) => notificationDto({ id: `n-${i + 1}`, title: `Aviso ${i + 1}` }));
+    openPanel(items, 8, 8);
+
+    expect(qa('[data-testid="notification"]').length).toBe(5);
+    expect(qa('[data-testid="notification"]')[4].textContent).toContain('Aviso 5');
+    expect(text('[data-testid="notifications-older"]')).toBe('Hay 3 avisos más antiguos');
+    expect(q('[data-testid="notifications-older"] a, [data-testid="notifications-older"] button')).toBeNull();
+
+    q<HTMLButtonElement>('[data-testid="mark-all"]')!.click();
+    http.expectOne({ method: 'POST', url: `${NOTIFICATIONS_URL}/read-all` }).flush({ data: { updated: 8 } });
+    fixture.detectChanges();
+
+    expect(q('[data-testid="bell-count"]')).toBeNull();
+    expect(q<HTMLButtonElement>('[data-testid="mark-all"]')!.disabled).toBeTrue();
+    expect(qa('[data-testid="unread-dot"]').length).toBe(0);
+  });
+
+  it('con cinco avisos o menos no muestra la línea de avisos más antiguos', () => {
+    render();
+    openPanel();
+
+    expect(q('[data-testid="notifications-older"]')).toBeNull();
+  });
+
+  it('un aviso lo marca leído y navega a /cargas con ?import=<id> de su carga', () => {
+    render();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    openPanel();
+
+    qa('[data-testid="notification"]')[0].click();
+    http.expectOne({ method: 'POST', url: `${NOTIFICATIONS_URL}/n-1/read` }).flush({ data: {} });
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledOnceWith(['/cargas'], { queryParams: { import: 'imp-1' } });
     expect(q('[data-testid="bell-panel"]')).toBeNull();
     expect(text('[data-testid="bell-count"]')).toBe('4');
   });
 
-  it('un enlace que no es una ruta interna no se sigue (solo se marca como leída)', () => {
+  it('si marcar como leído falla igual navega a la revisión', () => {
     render();
-    openPanel([notificationDto({ deep_link: { path: 'https://evil.test/x', query: {} } })]);
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    openPanel();
 
-    q('[data-testid="notification"]')!.click();
-    http.expectOne({ method: 'POST', url: `${LIST}/n-1/read` }).flush({ data: notificationDto({ read: true }) });
+    qa('[data-testid="notification"]')[1].click();
+    http.expectOne({ method: 'POST', url: `${NOTIFICATIONS_URL}/n-2/read` }).flush({ error: { code: 'INTERNAL_ERROR' } }, { status: 500, statusText: 'Error' });
 
-    expect(navigate).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledOnceWith(['/cargas'], { queryParams: { import: 'imp-2' } });
   });
 
-  it('si marcar como leída falla, igual navega', () => {
+  it('Escape cierra el panel y devuelve el foco a la campana; un clic fuera también lo cierra', () => {
     render();
     openPanel();
 
-    q('[data-testid="notification"]')!.click();
-    http.expectOne({ method: 'POST', url: `${LIST}/n-1/read` }).flush({ error: { code: 'NOTIFICATION_NOT_FOUND' } }, { status: 404, statusText: 'x' });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalled();
+    expect(q('[data-testid="bell-panel"]')).toBeNull();
+    expect(document.activeElement).toBe(q('[data-testid="bell"]'));
+
+    openPanel();
+    document.body.click();
+    fixture.detectChanges();
+
+    expect(q('[data-testid="bell-panel"]')).toBeNull();
   });
 
-  it('«Marcar todas como leídas» pone todo en leído y el conteo en cero; deshabilitado sin no leídas', () => {
+  it('cualquier navegación cierra el panel y refresca el conteo por la facade', () => {
     render();
     openPanel();
+    const refresh = spyOn(TestBed.inject(NotificationsFacade), 'refresh');
 
-    q('[data-testid="mark-all"]')!.click();
-    http.expectOne({ method: 'POST', url: `${LIST}/read-all` }).flush({ data: { updated: 1 } });
+    (TestBed.inject(Router).events as Subject<unknown>).next(new NavigationEnd(1, '/', '/'));
     fixture.detectChanges();
 
-    expect(el().querySelectorAll('[data-testid="unread-dot"]').length).toBe(0);
-    expect(q<HTMLButtonElement>('[data-testid="mark-all"]')!.disabled).toBeTrue();
-    expect(text('[data-testid="bell-count"]')).toBe('2');
+    expect(q('[data-testid="bell-panel"]')).toBeNull();
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('sin notificaciones muestra «No tienes notificaciones»', () => {
-    render(true, 0);
-    openPanel([]);
-
-    expect(text('[data-testid="notifs-empty"]')).toBe('No tienes notificaciones');
-  });
-
-  it('si la lista falla muestra el error con «Reintentar»', () => {
+  it('al destruirse detiene el seguimiento de avisos', () => {
     render();
-    q('[data-testid="bell"]')!.click();
-    fixture.detectChanges();
-    http.expectOne(COUNT).flush({ data: { count: 3 } });
-    http.expectOne((r) => r.url === LIST).flush({ error: { code: 'INTERNAL_ERROR' } }, { status: 500, statusText: 'x' });
-    fixture.detectChanges();
+    const stop = spyOn(TestBed.inject(NotificationsFacade), 'stop');
 
-    expect(text('[data-testid="notifs-error"]')).toContain('Ocurrió un error interno');
-    q('[data-testid="notifs-error"] button')!.click();
-    http.expectOne((r) => r.url === LIST).flush(pagedBody([notificationDto()]));
-    fixture.detectChanges();
-    expect(el().querySelectorAll('[data-testid="notification"]').length).toBe(1);
+    fixture.destroy();
+
+    expect(stop).toHaveBeenCalled();
   });
 
-  it('al cambiar de empresa se descartan lista y conteo', () => {
+  it('al cambiar de empresa se vuelve a pedir el conteo y se cierra el panel', () => {
     render();
     openPanel();
 
     TestBed.inject(OrganizationContext).select(ORG_COORDINADORA.id);
     fixture.detectChanges();
 
-    expect(TestBed.inject(NotificationsFacade).list.data()).toBeNull();
-    expect(text('[data-testid="bell-count"]')).toBe('2');
-  });
+    http.expectOne(`http://api.test/api/v1/organizations/${ORG_COORDINADORA.id}/notifications/unread-count`).flush({ data: { count: 7 } });
+    fixture.detectChanges();
 
-  it('las acciones pendientes siguen listándose con su cantidad', () => {
-    render();
-    openPanel();
-
-    expect(text('[data-testid="bell-panel"] li a')).toContain('Invitaciones pendientes');
+    expect(q('[data-testid="bell-panel"]')).toBeNull();
+    expect(text('[data-testid="bell-count"]')).toBe('10');
   });
 });

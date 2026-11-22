@@ -6,7 +6,7 @@ export const STATUS_LABELS: Readonly<Record<VehicleStatus, Label>> = {
   INACTIVE: { text: 'Inactivo', tone: 'neutral' },
 };
 
-/** `UNKNOWN` se muestra «Sin declarar»: la propiedad nunca se deduce de que la placa aparezca en un archivo. */
+/** `UNKNOWN` se muestra «Sin declarar»: la propiedad nunca se infiere, solo se declara. */
 export const OWNERSHIP_LABELS: Readonly<Record<VehicleOwnership, string>> = {
   UNKNOWN: 'Sin declarar',
   OWN: 'Propio',
@@ -16,8 +16,8 @@ export const OWNERSHIP_LABELS: Readonly<Record<VehicleOwnership, string>> = {
 };
 
 export const SOURCE_LABELS: Readonly<Record<VehicleSource, string>> = {
-  IMPORT: 'Archivo de operaciones',
   MANUAL: 'Registro manual',
+  IMPORT: 'Excel',
 };
 
 /** Tipos de combustible del inventario (vocabulario cerrado del servidor). */
@@ -39,9 +39,9 @@ export const fuelLabel = (code: string | null): string => (code === null ? '—'
 /** Eventos del historial; uno que el servidor agregue después se rotula de forma genérica. */
 const EVENT_LABELS: Readonly<Record<string, string>> = {
   CREATED: 'Registro manual',
-  REGISTERED: 'Confirmado desde un análisis de archivo',
   UPDATED: 'Edición manual',
-  CONFLICT_RESOLVED: 'Se aceptó el valor del archivo',
+  IMPORTED: 'Registrado desde Excel',
+  IMPORT_UPDATED: 'Actualizado desde Excel',
 };
 
 const FIELD_LABELS: Readonly<Record<string, string>> = {

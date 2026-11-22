@@ -71,6 +71,17 @@ describe('guards de rutas', () => {
       expect(router.serializeUrl(run(permissionGuard('vehicles:read')) as UrlTree)).toBe('/acceso-denegado');
     });
 
+    it('organizations:manage («Cálculo de emisiones» de la empresa): lo pasa ORG_ADMIN y se niega a ORG_ANALYST, ORG_VIEWER y GUILD_VIEWER', () => {
+      session.setToken(FAKE_TOKEN);
+      session.setUser(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN'])] }));
+      expect(run(permissionGuard('organizations:manage'))).toBeTrue();
+
+      for (const role of ['ORG_ANALYST', 'ORG_VIEWER', 'GUILD_VIEWER']) {
+        session.setUser(buildUser({ memberships: [membership(ORG_ENVIA, [role])] }));
+        expect(router.serializeUrl(run(permissionGuard('organizations:manage')) as UrlTree)).withContext(role).toBe('/acceso-denegado');
+      }
+    });
+
     it('acepta cualquiera de varios permisos', () => {
       session.setToken(FAKE_TOKEN);
       session.setUser(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN'])] }));
