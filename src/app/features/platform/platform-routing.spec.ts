@@ -142,4 +142,26 @@ describe('acceso a la consola de plataforma (rutas reales)', () => {
       expect(router.url).toBe('/acceso-denegado');
     });
   });
+  describe('Guía de cálculo de emisiones (/plataforma/calculo-emisiones)', () => {
+    const root = (): HTMLElement => harness.routeNativeElement as HTMLElement;
+
+    it('un SUPER_ADMIN abre la guía, el menú la marca activa y la miga de pan la nombra', async () => {
+      signInAs(buildSuperAdmin(), TestBed.inject(SessionStore));
+      await harness.navigateByUrl('/plataforma/calculo-emisiones');
+      harness.detectChanges();
+
+      expect(router.url).toBe('/plataforma/calculo-emisiones');
+      expect(root().querySelector('app-emissions h1')!.textContent!.trim()).toBe('Guía de cálculo y vehículos de carga');
+      expect(root().querySelector('app-coming-soon')).toBeNull();
+      expect(root().querySelector('nav a.nav-link.active .label')!.textContent!.trim()).toBe('Cálculo de emisiones');
+      expect(root().querySelector('.crumbs')!.textContent).toContain('Cálculo de emisiones');
+    });
+
+    it('un ORG_ADMIN que escribe la URL es rechazado: la ruta es solo del SUPER_ADMIN', async () => {
+      signInAs(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN'])] }), TestBed.inject(SessionStore));
+      await harness.navigateByUrl('/plataforma/calculo-emisiones');
+
+      expect(router.url).toBe('/acceso-denegado');
+    });
+  });
 });

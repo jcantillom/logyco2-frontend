@@ -38,6 +38,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'users:read': 'Consultar usuarios',
   'catalogs:manage': 'Administrar catálogos',
   'imports:create': 'Cargar información operativa',
+  'vehicles:read': 'Consultar los vehículos de la empresa',
+  'vehicles:manage': 'Administrar los vehículos de la empresa',
   'indicators:read': 'Consultar indicadores de emisiones',
   'reports:read': 'Consultar reportes',
   'reports:download': 'Descargar reportes',

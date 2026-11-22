@@ -32,6 +32,8 @@ const ORGANIZATION_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permission
     'memberships:read',
     'memberships:manage',
     'imports:create',
+    'vehicles:read',
+    'vehicles:manage',
     'indicators:read',
     'reports:read',
     'reports:download',
@@ -40,12 +42,13 @@ const ORGANIZATION_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permission
   ORG_ANALYST: [
     'organizations:read',
     'imports:create',
+    'vehicles:read',
     'indicators:read',
     'reports:read',
     'reports:download',
     'sector_reports:read',
   ],
-  ORG_VIEWER: ['organizations:read', 'indicators:read', 'reports:read', 'sector_reports:read'],
+  ORG_VIEWER: ['organizations:read', 'vehicles:read', 'indicators:read', 'reports:read', 'sector_reports:read'],
   GUILD_VIEWER: ['sector_reports:read'],
 };
 

@@ -6,6 +6,7 @@ import { buildSuperAdmin } from '../../../testing/builders';
 import { provideTestApp, signInAs } from '../../../testing/providers';
 import { SessionStore } from '../../core/auth/session.store';
 import { TrendChartComponent } from '../../shared/ui/charts/trend-chart.component';
+import { factorDto, GASOLINE, NATURAL_GAS } from '../emissions/emissions.fixtures';
 import { PlatformDashboardComponent } from './platform-dashboard.component';
 
 const API = 'http://api.test/api/v1';
@@ -58,6 +59,7 @@ describe('PlatformDashboardComponent: resumen ejecutivo con datos reales', () =>
   const q = (selector: string): HTMLElement => el().querySelector<HTMLElement>(selector)!;
 
   function answer(options: { fuel?: 'ok' | 'error'; health?: 'ok' | 'down'; attentionEmpty?: boolean; quiet?: boolean; activity?: unknown[]; summary?: ReturnType<typeof trends>['summary'] } = {}): void {
+    requests('/emissions/reference/fuels').forEach((r) => r.flush({ data: [factorDto(), GASOLINE(), NATURAL_GAS()] }));
     requests('/platform/metrics').forEach((r) => r.flush({ data: options.quiet ? quietMetrics : metrics }));
     requests('/platform/metrics/trends').forEach((r) => r.flush({ data: trends(options.summary) }));
     requests('/platform/attention').forEach((r) => r.flush({ data: attention(options.attentionEmpty) }));
@@ -78,7 +80,8 @@ describe('PlatformDashboardComponent: resumen ejecutivo con datos reales', () =>
     fixture = TestBed.createComponent(PlatformDashboardComponent);
     fixture.detectChanges();
   }
-  const settle = (options?: Parameters<typeof answer>[0]): void => { answer(options); fixture.detectChanges(); };
+  /** La tarjeta del factor se crea al llegar las métricas: sus combustibles se piden después de la primera pasada. */
+  const settle = (options?: Parameters<typeof answer>[0]): void => { answer(options); fixture.detectChanges(); requests('/emissions/reference/fuels').forEach((r) => r.flush({ data: [factorDto(), GASOLINE(), NATURAL_GAS()] })); fixture.detectChanges(); };
   const choosePeriod = (value: string): void => { const select = q('#period') as HTMLSelectElement; select.value = value; select.dispatchEvent(new Event('change')); fixture.detectChanges(); };
 
   it('presenta una cabecera ejecutiva profesional y accesos de gestión', () => {
@@ -91,13 +94,18 @@ describe('PlatformDashboardComponent: resumen ejecutivo con datos reales', () =>
     expect(text()).not.toContain('ORG_ADMIN');
   });
 
-  it('muestra los seis KPI de la referencia con datos de GET /platform/metrics', () => {
+  it('muestra los KPI de empresas, usuarios y superadministradores (GET /platform/metrics) y la tarjeta del factor de emisión; sin Activas, Inactivas ni Sin administrador activo', () => {
     create(); settle();
 
     const cards = Array.from(el().querySelectorAll('[data-testid="admin-cards"] .kpi')).map((c) => [c.querySelector('.label')!.textContent!.trim(), c.querySelector('.value')!.textContent!.replace(/\s+/g, ' ').trim()]);
-    expect(cards).toEqual([['Empresas', '3'], ['Activas', '2'], ['Inactivas', '1'], ['Sin administrador activo', '2'], ['Usuarios', '3'], ['Superadministradores', '3 / 5']]);
-    expect(q('[data-testid="kpi-active"] .delta').textContent).toBe('67%');
-    expect(q('[data-testid="kpi-inactive"] .delta').textContent).toBe('33%');
+    expect(cards).toEqual([['Empresas', '3'], ['Usuarios', '3'], ['Superadministradores', '3 / 5'], ['Factor de emisión', '10,1000']]);
+    const kpis = q('[data-testid="admin-cards"]');
+    for (const removed of ['Activas', 'Inactivas', 'Sin administrador activo']) expect(kpis.textContent).not.toContain(removed);
+    for (const id of ['kpi-active', 'kpi-inactive', 'kpi-without-admin']) expect(kpis.querySelector(`[data-testid="${id}"]`)).toBeNull();
+    expect(kpis.querySelectorAll('.kpi').length).toBe(4);
+    expect(kpis.querySelectorAll('a.kpi').length).toBe(3);
+    expect(kpis.querySelector('app-platform-factor-card [data-testid="kpi-emission-factor"]')).not.toBeNull();
+    expect(kpis.lastElementChild!.tagName.toLowerCase()).toBe('app-platform-factor-card');
   });
 
   it('las variaciones salen del período: porcentaje con base previa, número de nuevos si no la había', () => {
@@ -112,7 +120,6 @@ describe('PlatformDashboardComponent: resumen ejecutivo con datos reales', () =>
     create(); settle();
 
     const href = (id: string): string => q(`[data-testid="${id}"]`).getAttribute('href')!;
-    expect(href('kpi-without-admin')).toContain('/plataforma/organizaciones?filtro=sin-admin');
     expect(href('kpi-super-admins')).toBe('/plataforma/superadministradores');
     expect(href('kpi-users')).toBe('/plataforma/usuarios');
   });
@@ -363,4 +370,5 @@ describe('PlatformDashboardComponent: resumen ejecutivo con datos reales', () =>
 
     ['GET /', '/api/v1', 'Funcionalidad no disponible', 'SIN API', 'Sin API'].forEach((technical) => expect(text()).not.toContain(technical));
   });
+
 });

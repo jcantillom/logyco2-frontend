@@ -105,8 +105,8 @@ Proyecto único `logyco2-frontend` (`projectType: application`, `prefix: app`, `
 ## 7. Tests
 
 - Runner: Karma + Jasmine, builder `@angular/build:karma`; sin `karma.conf.js` (configuración por defecto del builder). [V]
-- 59 archivos `*.spec.ts` (31 fuera de `features/`, 28 en `features/`), conteo con `find`. Convención: spec junto al archivo. [V]
-- Ejecución completa (`ng test --watch=false --browsers=ChromeHeadless` con `--include` de `features`, `infrastructure`, `shared` y `core`): 604 specs correctos el 2026-11-21 (601 `it(` contados con grep) (ver [CHANGELOG-dev.md](CHANGELOG-dev.md)). [V]
+- 85 archivos `*.spec.ts` (38 fuera de `features/`, 47 en `features/`), conteo con `find`. Convención: spec junto al archivo. [V]
+- Ejecución completa (`ng test --watch=false --browsers=ChromeHeadless`): 935 specs correctos el 2026-11-21 (745 antes de «Mis vehículos») (ver [CHANGELOG-dev.md](CHANGELOG-dev.md)). [V]
 - Utilidades: `src/testing/providers.ts` — `provideTestApp({ routes? })` (HttpClient + `provideHttpClientTesting`, `APP_CONFIG` de prueba con `apiBaseUrl: 'http://api.test'`, `provideRepositories()` real y `StubAuthRepository` que no emite), `signInAs(user, session)`; `src/testing/builders.ts` — `buildUser`, `buildSuperAdmin`, `membership`, `ORG_ENVIA`, `ORG_COORDINADORA`, `FAKE_TOKEN`.
 - `karma-coverage` está instalado pero no hay script ni configuración de cobertura/umbrales. `test:ci` usa `ChromeHeadless` sin `--no-sandbox` (puede fallar en contenedores Linux/CI como root) [?].
 

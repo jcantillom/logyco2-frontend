@@ -5,7 +5,7 @@
 > cuando el doc marque `[?]` o necesites verificar un detalle puntual.
 >
 > Marcas: **[V]** verificado en código · **[?]** no comprobado. Referencias como `ruta:línea`.
-> Línea base del análisis: 2026-11-17; revisión de coherencia con el código el 2026-11-21 (609 specs correctas).
+> Línea base del análisis: 2026-11-17; revisión de coherencia con el código el 2026-11-21 (935 specs correctas tras añadir «Mis vehículos»; antes 745).
 
 ## Mapa de documentos
 
@@ -16,11 +16,11 @@
 | Modelos, puertos, adaptadores, ApiClient, DTO, mappers, `providers.ts` | [domain-infrastructure.md](domain-infrastructure.md) |
 | Layouts, componentes UI (paginadores, logos, campana), gráficos | [shared.md](shared.md) |
 | Scripts, dependencias, build/lint/test, tsconfig | [tooling.md](tooling.md) |
-| Cualquier pantalla/feature | [features/README.md](features/README.md) (índice) → `features/<feature>.md` (p. ej. [features/intelligence.md](features/intelligence.md)) |
+| Cualquier pantalla/feature | [features/README.md](features/README.md) (índice) → `features/<feature>.md` (p. ej. [features/intelligence.md](features/intelligence.md), [features/emissions.md](features/emissions.md)) |
 | Historial de cambios del desarrollo | [CHANGELOG-dev.md](CHANGELOG-dev.md) |
 | Bitácora de tareas de cambios grandes (specs, tareas, log) | `docs/tasks/` (un archivo por cambio grande) |
 
-Features documentadas: auth (incluye `onboarding`), dashboard, intelligence, organizations, platform, settings, system, users.
+Features documentadas: auth (incluye `onboarding`), dashboard, emissions, intelligence, organizations, platform, settings, system, users, vehicles.
 
 ## Resumen de arquitectura
 

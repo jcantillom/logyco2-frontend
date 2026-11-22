@@ -74,6 +74,10 @@ const GROUPS: readonly Group[] = [
   { title: 'Cargas operativas', capabilities: [
     { permission: 'imports:create', company: 'Cargar la información de las operaciones de transporte', platform: 'Cargar la información de las operaciones de transporte' },
   ] },
+  { title: 'Vehículos', capabilities: [
+    { permission: 'vehicles:read', company: 'Consultar los vehículos de su empresa', platform: 'Consultar los vehículos de su empresa' },
+    { permission: 'vehicles:manage', company: 'Registrar, editar y confirmar los vehículos de su empresa', platform: 'Registrar, editar y confirmar los vehículos de su empresa' },
+  ] },
   { title: 'Huella de carbono', capabilities: [
     { permission: 'indicators:read', company: 'Consultar los indicadores de emisiones', platform: 'Consultar los indicadores de emisiones' },
   ] },

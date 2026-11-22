@@ -35,9 +35,10 @@ export class ApiClient {
     });
   }
 
-  post<T>(path: string, body: unknown): Observable<T> {
+  /** `body` puede ser `FormData` (multipart): `HttpClient` fija entonces el `Content-Type` con su separador. `headers` son cabeceras propias de la solicitud. */
+  post<T>(path: string, body: unknown, headers?: Readonly<Record<string, string>>): Observable<T> {
     return this.http
-      .post<ApiResponseDto<T>>(this.url(path), body)
+      .post<ApiResponseDto<T>>(this.url(path), body, headers ? { headers } : undefined)
       .pipe(map((response) => response.data));
   }
 

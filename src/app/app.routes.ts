@@ -66,6 +66,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent),
       },
       {
+        path: 'vehiculos',
+        data: { breadcrumb: 'Mis vehículos', wide: true },
+        canActivate: [permissionGuard('vehicles:read')],
+        loadComponent: () => import('./features/vehicles/vehicles.component').then((m) => m.VehiclesComponent),
+      },
+      {
         path: 'operaciones',
         data: {
           breadcrumb: 'Cargas y transportes',

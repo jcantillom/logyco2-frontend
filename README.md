@@ -12,7 +12,7 @@ npm install
 npm start                 # http://localhost:4200  (API en API_BASE_URL, por defecto http://127.0.0.1:8120)
 npm run test:ci           # requiere Chrome (export CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 npm run lint
-npm run build:prod        # exige APP_ENV=production y las demás variables (las define el pipeline)
+npm run build:prod        # exige APP_ENV=production y las demás variables (las define el pipeline); `npm run build` es el mismo bundle y tiene la misma guarda
 ```
 
 ## Configuración
@@ -130,7 +130,8 @@ No se concedió ningún rol ni se tocaron datos de autorización.
 | Estado de la plataforma | `/plataforma/estado` | Servicios (API, base de datos, SSO, directorio, procesamiento) y actualización de datos de referencia |
 | Mi cuenta | `/plataforma/configuracion` | Cuenta y apariencia (`SettingsComponent`) |
 | Herramientas complementarias | `/plataforma/intelligence/{energia,costos,fuentes}` | Intelligence: referencias de combustibles, costos de transporte y administración de fuentes |
-| Descarbonización | `/plataforma/vehiculos`, `…/operaciones`, `…/cargas`, `…/calidad`, `…/metodologias`, `…/reportes` | «Próximamente» (`ComingSoonComponent`); sin datos ni backend |
+| Descarbonización | `/plataforma/vehiculos`, `…/operaciones`, `…/cargas`, `…/calidad`, `…/reportes` | «Próximamente» (`ComingSoonComponent`); sin datos ni backend |
+| Descarbonización → Cálculo de emisiones | `/plataforma/calculo-emisiones` | Funcional: guía de vehículos de carga, fórmulas, factor de emisión por combustible (desde `.env` del backend) y calculadora (`features/emissions`, ver `docs/features/emissions.md`) |
 
 ### Endpoints consumidos (reales)
 
@@ -162,5 +163,5 @@ No se concedió ningún rol ni se tocaron datos de autorización.
 ### Alcance de la consola
 
 Con backend: seguridad de acceso, organizaciones, tipos, relaciones, superadministradores, RBAC, métricas y tendencias, actividad y auditoría, usuarios, membresías, invitaciones, incorporación y estado de servicios.
-Sin backend (la ruta muestra «Próximamente», sin entrada en el menú): `/plataforma/vehiculos`, `…/operaciones`, `…/cargas`, `…/calidad`, `…/metodologias` y `…/reportes`.
+Sin backend (la ruta muestra «Próximamente», sin entrada en el menú): `/plataforma/vehiculos`, `…/operaciones`, `…/cargas`, `…/calidad` y `…/reportes`.
 Las listas de empresas, usuarios y auditoría se paginan y filtran en el servidor; `fetchAllPages` solo lo usan algunos selectores y detalles (ver `docs/features/platform.md`).

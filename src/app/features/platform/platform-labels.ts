@@ -116,7 +116,13 @@ export function activityText(item: ActivityItem): ActivityText {
         tone: 'danger',
       };
     }
-    default: return { title: `${actor} realizó una acción administrativa`, detail: item.action, tone: 'neutral' };
+    default: {
+      const emissions = EMISSIONS_ACTIONS[item.action];
+
+      return emissions
+        ? { title: `${actor} ${emissions.phrase}`, detail: emissionsSubject(item), tone: emissions.tone }
+        : { title: `${actor} realizó una acción administrativa`, detail: item.action, tone: 'neutral' };
+    }
   }
 }
 
@@ -183,6 +189,28 @@ export function activityLine(item: ActivityItem): ActivityLine {
     case 'external_counterpart.create': return { icon: 'organization', text: 'Contraparte externa registrada', actor };
     case 'external_counterpart.deactivate': return { icon: 'organization', text: 'Contraparte externa desactivada', actor };
     case 'audit.retention_purge': return { icon: 'organization', text: `Auditoría depurada (anterior al ${cutoffDay(item) ?? 'plazo de retención'})`, actor };
-    default: return { icon: 'person', text: 'Acción administrativa', actor };
+    default: {
+      const emissions = EMISSIONS_ACTIONS[item.action];
+      const subject = emissions ? emissionsSubject(item) : null;
+
+      return emissions ? { icon: 'organization', text: subject ? `${emissions.short}: ${subject}` : emissions.short, actor } : { icon: 'person', text: 'Acción administrativa', actor };
+    }
   }
+}
+
+// ── Emisiones, histórico (`emissions.*`) ──
+
+interface EmissionsAction { readonly phrase: string; readonly short: string; readonly tone: ActivityText['tone'] }
+
+/** Los dos eventos históricos inmutables del antiguo módulo de metodologías y factores; el servidor solo registra el código. */
+const EMISSIONS_ACTIONS: Readonly<Record<string, EmissionsAction>> = {
+  'emissions.methodology_create': { phrase: 'creó una metodología', short: 'Metodología creada', tone: 'success' },
+  'emissions.catalog_apply': { phrase: 'cargó el catálogo técnico de metodologías y factores', short: 'Catálogo técnico cargado', tone: 'info' },
+};
+
+const SUBJECT_KEYS: Readonly<Record<string, string>> = { 'emissions.methodology_create': 'methodology_code', 'emissions.catalog_apply': 'catalog_version' };
+
+/** «GLEC_FUEL», con lo que el evento trae; sin datos no se inventa nada. */
+function emissionsSubject(item: ActivityItem): string | null {
+  return detailText(item, SUBJECT_KEYS[item.action]) ?? item.targetName;
 }

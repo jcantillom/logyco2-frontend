@@ -84,6 +84,26 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   INVALID_RANGE: 'La fecha inicial debe ser anterior a la final.',
   RANGE_TOO_LONG: 'El rango máximo permitido es de un año.',
 
+  // Vehículos de la empresa
+  VEHICLE_ALREADY_REGISTERED: 'Esta placa ya está registrada en tu empresa.',
+  VEHICLE_STRUCTURAL_CONFIRMATION_REQUIRED: 'Cambiar la configuración o el tipo del vehículo modifica su estructura. Marca la confirmación para continuar.',
+  INVALID_PLATE: 'La placa no es válida. Revisa que tenga el formato correcto, por ejemplo ABC123.',
+  INVALID_VEHICLE_FIELD: 'Uno de los datos del vehículo no es válido. Revisa los campos marcados.',
+  FINDING_NOT_RESOLVABLE: 'Este hallazgo no se puede resolver: solo las inconsistencias y los datos incompletos se resuelven.',
+  FINDING_ALREADY_RESOLVED: 'Este hallazgo ya se resolvió con otra decisión. Actualiza la revisión.',
+  FINDING_WITHOUT_VEHICLE: 'Este hallazgo no tiene un vehículo registrado. Confírmalo primero como vehículo nuevo.',
+  INVALID_FIELDS: 'Los campos elegidos no tienen un valor en el archivo. Elige otros campos.',
+  FINDING_STALE: 'El vehículo cambió después del análisis. Vuelve a analizar el archivo o revisa los datos actuales.',
+  ANALYSIS_NOT_RETRYABLE: 'Este análisis no se puede reintentar porque no falló. Actualiza la lista.',
+  ANALYSIS_FILE_UNAVAILABLE: 'El archivo de este análisis ya no está disponible. Vuelve a cargarlo.',
+  NOTIFICATION_NOT_FOUND: 'La notificación ya no está disponible.',
+  VEHICLE_NOT_FOUND: 'El vehículo no existe en tu empresa. Vuelve a la lista y actualízala.',
+  ANALYSIS_NOT_FOUND: 'El análisis no existe. Vuelve a cargar el archivo.',
+  FINDING_NOT_FOUND: 'El hallazgo no existe. Actualiza la revisión.',
+  ANALYSIS_NOT_COMPLETED: 'El análisis aún no termina. Espera a que finalice e inténtalo de nuevo.',
+  FILE_TOO_LARGE: 'El archivo supera el tamaño permitido. Divídelo en partes más pequeñas e inténtalo de nuevo.',
+  UNSUPPORTED_FILE: 'El archivo no es válido. Sube un libro de Excel con extensión .xlsx.',
+
   // Directorio corporativo
   // LoGyCO₂ Intelligence
   SECTOR_DATA_FORBIDDEN: 'No tienes acceso a los indicadores sectoriales.',

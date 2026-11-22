@@ -10,7 +10,7 @@ Código: `src/app/features/platform/`. Archivos (líneas medidas con `wc -l`, si
 - Specs (15 archivos, 220 `it`): `platform-routing`, `platform-shell.component`, `platform-dashboard.component`, `platform-evolution`, `platform-organizations.component`, `platform-organization-admin`, `platform-users.component`, `platform-user-detail.component`, `platform-super-admins.component`, `platform-super-admin-detail.component`, `platform-rbac.component`, `platform-rbac-matrix.component`, `platform-audit.component`, `platform-status.component`, `platform-labels`.
 
 ## 1. Propósito y flujo [V]
-Consola de administración global para el rol global `SUPER_ADMIN`, separada del espacio de empresa (`ShellComponent`). Aterriza en `/plataforma/resumen`. Desde el menú se administran empresas, usuarios, superadministradores, roles, auditoría y estado de servicios; «Herramientas complementarias» enlaza a Intelligence (`features/intelligence`, ver [intelligence.md](intelligence.md)). Los módulos de descarbonización sin backend (vehículos, operaciones, cargas, calidad, metodologías, reportes) renderizan `ComingSoonComponent`.
+Consola de administración global para el rol global `SUPER_ADMIN`, separada del espacio de empresa (`ShellComponent`). Aterriza en `/plataforma/resumen`. Desde el menú se administran empresas, usuarios, superadministradores, roles, auditoría y estado de servicios, y «Descarbonización → Cálculo de emisiones» abre la pantalla de la feature `emissions` (ver [emissions.md](emissions.md)); «Herramientas complementarias» enlaza a Intelligence (`features/intelligence`, ver [intelligence.md](intelligence.md)). Los módulos sin backend (vehículos, operaciones, cargas, calidad, reportes) renderizan `ComingSoonComponent`.
 
 ## 2. Rutas [V]
 `app.routes.ts`: `path: 'plataforma'`, `canMatch: [platformMatch]`, `canActivate: [authGuard, platformGuard]`, `loadComponent` `PlatformShellComponent`, `children: PLATFORM_ROUTES`.
@@ -28,26 +28,28 @@ Consola de administración global para el rol global `SUPER_ADMIN`, separada del
 | `estado` | `PlatformStatusComponent` | Estado de la plataforma |
 | `superadministradores` / `.../:id` | `PlatformSuperAdminsComponent` / `PlatformSuperAdminDetailComponent` | Superadministradores / Detalle |
 | `roles` / `roles/matriz` | `PlatformRbacComponent` / `PlatformRbacMatrixComponent` | Roles y accesos / Matriz técnica |
-| `vehiculos`, `operaciones`, `cargas`, `calidad`, `metodologias`, `reportes` | `ComingSoonComponent` (con `title` y `description` en `data`) | Vehículos / Operaciones de transporte / Cargas masivas / Centro de calidad / Metodologías y factores / Reportes globales |
+| `calculo-emisiones` | `EmissionsComponent` (`features/emissions/`, lazy) | Cálculo de emisiones |
+| `vehiculos`, `operaciones`, `cargas`, `calidad`, `reportes` | `ComingSoonComponent` (con `title` y `description` en `data`) | Vehículos / Operaciones de transporte / Cargas masivas / Centro de calidad / Reportes globales |
 | `auditoria` | `PlatformAuditComponent` | Actividad y auditoría |
 | `intelligence` (`energia`, `costos`, `fuentes`) | `IntelligenceComponent` (secciones `energy` y `costs`) / `IntelligenceAdminComponent`; `''`, `sectorial`, `sostenibilidad` y `**` redirigen a `energia` | LoGyCO₂ Intelligence / Mercado energético / Costos de transporte / Administración de fuentes |
 | `**` | redirige a `resumen` | |
 
-Los seis módulos «Próximamente» no tienen ítem de menú (no figuran en `PLATFORM_NAV`). Los `:id` llegan como `input.required<string>()` (router con `withComponentInputBinding`).
+Los cinco módulos «Próximamente» no tienen ítem de menú (no figuran en `PLATFORM_NAV`). Los `:id` llegan como `input.required<string>()` (router con `withComponentInputBinding`).
 
 Query params consumidos [V]:
 - `organizaciones`: `vista` (o el antiguo `filtro`; valores `todas|activas|inactivas|sin-admin|con-invitaciones|sin-tipo|eliminadas`), `q`, `tipo`, `orden`, `dir`, `pagina`, `tam`.
 - `usuarios`: `tab=invitaciones`, `q`, `rol`, `empresa`, `cuenta`, `pagina`, `tam`.
-- `auditoria`: `q`, `tipo`, `origen`, `periodo`, `desde`, `hasta`, `empresa`, `tam`.
+- `auditoria`: `q`, `tipo` (`organizations`, `access`, `invitations`, `super_admins`, `relationships`, `EMISSIONS`), `origen`, `periodo`, `desde`, `hasta`, `empresa`, `tam`. La categoría `EMISSIONS` («Emisiones (histórico)») se conserva solo para los eventos históricos `emissions.*` del módulo eliminado; ninguna pantalla nueva la enlaza.
 - Todos se leen una sola vez al construir el componente (`snapshot`) y se reescriben con `Location.replaceState` al cambiar los criterios (sin entradas de historial extra).
 
 ## 3. Navegación: `PLATFORM_NAV` (`platform-nav.ts`) [V]
 `PlatformNavItem { label, path, icon, soon?, exact? }`; `PlatformNavGroup { title, items, collapsible?, icon?, parent?, pinned? }`. Grupos reales:
 1. **Panel general**: Resumen.
 2. **Administración** (plegable): Empresas, Usuarios, Superadministradores.
-3. **Herramientas complementarias** (plegable): Referencias de combustibles (`/plataforma/intelligence/energia`), Indicadores de costos (`/plataforma/intelligence/costos`).
-4. **Seguridad** (plegable): Roles y accesos (`exact`), Matriz técnica.
-5. **Sistema** (`pinned`, al pie): Actividad y auditoría, Estado de la plataforma.
+3. **Descarbonización** (plegable, con la hoja como icono): Cálculo de emisiones (`/plataforma/calculo-emisiones`).
+4. **Herramientas complementarias** (plegable): Referencias de combustibles (`/plataforma/intelligence/energia`), Indicadores de costos (`/plataforma/intelligence/costos`).
+5. **Seguridad** (plegable): Roles y accesos (`exact`), Matriz técnica.
+6. **Sistema** (`pinned`, al pie): Actividad y auditoría, Estado de la plataforma.
 Ningún ítem lleva hoy `soon: true`.
 
 ## 4. Componentes
@@ -62,7 +64,7 @@ Todos standalone y OnPush, con template y estilos inline. Contenedores que inyec
 ### 4.2 `PlatformDashboardComponent` (`app-platform-dashboard`) y `PlatformEvolutionCardComponent` (`app-platform-evolution-card`) [V]
 - Dashboard: sin inputs/outputs; inyecta `PlatformDashboardFacade`, `SessionStore`, `IntelligenceFacade`; el constructor llama `dash.load()` e `intel.loadSummary()`.
 - Selector de período (`#period`: últimos 7/30/90 días o «Personalizado» con rango, validado a máximo un año) que cambia `dash.range` y recarga tendencias.
-- KPI (`data-testid="admin-cards"`): Empresas (con variación del período), Activas, Inactivas, Sin administrador activo, Usuarios (con variación) y Superadministradores (barra de cupo con reservas); enlazan a `organizaciones?filtro=...`, `usuarios` y `superadministradores`.
+- KPI (`data-testid="admin-cards"`): Empresas (con variación del período), Usuarios (con variación) y Superadministradores (barra de cupo con reservas); enlazan a `organizaciones`, `usuarios` y `superadministradores`. Las tarjetas «Activas», «Inactivas» y «Sin administrador activo» se quitaron del resumen (2026-11-21; las cifras siguen en «Empresas» y en «Acciones pendientes»). Junto a ellas va la tarjeta **«Factor de emisión»** (`PlatformFactorCardComponent`, `app-platform-factor-card`, ocupa dos columnas de las cinco de la fila y todo el ancho por debajo de 1200 px): con las mismas clases de las tarjetas vecinas (`kpi`, `label`, `ico`, `hint`), de modo que hereda su rejilla, el cuadro del icono de 54 px y los tamaños de `styles.scss` (etiqueta «Factor de emisión» arriba, valor grande con su unidad al lado, bajo el valor un indicador discreto de tres segmentos de 24 × 3 px, línea de apoyo con el nombre del combustible y la insignia, cuadro del icono plano a la derecha tras una línea discontinua muy suave y botón de pausa de 24 px en la esquina) rota por los combustibles de `GET /emissions/reference/fuels` (nombre de la API, valor tal como lo envía el servidor con coma decimal, unidad `kg CO₂/gal` o `kg CO₂/m³` sin partirse e insignia Verificado / Pendiente de validación / Sin configurar / Inválido) cada `FACTOR_ROTATION_MS` = 3000 ms con un segmento por combustible (el actual se llena en 3 s solo con `transform`; los completados quedan sólidos en `--c-primary`; cada segmento es un botón con el nombre del combustible y un área de toque de unos 25 px) y un fundido de ≤ 250 ms. La rotación se detiene con el cursor o el foco dentro, con el botón de pausa (`aria-pressed`) y con la pestaña oculta; con «reducir movimiento» no rota sola (los segmentos, que son botones, cambian de combustible a mano); `aria-live` es `off` en la rotación automática y `polite` tras una elección manual. Usa `EmissionsFacade.loadFuels()` (no carga el catálogo de vehículos); estados de carga (esqueleto) y error con reintento.
 - Tarjetas: `app-platform-evolution-card`, «Empresas por tipo» (`app-donut-chart`), «Acciones pendientes» (`dash.actionsRequired` y «En seguimiento» con `dash.actionsFollowUp`; ancla `#acciones`), «Actividad reciente» (4 eventos, enlace a auditoría) y «Precios de combustibles» (`app-fuel-price-cards`).
 - Evolución: `PlatformEvolutionCardComponent` (sin inputs) muestra altas por mes de Empresas o Usuarios (acumulado, usando el total actual) con navegación año a año (hasta 5 años atrás), independiente del selector de período; carga con `dash.loadEvolution`. La lógica pura está en `platform-evolution.ts` (`toYearData`, `yearRange`, `buildEvolution`, `MONTH_LABELS`, `MONTH_NAMES`).
 
@@ -76,7 +78,7 @@ Todos standalone y OnPush, con template y estilos inline. Contenedores que inyec
 
 **`PlatformOrganizationDetailComponent`** (`app-platform-organization-detail`):
 - Input `id` (requerido). Inyecta `PlatformOrganizationsFacade`, `PlatformUsersFacade`, `OnboardingFacade`, `ConfirmService`, `ToastService`, `ActionFeedbackService`, `Router`.
-- Pestañas (`summary` «Información general», `members` «Administrador y equipo», `relations` «Relaciones comerciales», `activity` «Actividad»).
+- Pestañas (`summary` «Información general», `members` «Administrador y equipo», `relations` «Relaciones comerciales», `vehicles` «Vehículos», `activity` «Actividad»). La pestaña «Vehículos» (`PlatformOrganizationVehiclesComponent`, solo lectura, se carga al abrirla y muestra el total de registrados) reutiliza la tabla y el detalle de `features/vehicles`; ver [vehicles.md](vehicles.md) «Supervisión desde la plataforma».
 - Información general: datos, editar (diálogo con `name`, `legalName`, `taxId` y tipos), activar/desactivar con confirmación, eliminar (borrado lógico) o, si ya está eliminada, restaurar o eliminar definitivamente; los diálogos de borrado piden escribir el nombre de la empresa tras ver `deletionPreview` (`confirmDelete` -> `facade.delete` o `facade.purge`).
 - Administrador y equipo: una empresa tiene un solo administrador; «Asignar administrador» llama `OnboardingFacade.onboardMember` con `roleCode: 'ORG_ADMIN'`; equipo e invitaciones se derivan de `users.orgPeople` (personas de la empresa, filtradas en servidor) y `users.invitations`.
 - Un `effect` carga detalle, relaciones, actividad y tipos al cambiar `id`.
@@ -119,6 +121,7 @@ Todas `providedIn: 'root'`; estado en `ScopedResource` registrado en `ContextRes
 - `PlatformDashboardFacade`: `admin`, `trends`, `attention`, `activity`, `services`, `operations`, `yearly`, `range`; `actionItems`, `actionsRequired`, `actionsFollowUp`, `pendingActions` (computed); `load`, `loadAttention`, `loadMetrics`, `loadTrends`, `loadEvolution`, `setRange`, `loadOperations`, `checkServices`. Exporta `PendingAction`.
 - `PlatformSuperAdminsFacade`: `overview`, `detail`; `load`, `loadDetail`, `invite`, `revokeInvitation`, `revoke`.
 - `PlatformRbacFacade`: `catalog`, `assignments`; `load`, `loadAssignments(code)`. Exporta `PANEL_PEOPLE`.
+- Textos de auditoría: `platform-labels.ts` traduce solo las dos acciones históricas `emissions.*` que quedan en la base, `emissions.methodology_create` («creó una metodología», con `methodology_code`) y `emissions.catalog_apply` («cargó el catálogo técnico…», con `catalog_version` si el evento la trae), en `activityText` y `activityLine`; el icono reutiliza el de «empresa». Los metadatos `methodology_code`, `version`, `from_status` y `to_status` tienen rótulo en el detalle. Cualquier otra acción `emissions.*` cae en la frase genérica.
 - `PlatformActivityFacade`: `list` (página de auditoría), `detail`; `loadPage(request, filter)`, `loadEvent(id)`, `closeEvent()`.
 - `platform-labels.ts`: `PERSON_STATUS_LABELS`, `SERVICE_LABELS`, `activityText(item)`, `activityLine(item)`, `relativeTime`, tipos `ActivityText`, `ActivityIcon`, `ActivityLine`. Cubre acciones `organization.*` (create, update, activate, deactivate, set_types, logo_update, logo_remove, profile_update, delete, restore, purge), `invitation.*`, `membership.*`, `global_role.*`, `super_admin.*`, `user.update`, `organization_link.*`, `external_counterpart.*` y `audit.retention_purge`.
 

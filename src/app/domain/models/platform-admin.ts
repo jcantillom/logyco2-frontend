@@ -82,7 +82,7 @@ export interface ActivityItem {
 }
 
 /** Agrupa las acciones de auditoría por tema (cada categoría reúne varios códigos de acción). */
-export type AuditCategory = 'organizations' | 'access' | 'invitations' | 'super_admins' | 'relationships';
+export type AuditCategory = 'organizations' | 'access' | 'invitations' | 'super_admins' | 'relationships' | 'EMISSIONS';
 /** Origen del evento: la consola o un operador (recuperación por línea de comandos). */
 export type AuditChannel = 'console' | 'operator';
 

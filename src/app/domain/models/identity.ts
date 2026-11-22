@@ -47,6 +47,8 @@ export const PERMISSION_CODES = [
   'users:read',
   'catalogs:manage',
   'imports:create',
+  'vehicles:read',
+  'vehicles:manage',
   'indicators:read',
   'reports:read',
   'reports:download',

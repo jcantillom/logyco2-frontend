@@ -80,7 +80,7 @@ describe('Consola Super Admin: operaciones sobre empresas', () => {
       const tabs = Array.from(el().querySelectorAll('[role="tab"]')).map((t) => t.textContent!.trim());
 
       expect(tabs).not.toContain('Tipos y clasificación');
-      expect(tabs).toEqual(['Información general', 'Administrador y equipo', 'Relaciones comerciales', 'Actividad']);
+      expect(tabs).toEqual(['Información general', 'Administrador y equipo', 'Relaciones comerciales', 'Vehículos', 'Actividad']);
       click('edit-org');
       expect(editTypes().map((c) => c.checked)).toEqual([true, false]); // parte de los tipos reales de la empresa
       expect(el().querySelector('legend:not(.sr-only)')).not.toBeNull();

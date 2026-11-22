@@ -17,12 +17,15 @@ const PERIODS: readonly { value: Period; label: string; url: string }[] = [
 const CATEGORIES: readonly { value: AuditCategory; label: string }[] = [
   { value: 'organizations', label: 'Empresas' }, { value: 'access', label: 'Accesos de personas' }, { value: 'invitations', label: 'Invitaciones' },
   { value: 'super_admins', label: 'Superadministradores' }, { value: 'relationships', label: 'Relaciones comerciales' },
+  { value: 'EMISSIONS', label: 'Emisiones (histórico)' },
 ];
 const CHANNELS: readonly { value: AuditChannel; label: string }[] = [{ value: 'console', label: 'Consola web' }, { value: 'operator', label: 'Operador (recuperación)' }];
 /** Rótulos de los metadatos permitidos que el servidor entrega al abrir un evento. */
 const METADATA_LABELS: Readonly<Record<string, string>> = {
   role: 'Rol', role_code: 'Rol', to_status: 'Nuevo estado', from_status: 'Estado anterior', status: 'Estado', fields: 'Campos modificados',
   before: 'Antes', after: 'Después', changes: 'Cambios', invitee: 'Persona invitada', users_deleted: 'Personas eliminadas', expires_at: 'Vence',
+  methodology_code: 'Metodología', version: 'Versión',
+  attempted: 'Acción intentada', reason: 'Motivo',
 };
 const COUNT = new Intl.NumberFormat('es-CO');
 const SEARCH_DEBOUNCE_MS = 350;

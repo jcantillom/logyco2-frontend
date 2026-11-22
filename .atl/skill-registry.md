@@ -4,6 +4,9 @@
 
 ## Sources scanned
 
+- .claude/skills
+- .kiro/skills
+- .agents/skills
 - /Users/cantillo/.agents/skills
 - /Users/cantillo/.claude/skills
 - /Users/cantillo/.gemini/skills
@@ -24,9 +27,11 @@
 | `chained-pr` | Trigger: PRs over 400 lines, stacked PRs, review slices. Split oversized changes into chained PRs that protect review focus. | user | `/Users/cantillo/.agents/skills/chained-pr/SKILL.md` |
 | `cognitive-doc-design` | Design docs that reduce cognitive load. Trigger: writing guides, READMEs, RFCs, onboarding, architecture, or review-facing docs. | user | `/Users/cantillo/.agents/skills/cognitive-doc-design/SKILL.md` |
 | `create-statusline` | Build and enable a custom MCP statusline for the Codex CLI. Use when someone wants a provider that displays information in the terminal footer. | user | `/Users/cantillo/.codex/skills/.system/create-statusline/SKILL.md` |
-| `find-skills` | Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill. | user | `/Users/cantillo/.agents/skills/find-skills/SKILL.md` |
+| `find-skills` | Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill. | project | `/Users/cantillo/Work/logyca/descarbonizacion/logyCO2/logyco2-frontend/.claude/skills/find-skills/SKILL.md` |
+| `frontend-design` | Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults. | user | `/Users/cantillo/.agents/skills/frontend-design/SKILL.md` |
 | `go-testing` | Trigger: Go tests, go test coverage, Bubbletea teatest, golden files. Apply focused Go testing patterns. | user | `/Users/cantillo/.agents/skills/go-testing/SKILL.md` |
 | `graphify` | any input (code, docs, papers, images, videos) to knowledge graph. Use when user asks any question about a codebase, documents, or project content - especially if graphify-out/ exists, treat the question as a /graphify query. | user | `/Users/cantillo/.agents/skills/graphify/SKILL.md` |
+| `hallmark` | Design skill for websites and new pages that look designed, not generated. Use when the user asks to build or design something new, or names Hallmark. Never use it on an existing design unless the user names Hallmark, as in `/hallmark redesign <path>`. | user | `/Users/cantillo/.agents/skills/hallmark/SKILL.md` |
 | `imagegen` | Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups, or transparent-background cutouts. Use when Codex should create a brand-new image, transform an existing image, or derive visual variants from references, and the output should be a bitmap asset rather than repo-native code or vector. Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas. | user | `/Users/cantillo/.codex/skills/.system/imagegen/SKILL.md` |
 | `judgment-day` | Trigger: judgment day, dual review, adversarial review, juzgar. Run explicit blind dual review with at most two scoped fix/re-judgment rounds. | user | `/Users/cantillo/.agents/skills/judgment-day/SKILL.md` |
 | `openai-docs` | API first-timers, Codex/Work Q&A. If the user already has an OpenAI API integration, skip this skill for API questions and use the developer docs. Read this skill before answering how Codex or ChatGPT Work behaves, where to find a feature, or how to configure or troubleshoot this app or coding agent. This includes conversation history, model and cache behavior, instruction precedence, permissions, and tool availability. Use for API onboarding only when the user is connecting to the OpenAI API for the first time. Skip action requests, such as scheduling an automation, and tasks fully answered by supplied text or data. | user | `/Users/cantillo/.codex/skills/.system/openai-docs/SKILL.md` |
@@ -34,6 +39,7 @@
 | `skill-creator` | Trigger: new skills, agent instructions, documenting AI usage patterns. Create LLM-first skills with valid frontmatter. | user | `/Users/cantillo/.agents/skills/skill-creator/SKILL.md` |
 | `skill-improver` | Trigger: improve skills, audit skills, refactor skills, skill quality. Audit and upgrade existing LLM-first skills. | user | `/Users/cantillo/.agents/skills/skill-improver/SKILL.md` |
 | `skill-installer` | Install Codex skills into $CODEX_HOME/skills from a curated list or a GitHub repo path. Use when a user asks to list installable skills, install a curated skill, or install a skill from another repo (including private repos). | user | `/Users/cantillo/.codex/skills/.system/skill-installer/SKILL.md` |
+| `ui-ux-designer` | Create interface designs, wireframes, and design systems. Masters user research, accessibility standards, and modern design tools. | user | `/Users/cantillo/.agents/skills/ui-ux-designer/SKILL.md` |
 | `work-unit-commits` | Plan commits as reviewable work units. Trigger: commit splitting, chained PRs, or keeping tests and docs with code. | user | `/Users/cantillo/.agents/skills/work-unit-commits/SKILL.md` |
 | `xano-init` | Discover and profile a Xano workspace to understand how to develop safely with it using the sandbox workflow | user | `/Users/cantillo/.agents/skills/xano-init/SKILL.md` |
 

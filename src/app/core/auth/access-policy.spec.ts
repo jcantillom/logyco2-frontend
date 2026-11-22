@@ -33,6 +33,20 @@ describe('AccessPolicy (pistas de interfaz, no autorización)', () => {
     expect(policy.can('reports:download')).toBeFalse();
   });
 
+  it('vehicles:read lo tienen ORG_ADMIN, ORG_ANALYST y ORG_VIEWER; vehicles:manage solo ORG_ADMIN; SUPER_ADMIN y GUILD_VIEWER ninguno', () => {
+    const cases: [string, boolean, boolean][] = [['ORG_ADMIN', true, true], ['ORG_ANALYST', true, false], ['ORG_VIEWER', true, false], ['GUILD_VIEWER', false, false]];
+
+    for (const [role, read, manage] of cases) {
+      signIn({ memberships: [membership(ORG_ENVIA, [role])] });
+      expect(policy.can('vehicles:read')).withContext(role).toBe(read);
+      expect(policy.can('vehicles:manage')).withContext(role).toBe(manage);
+    }
+
+    signIn({ globalRoles: [{ code: 'SUPER_ADMIN', name: 'x' }], memberships: [] });
+    expect(policy.can('vehicles:read')).toBeFalse();
+    expect(policy.can('vehicles:manage')).toBeFalse();
+  });
+
   it('GUILD_VIEWER no ve datos de la empresa', () => {
     signIn({ memberships: [membership(ORG_ENVIA, ['GUILD_VIEWER'])] });
     expect(policy.can('indicators:read')).toBeFalse();

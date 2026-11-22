@@ -213,6 +213,43 @@ describe('PlatformAuditComponent: actividad y auditoría reales, con filtros y p
     expect(invalid.request.params.has('organization_id')).toBeFalse();
   });
 
+  it('una acción histórica de emisiones se muestra con su texto en español', () => {
+    render([event('emissions.catalog_apply')]);
+
+    expect(el().textContent).toContain('cargó el catálogo técnico de metodologías y factores');
+  });
+
+  it('ofrece la categoría «Emisiones (histórico)» y la envía al servidor como EMISSIONS', () => {
+    render([event('emissions.methodology_create')]);
+    const options = Array.from(el().querySelectorAll('[data-testid="category-filter"] option')).map((o) => [o.getAttribute('value'), o.textContent!.trim()]);
+
+    expect(options).toContain(['EMISSIONS', 'Emisiones (histórico)']);
+    choose('category-filter', 'EMISSIONS');
+    expect(flush([]).request.params.get('category')).toBe('EMISSIONS');
+  });
+
+  it('el enlace del historial (?tipo=EMISSIONS) restaura el filtro y lo envía al servidor', () => {
+    const request = render([event('emissions.methodology_create', 'api', { details: { methodology_code: 'GLEC_FUEL' } })], { tipo: 'EMISSIONS' });
+
+    expect(request.request.params.get('category')).toBe('EMISSIONS');
+    expect((q('[data-testid="category-filter"]') as HTMLSelectElement).value).toBe('EMISSIONS');
+    expect(el().textContent).toContain('Ana Gómez creó una metodología');
+    expect(el().textContent).toContain('GLEC_FUEL');
+  });
+
+  it('el detalle de un evento de metodología rotula la metodología en español', () => {
+    render([event('emissions.methodology_create')]);
+    (q('[data-testid="activity-row"]') as HTMLElement).click();
+    fixture.detectChanges();
+    http.expectOne(`${API}/platform/audit/emissions.methodology_create`).flush({
+      data: { ...event('emissions.methodology_create'), target_id: null, details: { methodology_code: 'GLEC_FUEL' } }, meta: {},
+    });
+    fixture.detectChanges();
+    const metadata = q('[data-testid="audit-metadata"]').textContent!;
+
+    ['Metodología', 'GLEC_FUEL'].forEach((word) => expect(metadata).toContain(word));
+  });
+
   it('restaura de la URL tipo, origen, período, búsqueda, página y tamaño; ignora valores inválidos', () => {
     const request = render([], { tipo: 'invitations', origen: 'operator', periodo: '90', q: 'ana', pagina: '3', tam: '50' });
     const params = request.request.params;

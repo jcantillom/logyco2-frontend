@@ -6,7 +6,7 @@
     "ng": "ng",
     "prestart": "npm run env",
     "start": "ng serve",
-    "prebuild": "npm run env",
+    "prebuild": "node scripts/generate-env.mjs --production",
     "build": "ng build",
     "prewatch": "npm run env",
     "watch": "ng build --watch --configuration development",

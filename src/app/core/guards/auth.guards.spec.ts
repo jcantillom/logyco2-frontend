@@ -62,6 +62,15 @@ describe('guards de rutas', () => {
       expect(router.serializeUrl(run(permissionGuard('imports:create')) as UrlTree)).toBe('/acceso-denegado');
     });
 
+    it('vehicles:read: la ven los roles de la empresa y no el SUPER_ADMIN', () => {
+      session.setToken(FAKE_TOKEN);
+      session.setUser(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_VIEWER'])] }));
+      expect(run(permissionGuard('vehicles:read'))).toBeTrue();
+
+      session.setUser(buildUser({ globalRoles: [{ code: 'SUPER_ADMIN', name: 'x' }], memberships: [] }));
+      expect(router.serializeUrl(run(permissionGuard('vehicles:read')) as UrlTree)).toBe('/acceso-denegado');
+    });
+
     it('acepta cualquiera de varios permisos', () => {
       session.setToken(FAKE_TOKEN);
       session.setUser(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN'])] }));

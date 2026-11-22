@@ -58,7 +58,6 @@ Consola de plataforma (`platform.routes.ts`, bajo `/plataforma`, sin ítem de me
 | `/plataforma/operaciones` | Operaciones de transporte (viajes y envíos) |
 | `/plataforma/cargas` | Cargas masivas (vista administrativa) |
 | `/plataforma/calidad` | Centro de calidad y conciliación |
-| `/plataforma/metodologias` | Metodologías y factores de emisión |
 | `/plataforma/reportes` | Reportes globales |
 
 El resumen de la empresa (`/resumen`) no usa esta pantalla: conserva sus secciones reales y muestra un único aviso «Próximamente: indicadores de emisiones, intensidad y tendencia» (ver [dashboard.md](dashboard.md)).

@@ -20,23 +20,27 @@ import { ResourceStateComponent } from '../../shared/ui/resource-state.component
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import { OrgTypeChipComponent } from './org-type-chip.component';
 import { ActivityIcon, activityLine, activityText, PERSON_STATUS_LABELS, relativeTime } from './platform-labels';
+import { PlatformOrganizationVehiclesComponent } from './platform-organization-vehicles.component';
+import { PlatformOrganizationVehiclesFacade } from './platform-organization-vehicles.facade';
 import { PlatformOrganizationsFacade, PlatformUsersFacade } from './platform.facades';
 
-type Tab = 'summary' | 'members' | 'relations' | 'activity';
+type Tab = 'summary' | 'members' | 'relations' | 'vehicles' | 'activity';
 
 const TABS: readonly { id: Tab; label: string }[] = [
   { id: 'summary', label: 'Información general' },
   { id: 'members', label: 'Administrador y equipo' },
   { id: 'relations', label: 'Relaciones comerciales' },
+  { id: 'vehicles', label: 'Vehículos' },
   { id: 'activity', label: 'Actividad' },
 ];
 
 @Component({
   selector: 'app-platform-organization-detail',
-  imports: [DatePipe, ReactiveFormsModule, RouterLink, OrgLogoComponent, OrgTypeChipComponent, ResourceStateComponent, StatusBadgeComponent, OnboardingStatusComponent],
+  imports: [DatePipe, ReactiveFormsModule, RouterLink, OrgLogoComponent, OrgTypeChipComponent, ResourceStateComponent, StatusBadgeComponent, OnboardingStatusComponent, PlatformOrganizationVehiclesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
+      .tab-n { margin-left: 8px; padding: 0 7px; border-radius: 999px; background: var(--c-ok-soft); color: var(--c-accent); font-size: 0.74rem; font-weight: 800; }
       .type-chips { display: flex; flex-wrap: wrap; gap: 6px; }
       .admin-person { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 16px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-sf); }
       .admin-person.pending { border-style: dashed; background: var(--c-s2); }
@@ -86,7 +90,7 @@ const TABS: readonly { id: Tab; label: string }[] = [
 
       <div class="tabs" role="tablist" aria-label="Secciones de la empresa">
         @for (t of tabs; track t.id) {
-          <button type="button" role="tab" [attr.aria-selected]="tab() === t.id" (click)="tab.set(t.id)">{{ t.label }}</button>
+          <button type="button" role="tab" [attr.aria-selected]="tab() === t.id" (click)="tab.set(t.id)">{{ t.label }}@if (t.id === 'vehicles' && vehiclesCount() !== null) { <span class="tab-n" data-testid="vehicles-count">{{ vehiclesCount() }}</span> }</button>
         }
       </div>
 
@@ -242,6 +246,7 @@ const TABS: readonly { id: Tab; label: string }[] = [
           </section>
         }
 
+        @case ('vehicles') { <app-platform-organization-vehicles [organizationId]="id()" /> }
         @case ('activity') {
           <section class="card stack" aria-labelledby="act-title" data-testid="org-activity">
             <h2 id="act-title">Actividad</h2>
@@ -377,6 +382,9 @@ export class PlatformOrganizationDetailComponent {
   protected readonly canDelete = computed(() => !!this.deletePlan() && this.deleteConfirm().trim() === this.deletePlan()!.organizationName);
 
   protected readonly tabs = TABS;
+  private readonly vehicles = inject(PlatformOrganizationVehiclesFacade);
+  /** Vehículos registrados de ESTA empresa; solo se conoce después de abrir la pestaña (se carga entonces, no antes). */
+  protected readonly vehiclesCount = computed(() => (this.vehicles.organizationId() === this.id() ? (this.vehicles.summary.data()?.registered ?? null) : null));
   protected readonly tab = signal<Tab>('summary');
   protected readonly membershipLabels = MEMBERSHIP_LABELS;
   protected readonly personStatus = PERSON_STATUS_LABELS;

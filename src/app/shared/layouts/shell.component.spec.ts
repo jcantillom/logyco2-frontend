@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { buildUser, membership, ORG_COORDINADORA, ORG_ENVIA } from '../../../testing/builders';
+import { buildSuperAdmin, buildUser, membership, ORG_COORDINADORA, ORG_ENVIA } from '../../../testing/builders';
 import { provideTestApp, signInAs } from '../../../testing/providers';
 import { SessionStore } from '../../core/auth/session.store';
 import { OrganizationContext } from '../../core/org/organization-context';
@@ -29,7 +29,7 @@ describe('ShellComponent: navegación y visibilidad condicionada', () => {
       'Inicio', 'Datos operativos', 'Huella de carbono', 'Resultados', 'Administración',
     ]);
     expect(labels(el)).toEqual([
-      'Resumen', 'Cargar información', 'Calidad de datos', 'Operaciones logísticas', 'Mis emisiones',
+      'Resumen', 'Mis vehículos', 'Cargar información', 'Calidad de datos', 'Operaciones logísticas', 'Mis emisiones',
       'Análisis de emisiones', 'Plan de reducción', 'Reportes', 'Usuarios y accesos', 'Datos de mi empresa',
     ]);
     expect(el.querySelector('.side-foot .help')!.textContent).toContain('Ayuda y soporte');
@@ -65,6 +65,24 @@ describe('ShellComponent: navegación y visibilidad condicionada', () => {
     expect(TestBed.inject(OrganizationContext).activeOrganizationId()).toBe(ORG_COORDINADORA.id);
     expect(el.querySelector('.company-list')).toBeNull();
     expect(el.querySelector('.company')!.textContent).toContain('Coordinadora');
+  });
+
+  it('«Mis vehículos» está en Datos operativos, es una pantalla real y lo ven ORG_ADMIN, ORG_ANALYST y ORG_VIEWER pero no el SUPER_ADMIN', () => {
+    for (const role of ['ORG_ADMIN', 'ORG_ANALYST', 'ORG_VIEWER']) {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ imports: [ShellComponent], providers: provideTestApp() });
+      const el = render(buildUser({ memberships: [membership(ORG_ENVIA, [role])] }));
+      const link = Array.from(el.querySelectorAll('nav a.nav-link')).find((a) => a.textContent!.includes('Mis vehículos'))!;
+
+      expect(link).withContext(role).toBeTruthy();
+      expect(link.getAttribute('href')).toBe('/vehiculos');
+      expect(link.classList.contains('soon-item')).toBeFalse();
+      expect(link.closest('.group')!.querySelector('h2')!.textContent!.trim()).toBe('Datos operativos');
+    }
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [ShellComponent], providers: provideTestApp() });
+    expect(labels(render(buildSuperAdmin()))).not.toContain('Mis vehículos');
   });
 
   it('ORG_VIEWER no ve usuarios ni carga de información', () => {

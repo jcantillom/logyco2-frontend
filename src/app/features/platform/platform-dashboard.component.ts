@@ -10,6 +10,7 @@ import { FuelPriceCardsComponent } from '../intelligence/fuel-price-cards.compon
 import { IntelligenceFacade } from '../intelligence/intelligence.facade';
 import { activityLine, relativeTime } from './platform-labels';
 import { PlatformEvolutionCardComponent } from './platform-evolution-card.component';
+import { PlatformFactorCardComponent } from './platform-factor-card.component';
 import { PlatformDashboardFacade } from './platform.facades';
 
 type Preset = 7 | 30 | 90;
@@ -21,8 +22,6 @@ const TYPE_COLORS = [CHART_COLORS.green, CHART_COLORS.emerald, CHART_COLORS.petr
 const ICONS = {
   building: 'M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M8 8h2M8 12h2M8 16h2M4 21h16',
   check: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12l3 3 5-6',
-  cross: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9 9l6 6M15 9l-6 6',
-  alert: 'M12 3l10 18H2zM12 10v5M12 18h.01',
   users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20a7 7 0 0 1 14 0M17 5a3.5 3.5 0 0 1 0 6M19 20a7 7 0 0 0-3-5.7',
   crown: 'M3 8l4 4 5-7 5 7 4-4-2 11H5z',
   chart: 'M4 20V4M4 20h16M8 15l3-4 3 2 5-6',
@@ -45,7 +44,7 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
 
 @Component({
   selector: 'app-platform-dashboard',
-  imports: [FuelPriceCardsComponent, DatePipe, DecimalPipe, RouterLink, ResourceStateComponent, DonutChartComponent, PlatformEvolutionCardComponent],
+  imports: [FuelPriceCardsComponent, DatePipe, DecimalPipe, RouterLink, ResourceStateComponent, DonutChartComponent, PlatformEvolutionCardComponent, PlatformFactorCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -59,14 +58,13 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
       .kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); }
       .kpi { display: flex; align-items: center; gap: 10px; padding: 12px 12px; background: var(--c-sf); border: 1px solid var(--c-bd); border-radius: 14px; box-shadow: var(--shadow); text-decoration: none; color: inherit; min-width: 0; transition: border-color 0.15s, transform 0.15s; }
       .kpi .ico { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--c-ok-soft); color: var(--c-accent); }
-      .kpi .ico.red { background: var(--c-bad-soft); color: var(--c-danger); } .kpi .ico.amber { background: var(--c-warn-soft); color: #b87a00; }
+      .kpi .ico.amber { background: var(--c-warn-soft); color: #b87a00; }
       .kpi .body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
       .kpi .label { font-size: 0.78rem; color: var(--c-head); font-weight: 600; line-height: 1.2; }
       .kpi .line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .kpi .value { font-size: 1.7rem; font-weight: 800; line-height: 1.15; color: var(--c-head); font-variant-numeric: tabular-nums; }
       .kpi .value small { font-size: 0.95rem; color: var(--c-mu); font-weight: 700; }
       .delta { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; background: var(--c-ok-soft); color: var(--c-success); font-size: 0.74rem; font-weight: 800; }
-      .delta.red { background: var(--c-bad-soft); color: var(--c-danger); }
       .bar { height: 7px; border-radius: 4px; background: var(--c-s3); overflow: hidden; display: flex; margin-top: 4px; }
       .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--c-primary), var(--c-secondary)); }
       .bar i.reserved { background: repeating-linear-gradient(45deg, var(--c-secondary-soft) 0 4px, var(--c-secondary-200) 4px 8px); }
@@ -137,7 +135,8 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
       .period::after { border-color: var(--c-gray); }
       .section-kicker { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: 0 0 4px; font-size: .75rem; color: var(--c-mu); }
       .section-kicker strong { color: var(--c-head); font-weight: 650; }
-      .kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+      .kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+      .kpis > .kpi-factor { grid-column: span 2; }
       .kpi { position: relative; flex-direction: row; align-items: center; gap: 9px; padding: 12px; border-color: var(--c-bd); border-radius: 16px; box-shadow: 0 3px 14px color-mix(in srgb, var(--c-gray) 2%, transparent); }
       .kpi:hover { transform: translateY(-3px); border-color: var(--c-primary-400); box-shadow: 0 8px 22px color-mix(in srgb, var(--c-gray) 4%, transparent); }
       .kpi .ico { width: 34px; height: 34px; border-radius: 10px; }
@@ -179,12 +178,13 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
       .st { font-size: .67rem; }
       .grid-main[hidden], .grid-half[hidden] { display: none; }
       @media (min-width: 1101px) { .grid-main, .grid-half { min-height: 260px; } }
-      @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kpi { flex-direction: row; gap: 12px; } }
+      @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kpis > .kpi-factor { grid-column: 1 / -1; } .kpi { flex-direction: row; gap: 12px; } }
       @media (max-width: 600px) {
         .executive-dashboard { gap: 18px; }
         .page-header { padding: 4px 0; }
         .header-actions { width: 100%; }
         .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .kpis > .kpi-factor { grid-column: 1 / -1; }
         .kpi { flex-direction: column; padding: 14px; gap: 12px; }
         .kpi:first-child { padding-top: 12px; }
         section.card { padding: 18px; }
@@ -232,18 +232,6 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
               <span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.building" /></svg></span>
               <span class="body"><span class="label">Empresas</span><span class="line"><strong class="value">{{ m.organizations.total | number }}</strong>@if (growth(m.organizations.total, 'organizationsCreated'); as g) { <span class="delta" [title]="'Nuevas en el período: ' + created('organizationsCreated')">↑ {{ g }}</span> }</span><span class="hint">Total registradas</span></span>
             </a>
-            <a class="kpi tone-emerald" routerLink="/plataforma/organizaciones" [queryParams]="{ filtro: 'activas' }" data-testid="kpi-active">
-              <span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.check" /></svg></span>
-              <span class="body"><span class="label">Activas</span><span class="line"><strong class="value">{{ m.organizations.active | number }}</strong><span class="delta">{{ share(m.organizations.active, m.organizations.total) }}</span></span><span class="meter" aria-hidden="true"><i [style.width.%]="m.organizations.total ? (m.organizations.active / m.organizations.total) * 100 : 0"></i></span></span>
-            </a>
-            <a class="kpi neutral" routerLink="/plataforma/organizaciones" [queryParams]="{ filtro: 'inactivas' }" data-testid="kpi-inactive">
-              <span class="ico red"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.cross" /></svg></span>
-              <span class="body"><span class="label">Inactivas</span><span class="line"><strong class="value">{{ m.organizations.inactive | number }}</strong><span class="delta red">{{ share(m.organizations.inactive, m.organizations.total) }}</span></span><span class="meter" aria-hidden="true"><i [style.width.%]="m.organizations.total ? (m.organizations.inactive / m.organizations.total) * 100 : 0"></i></span></span>
-            </a>
-            <a class="kpi tone-red" [class.attention]="m.organizations.withoutActiveAdmin > 0" routerLink="/plataforma/organizaciones" [queryParams]="{ filtro: 'sin-admin' }" data-testid="kpi-without-admin">
-              <span class="ico red"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.alert" /></svg></span>
-              <span class="body"><span class="label">Sin administrador activo</span><span class="line"><strong class="value">{{ m.organizations.withoutActiveAdmin | number }}</strong>@if (m.organizations.withoutActiveAdmin > 0) { <span class="delta red" title="Requiere atención">Atender</span> }</span><span class="hint">Esperan o requieren invitación</span></span>
-            </a>
             <a class="kpi tone-blue" routerLink="/plataforma/usuarios" data-testid="kpi-users">
               <span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.users" /></svg></span>
               <span class="body"><span class="label">Usuarios</span><span class="line"><strong class="value">{{ m.users.total | number }}</strong>@if (growth(m.users.total, 'usersRegistered'); as g) { <span class="delta" [title]="'Nuevos en el período: ' + created('usersRegistered')">↑ {{ g }}</span> }</span><span class="hint">Total registrados</span></span>
@@ -256,6 +244,7 @@ const ACTIVITY_ICON = { organization: 'building', person: 'person', invitation: 
                 <span class="bar" aria-hidden="true"><i [style.width.%]="(m.superAdmins.active / m.superAdmins.maxActive) * 100"></i><i class="reserved" [style.width.%]="(m.superAdmins.reservedByInvitations / m.superAdmins.maxActive) * 100"></i></span>
               </span>
             </a>
+            <app-platform-factor-card class="kpi-factor" />
           </div>
         }
       </app-resource-state>
@@ -431,9 +420,6 @@ export class PlatformDashboardComponent {
     if (created === 0) return '0%';
 
     return base > 0 ? `+${Math.round((created / base) * 100)}%` : `+${created}`;
-  }
-  protected share(part: number, total: number): string {
-    return total > 0 ? `${Math.round((part / total) * 100)}%` : '—';
   }
   protected onPeriod(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;

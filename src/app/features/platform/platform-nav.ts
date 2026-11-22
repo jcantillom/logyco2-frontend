@@ -20,6 +20,9 @@ export interface PlatformNavGroup {
   readonly pinned?: boolean;
 }
 
+/** Hoja de «Descarbonización» (la misma del tablero de empresas por tipo). */
+const LEAF_ICON = 'M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19c2-5 6-8 10-10';
+
 export const PLATFORM_NAV: readonly PlatformNavGroup[] = [
   { title: 'Panel general', items: [
     { label: 'Resumen', path: '/plataforma/resumen', icon: 'M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z' },
@@ -28,6 +31,9 @@ export const PLATFORM_NAV: readonly PlatformNavGroup[] = [
     { label: 'Empresas', path: '/plataforma/organizaciones', icon: 'M3 21h18M6 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M15 9h3a1 1 0 0 1 1 1v11M9 8h2M9 12h2M9 16h2' },
     { label: 'Usuarios', path: '/plataforma/usuarios', icon: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M17 3.5a4 4 0 0 1 0 7.5M22 21v-1a6 6 0 0 0-4-5.7' },
     { label: 'Superadministradores', path: '/plataforma/superadministradores', icon: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5zM5 21h14' },
+  ] },
+  { title: 'Descarbonización', collapsible: true, icon: LEAF_ICON, items: [
+    { label: 'Cálculo de emisiones', path: '/plataforma/calculo-emisiones', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z' },
   ] },
   { title: 'Herramientas complementarias', collapsible: true, items: [
     { label: 'Referencias de combustibles', path: '/plataforma/intelligence/energia', icon: 'M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M4 21h12M7 8h6M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3' },

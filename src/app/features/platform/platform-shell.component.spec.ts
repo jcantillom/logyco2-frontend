@@ -68,22 +68,25 @@ describe('Shell de la consola de plataforma y separación de contextos', () => {
     const { el } = render(PlatformShellComponent, buildSuperAdmin());
 
     expect(labels(el)).toEqual([
-      'Resumen', 'Empresas', 'Usuarios', 'Superadministradores',
+      'Resumen', 'Empresas', 'Usuarios', 'Superadministradores', 'Cálculo de emisiones',
       'Referencias de combustibles', 'Indicadores de costos', 'Roles y accesos', 'Matriz técnica',
       'Actividad y auditoría', 'Estado de la plataforma',
     ]);
     expect(Array.from(el.querySelectorAll('.group h2')).map((h) => h.textContent!.trim())).toEqual(['Panel general', 'Sistema']); // «Actividad y auditoría» vive en Sistema
-    expect(Array.from(el.querySelectorAll('.group-toggle, .parent-toggle')).map((b) => b.textContent!.trim())).toEqual(['Administración', 'Herramientas complementarias', 'Seguridad']);
+    expect(Array.from(el.querySelectorAll('.group-toggle, .parent-toggle')).map((b) => b.textContent!.trim())).toEqual(['Administración', 'Descarbonización', 'Herramientas complementarias', 'Seguridad']);
     el.querySelectorAll('.group-toggle').forEach((button) => expect(button.getAttribute('aria-expanded')).toBe('true')); // ninguna categoría parte plegada
   });
 
-  it('el super admin no ve la categoría «Descarbonización» ni sus funciones futuras; ninguna etiqueta técnica (REAL, PARCIAL, SIN API)', () => {
+  it('el super admin ve «Descarbonización → Cálculo de emisiones» y ninguna función futura sin API; ninguna etiqueta técnica (REAL, PARCIAL, SIN API)', () => {
     const { el } = render(PlatformShellComponent, buildSuperAdmin());
     const nav = el.querySelector('nav')!;
+    const link = Array.from(nav.querySelectorAll('a.nav-link')).find((a) => a.textContent!.includes('Cálculo de emisiones'))!;
 
-    expect(nav.textContent).not.toContain('Descarbonización');
+    expect(nav.textContent).toContain('Descarbonización');
+    expect(link.getAttribute('href')).toBe('/plataforma/calculo-emisiones');
+    expect(link.querySelector('.pill')).toBeNull();
     expect(el.querySelectorAll('nav .pill').length).toBe(0);
-    ['Vehículos', 'Operaciones de transporte', 'Cargas masivas', 'Centro de calidad', 'Metodologías y factores', 'Reportes globales'].forEach((label) => expect(nav.textContent).not.toContain(label));
+    ['Vehículos', 'Operaciones de transporte', 'Cargas masivas', 'Centro de calidad', 'Reportes globales'].forEach((label) => expect(nav.textContent).not.toContain(label));
     ['SIN API', 'PARCIAL', 'REAL'].forEach((word) => expect(nav.textContent).not.toContain(word));
   });
 
@@ -109,7 +112,7 @@ describe('Shell de la consola de plataforma y separación de contextos', () => {
     const collapse = el.querySelector<HTMLButtonElement>('.collapse-btn')!;
     collapse.click(); fixture.detectChanges();
     expect(el.querySelector('.shell')!.classList.contains('collapsed')).toBeTrue();
-    expect(el.querySelectorAll('nav a.nav-link').length).toBe(10);
+    expect(el.querySelectorAll('nav a.nav-link').length).toBe(11);
     el.querySelectorAll('nav a.nav-link').forEach(link => {
       expect(link.getAttribute('aria-label')).toContain(link.querySelector('.label')!.textContent!.trim());
     });

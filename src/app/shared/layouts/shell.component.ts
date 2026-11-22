@@ -6,6 +6,7 @@ import { filter } from 'rxjs';
 import { AccessPolicy } from '../../core/auth/access-policy';
 import { OrganizationContext, reloadOnContextChange } from '../../core/org/organization-context';
 import { HomeFacade } from '../../features/dashboard/home.facade';
+import { NotificationsFacade } from '../../features/notifications/notifications.facade';
 import { OrganizationLogoStore } from '../../features/organizations/logo.store';
 import { ActionsBellComponent } from './actions-bell.component';
 import { ToastService } from '../../core/notifications/toast.service';
@@ -121,7 +122,7 @@ import { UserMenuComponent } from './user-menu.component';
           <div class="crumbs"><app-breadcrumbs rootLabel="Mi empresa" rootLink="/resumen" /></div>
           <span class="spacer"></span>
           <app-context-switch />
-          <app-actions-bell [alerts]="home.actions()" [pending]="home.pending()" />
+          <app-actions-bell [alerts]="home.actions()" [pending]="home.pending()" [notifications]="true" />
           <app-user-menu [identity]="true" />
         </header>
         <main id="main-content" tabindex="-1" [class.wide]="wide()">
@@ -147,6 +148,7 @@ export class ShellComponent {
   private readonly toast = inject(ToastService);
   protected readonly context = inject(OrganizationContext);
   protected readonly home = inject(HomeFacade);
+  private readonly notifications = inject(NotificationsFacade);
   protected readonly logo = inject(OrganizationLogoStore);
   protected readonly help = HELP_ITEM;
 
@@ -177,7 +179,9 @@ export class ShellComponent {
     reloadOnContextChange(() => {
       this.home.load();
       this.logo.load();
+      this.notifications.start();
     });
+    inject(DestroyRef).onDestroy(() => this.notifications.stop());
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),

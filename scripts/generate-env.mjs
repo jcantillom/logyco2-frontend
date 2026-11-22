@@ -29,11 +29,11 @@ if (missing.length > 0) fail(`faltan variables: ${missing.join(', ')}. Defínala
 
 const { APP_ENV, API_BASE_URL, API_PREFIX, SESSION_PERSISTENCE } = source;
 const production = APP_ENV === 'production';
-// `npm run build:prod` exige APP_ENV=production: así no se publica un bundle con configuración de desarrollo.
+// `npm run build` y `npm run build:prod` (producción por defecto en Angular) exigen APP_ENV=production: así no se publica un bundle con configuración de desarrollo.
 const requireProduction = process.argv.includes('--production');
 
 if (!['development', 'production'].includes(APP_ENV)) fail(`APP_ENV debe ser «development» o «production» (recibido «${APP_ENV}»).`);
-if (requireProduction && !production) fail(`build:prod exige APP_ENV=production (recibido «${APP_ENV}»).`);
+if (requireProduction && !production) fail(`los builds de producción (npm run build y build:prod) exigen APP_ENV=production (recibido «${APP_ENV}»).`);
 if (!['tab', 'memory'].includes(SESSION_PERSISTENCE)) fail(`SESSION_PERSISTENCE debe ser «tab» o «memory» (recibido «${SESSION_PERSISTENCE}»).`);
 if (production && SESSION_PERSISTENCE !== 'memory') fail('en producción SESSION_PERSISTENCE debe ser «memory»: «tab» guarda el token en sessionStorage.');
 if (!/^\/[\w\-/]*[\w-]$/.test(API_PREFIX)) fail(`API_PREFIX debe empezar por «/» y no terminar en «/» (recibido «${API_PREFIX}»).`);

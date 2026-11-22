@@ -9,6 +9,8 @@ import {
   OrganizationsRepository,
   UsersRepository,
 } from '../domain/repositories/identity.repositories';
+import { EmissionsRepository } from '../domain/repositories/emissions.repositories';
+import { NotificationsRepository, PlatformVehiclesRepository, VehiclesRepository } from '../domain/repositories/vehicles.repositories';
 import { IntelligenceRepository } from '../domain/repositories/intelligence.repositories';
 import { OnboardingRepository } from '../domain/repositories/onboarding.repositories';
 import {
@@ -23,6 +25,8 @@ import {
   HttpRbacRepository,
   HttpSuperAdminsRepository,
 } from './repositories/http-platform-admin.repositories';
+import { HttpEmissionsRepository } from './repositories/http-emissions.repositories';
+import { HttpNotificationsRepository, HttpPlatformVehiclesRepository, HttpVehiclesRepository } from './repositories/http-vehicles.repositories';
 import { HttpHealthRepository } from './repositories/http-health.repository';
 import { HttpIntelligenceRepository } from './repositories/http-intelligence.repository';
 import { HttpOnboardingRepository } from './repositories/http-onboarding.repository';
@@ -59,5 +63,12 @@ export function provideRepositories(): EnvironmentProviders {
     // Indicadores sectoriales reales (no se muestran valores ficticios).
     { provide: IntelligenceRepository, useClass: HttpIntelligenceRepository },
     { provide: RbacRepository, useClass: HttpRbacRepository },
+    // Guía de cálculo de emisiones (vehículos, factor del diésel B2 y simulación).
+    { provide: EmissionsRepository, useClass: HttpEmissionsRepository },
+    // Inventario de vehículos de la empresa (análisis de archivos y notificaciones incluidos).
+    { provide: VehiclesRepository, useClass: HttpVehiclesRepository },
+    { provide: NotificationsRepository, useClass: HttpNotificationsRepository },
+    // Supervisión de la consola de plataforma: inventario de cualquier empresa, solo lectura.
+    { provide: PlatformVehiclesRepository, useClass: HttpPlatformVehiclesRepository },
   ]);
 }
