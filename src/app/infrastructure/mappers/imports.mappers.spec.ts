@@ -1,3 +1,4 @@
+import { importFootprintDto } from '../../../testing/footprint';
 import { columnDto, importDetailDto, importSummaryDto, reviewDto } from '../../../testing/imports';
 import { importStatus, toImportCounts, toImportPeriod, toImportCreated, toImportDetail, toImportSummary } from './imports.mappers';
 
@@ -5,7 +6,7 @@ describe('imports.mappers', () => {
   it('toImportSummary pasa a camelCase y mapea la cifra del historial', () => {
     expect(toImportSummary(importSummaryDto())).toEqual({
       id: 'imp-1', fileName: 'operaciones-marzo.xlsx', fileSize: 20480, status: 'COMPLETED', phase: 'DONE', format: 'LOGYCO2_TEMPLATE', rowsTotal: 200, rowsProcessed: 200,
-      createdAt: '2026-03-01T10:00:00Z', finishedAt: '2026-03-01T10:02:00Z', createdByName: 'Ana Prueba',
+      createdAt: '2026-03-01T10:00:00Z', startedAt: '2026-03-01T10:00:05Z', finishedAt: '2026-03-01T10:02:00Z', createdByName: 'Ana Prueba',
       headline: { rowsRead: 200, realConsumption: 120, estimatedConsumption: 50, pending: 30 }, error: null,
     });
   });
@@ -19,6 +20,12 @@ describe('imports.mappers', () => {
     expect(summary.status).toBe('RUNNING');
   });
 
+  it('started_at pasa a startedAt y, en cola o si el servidor no lo envía, es null', () => {
+    expect(toImportSummary(importSummaryDto({ status: 'QUEUED', started_at: null })).startedAt).toBeNull();
+    expect(toImportSummary(importSummaryDto({ started_at: undefined })).startedAt).toBeNull();
+    expect(toImportDetail({ ...importSummaryDto(), review: null }).startedAt).toBe('2026-03-01T10:00:05Z');
+  });
+
   it('toImportCounts pasa a camelCase', () => {
     expect(toImportCounts({ total: 4, in_progress: 1, completed: 2, failed: 1, vehicles_pending: 2, rows_read: 100, rows_calculable: 80, rows_pending: 20, rows_real: 50, rows_estimated: 30, vehicles_new_pending: 3, vehicles_changed_pending: 1, period_from: '2026-01-05', period_to: '2026-03-28', distance_km: 1234.5, cargo_ton: 56.7, rows_with_distance: 90, rows_with_cargo: 80, distance_from_routes_km: 321.5 })).toEqual({ total: 4, inProgress: 1, completed: 2, failed: 1, vehiclesPending: 2, rowsRead: 100, rowsCalculable: 80, rowsPending: 20, rowsReal: 50, rowsEstimated: 30, vehiclesNewPending: 3, vehiclesChangedPending: 1, periodFrom: '2026-01-05', periodTo: '2026-03-28', distanceKm: 1234.5, cargoTon: 56.7, rowsWithDistance: 90, rowsWithCargo: 80, distanceFromRoutesKm: 321.5 });
   });
@@ -30,7 +37,8 @@ describe('imports.mappers', () => {
   it('un estado desconocido no se presenta como terminado bien y un formato desconocido es «no reconocido»', () => {
     expect(importStatus('RARO')).toBe('FAILED');
     expect(toImportSummary(importSummaryDto({ status: 'RARO', format: 'OTRO' }))).toEqual(jasmine.objectContaining({ status: 'FAILED', format: 'UNRECOGNIZED' }));
-    expect(toImportCreated({ id: 'a', status: 'QUEUED', duplicate: true })).toEqual({ id: 'a', status: 'QUEUED', duplicate: true });
+    expect(toImportCreated({ id: 'a', status: 'QUEUED', duplicate: true })).toEqual({ id: 'a', status: 'QUEUED', duplicate: true, fileName: null, createdAt: null });
+    expect(toImportCreated({ id: 'a', status: 'COMPLETED', duplicate: true, file_name: 'x.xlsx', created_at: '2026-03-01T10:00:00Z' })).toEqual({ id: 'a', status: 'COMPLETED', duplicate: true, fileName: 'x.xlsx', createdAt: '2026-03-01T10:00:00Z' });
   });
 
   it('toImportDetail mapea columnas, métodos, motivos, hallazgos y contadores', () => {
@@ -88,5 +96,13 @@ describe('imports.mappers', () => {
     expect(old.totals.distanceFromRoutesKm).toBe(0);
     expect(old.issues.every((i) => Array.isArray(i.examples) && i.examples.length === 0)).toBeTrue();
     expect(toImportDetail(importDetailDto({ review: reviewDto({ routes: { ...routes, rows_by_unique_name: undefined } }) })).review!.routes!.rowsByUniqueName).toBe(0);
+  });
+});
+
+describe('toImportDetail: bloque footprint', () => {
+  it('mapea el footprint de la carga y es null cuando no viene o el servidor lo entrega null', () => {
+    expect(toImportDetail(importDetailDto()).footprint).toBeNull();
+    expect(toImportDetail(importDetailDto({ footprint: null })).footprint).toBeNull();
+    expect(toImportDetail(importDetailDto({ footprint: importFootprintDto() })).footprint?.kgCo2).toBe(3200.5);
   });
 });

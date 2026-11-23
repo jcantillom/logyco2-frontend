@@ -2,18 +2,17 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ResourceStatus } from '../../core/org/scoped-resource';
-import { FootprintSummary } from '../../domain/models/footprint';
+import { Footprint } from '../../domain/models/footprint';
 import { ICON_CHIP_STYLES } from '../../shared/ui/icon-chip.styles';
-import { footprintView } from './footprint.view';
+import { footprintView, noEmissionsText } from './footprint.view';
 
 const LEAF = 'M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19c2-5 6-8 10-10';
-const PENDING = 'Se activa al calcular tu huella';
 const DIRECTION_TEXT = { down: 'bajó', up: 'subió', flat: 'sin cambio' } as const;
 
 /**
- * Tarjeta «Huella de carbono» del Resumen: la huella del último periodo cerrado (o la del actual si no hay uno anterior), con su variación contra
- * el periodo previo. Es presentacional: recibe el dato ya calculado (`summary`) y hoy llega `null` (estado «pendiente») porque el backend aún no
- * calcula emisiones; nunca inventa cifras. Con `link` es un enlace.
+ * Tarjeta «Huella de carbono» del Resumen: el total de kg CO₂ del periodo elegido, con su variación contra el periodo previo si hay base. Si el resultado
+ * es parcial lo dice con un marcador «Parcial» y «12 de 18 viajes calculados» (cobertura por cantidad de viajes, que no necesariamente es la de emisiones).
+ * Presentacional: recibe la huella ya pedida (`footprint`); sin viajes calculados muestra un estado vacío, nunca ceros como resultado. Con `link` es un enlace. En el modo compacto no lleva chip de periodo (ya está en el selector y en las demás tarjetas): el título se ve completo y el periodo queda en su `title` y en el nombre accesible.
  */
 @Component({
   selector: 'app-footprint-card',
@@ -39,6 +38,8 @@ const DIRECTION_TEXT = { down: 'bajó', up: 'subió', flat: 'sin cambio' } as co
       .badge-v { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-weight: 800; white-space: nowrap; background: var(--c-s3); color: var(--c-text2); }
       .badge-v.down { background: color-mix(in srgb, var(--c-secondary) 14%, var(--c-sf)); color: color-mix(in srgb, var(--c-secondary) 80%, var(--c-head)); }
       .badge-v.up { background: color-mix(in srgb, var(--c-primary) 14%, var(--c-sf)); color: color-mix(in srgb, var(--c-primary) 80%, var(--c-head)); }
+      .partial { flex: none; align-self: center; padding: 0 7px; border-radius: 999px; background: color-mix(in srgb, var(--c-primary) 14%, var(--c-sf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-primary) 40%, var(--c-sf)); color: var(--c-head); font-size: 0.68rem; font-weight: 800; white-space: nowrap; }
+      .cov { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
       .foot { grid-area: foot; font-size: 0.78rem; color: var(--c-mu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .err, .skeleton { grid-area: num; }
       .err { margin: 0; font-size: 0.85rem; color: var(--c-danger); }
@@ -68,26 +69,30 @@ const DIRECTION_TEXT = { down: 'bajó', up: 'subió', flat: 'sin cambio' } as co
     <ng-template #body>
       <span class="ico" [class.chip]="size() === 'sm'" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="leaf" /></svg></span>
       <span class="top">
-        <span class="label">Huella de carbono</span>
-        @if (status() === 'ready' && view(); as v) { <span class="period" data-testid="footprint-period">{{ v.periodLabel }}</span> }
+        <span class="label" [attr.title]="size() === 'sm' ? view()?.periodLabel : null">Huella de carbono</span>
+        @if (size() === 'md' && status() === 'ready' && view()?.periodLabel; as label) { <span class="period" data-testid="footprint-period">{{ label }}</span> }
       </span>
       @switch (status()) {
         @case ('error') { <p class="err" role="alert">No se pudo cargar. <button type="button" (click)="retry.emit()">Reintentar</button></p> }
         @case ('ready') {
           @if (view(); as v) {
             <span class="num"><b class="value" data-testid="kpi-value">{{ v.value }}</b><span class="unit" data-testid="footprint-unit">{{ v.unit }}</span></span>
-            <span class="delta" data-testid="footprint-delta" [attr.title]="foot(v.isPrevious)">
+            <span class="delta" data-testid="footprint-delta" [attr.title]="v.hint">
+              @if (v.partial) { <span class="partial" data-testid="footprint-partial">Parcial</span> }
               @if (v.variation; as d) {
                 <span class="badge-v" [class]="'badge-v ' + d.direction" [attr.data-direction]="d.direction" data-testid="footprint-variation"><span aria-hidden="true">{{ arrow(d.direction) }}</span>{{ d.text }}</span>
+              }
+              @if (v.coverage; as line) {
+                <span class="cov" data-testid="footprint-coverage">{{ size() === 'sm' ? v.coverageShort : line }}</span>
+              } @else if (v.variation) {
                 <span>vs. periodo anterior</span>
               } @else {
                 <span data-testid="footprint-note">{{ v.note }}</span>
               }
             </span>
-            @if (size() === 'md') { <span class="foot" data-testid="footprint-foot">{{ foot(v.isPrevious) }}</span> }
           } @else {
             <span class="num"><b class="value none" data-testid="kpi-value">—</b></span>
-            <span class="foot" data-testid="footprint-foot" [attr.title]="pending">{{ pending }}</span>
+            <span class="foot" data-testid="footprint-foot" [attr.title]="emptyText()">{{ emptyText() }}</span>
           }
         }
         @default { <span class="skeleton" style="height: 28px" role="status" aria-busy="true"><span class="sr-only">Cargando…</span></span> }
@@ -96,8 +101,8 @@ const DIRECTION_TEXT = { down: 'bajó', up: 'subió', flat: 'sin cambio' } as co
   `,
 })
 export class FootprintCardComponent {
-  /** Huella calculada por periodo; `null` mientras no exista el cálculo (estado «pendiente»). */
-  readonly summary = input<FootprintSummary | null>(null);
+  /** Huella del periodo elegido; `null` mientras no se haya pedido (estado «pendiente»). */
+  readonly footprint = input<Footprint | null>(null);
   readonly status = input<ResourceStatus>('ready');
   readonly link = input<string | null>(null);
   /** `sm`: versión compacta (≈ 80 px) para la fila de resumen; `md` es el tamaño normal. */
@@ -105,23 +110,20 @@ export class FootprintCardComponent {
   readonly retry = output();
 
   protected readonly leaf = LEAF;
-  protected readonly pending = PENDING;
-  protected readonly view = computed(() => footprintView(this.summary()));
+  protected readonly view = computed(() => footprintView(this.footprint()));
+  protected readonly emptyText = computed(() => noEmissionsText(this.footprint()));
   protected readonly accessibleName = computed(() => {
     if (this.status() !== 'ready') return 'Huella de carbono';
 
     const v = this.view();
 
-    if (!v) return `Huella de carbono: sin calcular. ${PENDING}`;
+    if (!v) return `Huella de carbono: sin calcular. ${this.emptyText()}`;
 
     const change = v.variation ? `${DIRECTION_TEXT[v.variation.direction]} ${v.variation.text} frente al periodo anterior` : v.note;
+    const period = v.periodLabel ? `, ${v.periodLabel}` : '';
 
-    return `Huella de carbono: ${v.value} ${v.unit}, ${v.periodLabel}, ${change}`;
+    return `Huella de carbono: ${v.value} ${v.unit}${period}, ${change}${v.hint ? `. ${v.hint}` : ''}`;
   });
-
-  protected foot(isPrevious: boolean): string {
-    return isPrevious ? 'Calculada en el periodo anterior' : 'Calculada en el periodo actual';
-  }
 
   protected arrow(direction: 'down' | 'up' | 'flat'): string {
     return direction === 'down' ? '▼' : direction === 'up' ? '▲' : '■';

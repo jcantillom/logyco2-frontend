@@ -14,7 +14,7 @@ import { TruckArtComponent } from './truck-art.component';
       :host { display: block; container-type: inline-size; }
       .lane { position: relative; height: 52px; }
       .truck { position: absolute; left: 0; bottom: 12px; width: 52px; transform: translateX(calc(var(--p, 0) * (100cqw - 52px))); transition: transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1); }
-      .sm .lane { height: 24px; }
+      .lane.sm { height: 24px; }
       .sm .truck { width: 30px; bottom: 5px; transform: translateX(calc(var(--p, 0) * (100cqw - 30px))); }
       .sm .puff { display: none; }
       .sm .track { height: 8px; }

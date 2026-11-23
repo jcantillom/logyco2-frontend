@@ -14,10 +14,12 @@ import { relativeTime } from '../notifications/relative-time';
 import { ExcelIconComponent } from '../../shared/ui/excel-icon.component';
 import { TruckProgressComponent } from '../../shared/ui/truck-progress.component';
 import { ImportReviewDialogComponent } from './import-review-dialog.component';
-import { ImportsFacade, UploadEntry } from './imports.facade';
+import { DuplicateOriginal, ImportsFacade, UploadEntry } from './imports.facade';
 import { VehiclesDetectedDialogComponent } from './vehicles-detected-dialog.component';
 import { VehiclesFoundModalComponent } from './vehicles-found-modal.component';
-import { STATUS_LABELS, formatCount, formatSize, hasVehiclesToReview, percent, phaseLabel, share, vehiclesSummary } from './imports.labels';
+import { STATUS_LABELS, formatCount, longDate, formatSize, hasVehiclesToReview, isRunning, phaseLabel, share, vehiclesSummary } from './imports.labels';
+import { StepMeter, liveRow, overallPercent, processedIn, queuedText } from './imports.progress';
+import { createSecondTicker } from './imports.ticker';
 
 /** Parámetro de la ruta que abre la revisión de una carga (lo usan los avisos de la campana). */
 export const IMPORT_PARAM = 'import';
@@ -111,6 +113,8 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
       .pick:focus-within { outline: 3px solid var(--c-focus); outline-offset: 2px; }
       .notice { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--c-info-bg); color: var(--c-info); font-size: 0.92rem; font-weight: 600; }
       .notice span { flex: 1 1 200px; }
+      .notice .dups { flex: 1 1 100%; display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-weight: 500; }
+      .notice .dups li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .sending { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
       .sending h3 { margin: 0; font-size: 0.95rem; color: var(--c-head); }
       .send { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 14px; padding: 10px 14px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-sf); }
@@ -150,14 +154,14 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
       .tbl td { height: 72px; padding: 8px 16px; border-bottom: 1px solid var(--c-bd); vertical-align: middle; transition: background 0.15s; }
       .tbl tbody tr:last-child td { border-bottom: 0; }
       .tbl tbody tr:hover td { background: var(--c-s2); }
-      .tbl th.c-file { width: 28%; }
-      .tbl th.c-when { width: 11%; }
-      .tbl th.c-state { width: 12%; }
-      .tbl th.c-res { width: 29%; }
+      .tbl th.c-file { width: 23%; }
+      .tbl th.c-when { width: 10%; }
+      .tbl th.c-state { width: 11%; }
+      .tbl th.c-res { width: 36%; }
       .tbl th.c-veh { width: 13%; }
       .tbl th.c-state, .tbl td:nth-child(3) { text-align: center; }
-      .tbl th.c-res, .tbl td:nth-child(4) { padding-left: 56px; }
-      .tbl th.c-veh, .tbl td:nth-child(5) { padding-left: 48px; }
+      .tbl th.c-res, .tbl td:nth-child(4) { padding-left: 24px; }
+      .tbl th.c-veh, .tbl td:nth-child(5) { padding-left: 16px; }
       .tbl th.c-act { width: 7%; }
       .tbl td.act-col { text-align: right; }
       .fc { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -172,18 +176,20 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
       .pill[data-s='FAILED'] .dot { background: var(--c-danger); }
       @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.8); } }
       .res { display: grid; gap: 4px; min-width: 0; }
-      .rtop { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .rtop { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 36px; }
       .pct { flex: none; width: 4.4rem; color: var(--c-head); font-size: 1.2rem; font-weight: 800; line-height: 1.1; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .pct.dim { color: var(--c-mu); font-weight: 600; }
-      .rtop app-truck-progress, .rtop .bar { flex: 0 1 150px; min-width: 0; }
+      .rtop app-truck-progress, .rtop .bar { flex: 1 1 0; min-width: 40px; max-width: 150px; }
       .bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--c-s2); }
       .bar .ok { background: var(--c-secondary); }
       .bar .warn { background: color-mix(in srgb, var(--c-primary) 60%, var(--c-sf)); }
       .rsub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--c-mu); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
       .rsub .linkbtn { font-size: inherit; }
+      .rt { flex: none; min-width: 9.6rem; color: var(--c-mu); font-size: 0.82rem; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .clock { color: var(--c-head); font-size: 0.9rem; font-weight: 600; line-height: 1.1; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .vlink { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
       .vlink svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-      .none { color: var(--c-mu); }
+      .none { color: var(--c-mu); white-space: nowrap; }
       .empty { margin: 0; padding: 0; text-align: center; color: var(--c-head); font-size: 1.05rem; font-weight: 600; }
       .empty-box { display: grid; justify-items: center; gap: 10px; padding: 36px 12px; border: 1px dashed var(--c-bd); border-radius: 16px; background: var(--c-s2); }
       .empty-box small { color: var(--c-mu); font-size: 0.92rem; }
@@ -260,10 +266,23 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
           <div aria-live="polite" class="stack" style="gap: 10px">
             @if (localError(); as message) { <p class="err" role="alert" data-testid="upload-error">{{ message }}</p> }
             @if (facade.duplicates() > 0) {
-              <p class="notice" role="status" data-testid="duplicate">
+              <div class="notice" role="status" data-testid="duplicate">
                 <span>{{ duplicatesText() }}</span>
+                @if (facade.duplicateOriginals().length === 1) {
+                  <button type="button" class="linkbtn" data-testid="open-original" (click)="openOriginal($event, facade.duplicateOriginals()[0].id)">Ver resultado original</button>
+                }
                 <button type="button" class="linkbtn" data-testid="dismiss-duplicates" (click)="facade.dismissDuplicates()">Entendido</button>
-              </p>
+                @if (facade.duplicateOriginals().length > 1) {
+                  <ul class="dups" aria-label="Archivos que ya estaban cargados">
+                    @for (original of facade.duplicateOriginals(); track original.id) {
+                      <li data-testid="duplicate-original">
+                        <span>{{ originalText(original) }}</span>
+                        <button type="button" class="linkbtn" data-testid="open-original" [attr.aria-label]="'Ver el resultado original de ' + (original.fileName ?? 'este archivo')" (click)="openOriginal($event, original.id)">Ver resultado original</button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
             }
           </div>
           @if (facade.uploads().length > 0) {
@@ -340,17 +359,19 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
                           <td class="stat-col" data-l="Estado"><span class="pill" data-testid="row-state" [attr.data-s]="i.status"><i class="dot" aria-hidden="true"></i>{{ statusLabels[i.status].text }}</span></td>
                           <td class="result" data-l="Resultado">
                             @if (i.status === 'QUEUED') {
-                              <div class="res"><div class="rtop"><span class="pct">En cola</span><div class="bar" aria-hidden="true"></div></div><span class="rsub" data-testid="queued">Esperando su turno</span></div>
+                              <div class="res"><div class="rtop"><span class="pct">En cola</span><div class="bar" aria-hidden="true"></div></div><span class="rsub" data-testid="queued">{{ queued(i) }}</span></div>
                             } @else if (i.status === 'RUNNING') {
                               <div class="res" data-testid="row-progress">
-                                <div class="rtop"><span class="pct">{{ progress(i) === null ? '…' : progress(i) + ' %' }}</span><app-truck-progress size="sm" [percent]="progress(i)" [label]="'Avance de ' + i.fileName" /></div>
-                                <span class="rsub" data-testid="row-rows">{{ rowsText(i) }}@if (rowsText(i)) { · }<span data-testid="phase">{{ phase(i.phase) }}</span></span>
+                                @let live = liveOf(i);
+                                <div class="rtop"><span class="pct">{{ progress(i) === null ? '…' : progress(i) + ' %' }}</span><app-truck-progress size="sm" [percent]="progress(i)" [label]="'Avance de ' + i.fileName" /><span class="rt" [attr.title]="live.title"><span class="clock" role="timer" data-testid="row-clock" [attr.aria-label]="'Tiempo transcurrido: ' + live.clockSpoken">{{ live.clock }}</span>@if (live.eta) { <span class="eta" data-testid="row-eta">{{ ' · ' + live.eta }}</span> }</span></div>
+                                <span class="rsub" data-testid="row-rows" [attr.title]="live.title"><span data-testid="phase">{{ live.left || phase(i.phase) }}</span></span>
+                                <span class="sr-only" role="status" data-testid="row-step">{{ live.step }}</span>
                               </div>
                             } @else if (i.status === 'FAILED') {
                               <div class="res"><div class="rtop"><span class="pct dim">—</span></div><span class="rsub" data-testid="row-failed" [attr.title]="i.error ?? null">{{ i.error ?? 'No se pudo revisar el archivo.' }}</span></div>
                             } @else if (i.headline; as h) {
                               <div class="res" data-testid="row-result">
-                                <div class="rtop"><span class="pct" data-testid="row-pct">{{ share(calculable(h), h.rowsRead) }} %</span><div class="bar" role="img" [attr.aria-label]="share(calculable(h), h.rowsRead) + ' % de los viajes se pueden calcular'"><span class="ok" [style.flex-grow]="calculable(h)"></span><span class="warn" [style.flex-grow]="h.pending"></span></div></div>
+                                <div class="rtop"><span class="pct" data-testid="row-pct">{{ share(calculable(h), h.rowsRead) }} %</span><div class="bar" role="img" [attr.aria-label]="share(calculable(h), h.rowsRead) + ' % de los viajes se pueden calcular'"><span class="ok" [style.flex-grow]="calculable(h)"></span><span class="warn" [style.flex-grow]="h.pending"></span></div>@if (took(i); as t) { <span class="rt" data-testid="row-took">{{ t }}</span> }</div>
                                 <span class="rsub">{{ fmt(calculable(h)) }} calculables@if (h.pending > 0) { · <button type="button" class="linkbtn" data-testid="see-missing" [attr.aria-label]="'Ver qué falta en ' + i.fileName" (click)="open($event, i)">{{ fmt(h.pending) }} por completar</button> }</span>
                               </div>
                             } @else { <span class="none">—</span> }
@@ -402,6 +423,12 @@ export class ImportsComponent {
   protected readonly facade = inject(ImportsFacade);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  private readonly ticker = createSecondTicker();
+  private readonly meter = new StepMeter();
+  /** Hora de la pantalla, renovada cada segundo SOLO mientras haya cargas en cola o en proceso. */
+  protected readonly now = this.ticker.now;
+  private readonly hasActive = computed(() => (this.facade.list.data()?.items ?? []).some((item) => isRunning(item.status)));
 
   protected readonly icons = ICONS;
   protected readonly statusLabels = STATUS_LABELS;
@@ -460,6 +487,9 @@ export class ImportsComponent {
   });
   protected readonly duplicatesText = computed(() => {
     const count = this.facade.duplicates();
+    const original = this.facade.duplicateOriginals()[0];
+
+    if (count === 1 && original?.fileName) return `Este archivo ya fue procesado${this.processedOn(original.createdAt)}: «${original.fileName}». No se volvió a sumar a tus emisiones.`;
 
     return count === 1 ? '1 archivo ya estaba cargado' : `${formatCount(count)} archivos ya estaban cargados`;
   });
@@ -482,6 +512,13 @@ export class ImportsComponent {
   private loaded = false;
 
   constructor() {
+    effect(() => this.ticker.setActive(this.hasActive()));
+    effect(() => {
+      const items = this.facade.list.data()?.items ?? [];
+
+      untracked(() => this.meter.observe(items, Date.now()));
+    });
+
     // Va antes de la carga inicial: así la primera petición ya lleva el filtro de la URL.
     effect(() => {
       const filter = this.filterParam();
@@ -516,15 +553,23 @@ export class ImportsComponent {
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
+  /** Avance general (paso 1 y paso 2 con el mismo peso); nunca retrocede entre fases. */
   protected progress(item: ImportSummary): number | null {
-    return percent(item.rowsProcessed, item.rowsTotal);
+    return overallPercent(item.phase, item.rowsProcessed, item.rowsTotal);
   }
 
-  /** Filas ya revisadas: «1.250.000 de 3.400.000 filas», o solo las procesadas si aún no se conoce el total. */
-  protected rowsText(item: ImportSummary): string {
-    if (item.rowsTotal === null) return item.rowsProcessed > 0 ? `${formatCount(item.rowsProcessed)} filas` : '';
+  /** Reloj, paso, filas, ritmo y tiempo restante del paso actual de una carga en proceso. */
+  protected liveOf(item: ImportSummary) {
+    return liveRow(item, this.now(), this.meter);
+  }
 
-    return `${formatCount(item.rowsProcessed)} de ${formatCount(item.rowsTotal)} filas`;
+  protected queued(item: ImportSummary): string {
+    return queuedText(item, this.now());
+  }
+
+  /** «Procesada en 1 min 50 s» de una carga terminada; `null` si el servidor no trae `started_at`. */
+  protected took(item: ImportSummary): string | null {
+    return processedIn(item);
   }
 
   /** «20 KB · 3.400.000 filas»: tamaño del archivo y filas leídas (o el total estimado mientras se revisa). */
@@ -537,6 +582,25 @@ export class ImportsComponent {
   /** Viajes que se pueden calcular: con consumo real o estimado. */
   protected calculable(headline: { realConsumption: number; estimatedConsumption: number }): number {
     return headline.realConsumption + headline.estimatedConsumption;
+  }
+
+  /** « · procesado el 22 de noviembre de 2026» de un archivo que ya estaba cargado. */
+  protected originalText(original: DuplicateOriginal): string {
+    return `«${original.fileName ?? 'Archivo sin nombre'}»${original.createdAt ? ` · procesado${this.processedOn(original.createdAt)}` : ''}`;
+  }
+
+  /** Consulta el resultado de la carga original (la revisión) sin volver a subir el archivo. */
+  protected openOriginal(event: Event, id: string): void {
+    const opener = event.currentTarget as HTMLElement;
+
+    this.deepLinkError.set(null);
+    this.facade.fetch(id).subscribe({
+      next: (detail) => {
+        this.opener = opener;
+        this.selected.set(detail);
+      },
+      error: (e: unknown) => this.deepLinkError.set(toAppError(e)),
+    });
   }
 
   protected uploadMessage(entry: UploadEntry): string {
@@ -632,6 +696,12 @@ export class ImportsComponent {
   protected closeVehicles(): void {
     this.vehiclesTarget.set(null);
     this.leave();
+  }
+
+  private processedOn(iso: string | null): string {
+    const date = longDate(iso);
+
+    return date ? ` el ${date}` : '';
   }
 
   private leave(): void {

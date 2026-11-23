@@ -1,6 +1,7 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
+import { importFootprintDto } from '../../../testing/footprint';
 import { IMPORTS_URL, columnDto, importDetailDto, importSummaryDto, reviewDto, vehiclesDetectedDto } from '../../../testing/imports';
 import { provideTestApp, signInAs } from '../../../testing/providers';
 import { SessionStore } from '../../core/auth/session.store';
@@ -137,26 +138,28 @@ describe('ImportReviewDialogComponent: revisión de una carga', () => {
     expect(items).toEqual([
       '20 viajes Motivo MISSING_DISTANCE_WITH_ROUTE Ej.: filas 4 y 9 Qué hacer: Revisa el municipio de origen y destino, o agrega la distancia en km del viaje.',
       '9 viajes Motivo OTRO',
-      '5 viajes Motivo MISSING_UNIT Ej.: fila 2 Qué hacer: Indica la unidad correcta (gal, l, m3 o kWh).',
     ]);
     expect(q('[data-testid="reasons"] li strong')!.textContent).toBe('20 viajes');
-    expect(q('[data-testid="more-reasons"]')).toBeNull();
+    // El tercero está a un clic, plegado, sin perderse.
+    expect(text('[data-testid="more-reasons"] summary')).toBe('Ver el motivo restante');
+    expect(q('[data-testid="more-reasons-list"] strong')!.textContent).toBe('5 viajes');
+    expect(q('[data-testid="more-reasons-list"]')!.textContent).toContain('Indica la unidad correcta (gal, l, m3 o kWh).');
   });
 
-  it('muestra 3 motivos y el resto va en un <details> «Ver los N motivos restantes»', () => {
+  it('muestra 2 motivos y el resto va en un <details> «Ver los N motivos restantes»', () => {
     open(importDetailDto({ review: reviewDto({ pending_reasons: [reason('A', 50), reason('B', 40), reason('C', 30), reason('D', 20), reason('INVALID_VALUES', 10)] }) }));
     const more = q<HTMLDetailsElement>('[data-testid="more-reasons"]')!;
 
-    expect(qa('[data-testid="reasons"] > li').length).toBe(3);
+    expect(qa('[data-testid="reasons"] > li').length).toBe(2);
     expect(more.tagName).toBe('DETAILS');
     expect(more.open).toBeFalse();
-    expect(more.querySelector('summary')!.textContent).toBe('Ver los 2 motivos restantes');
-    expect(qa('[data-testid="more-reasons-list"] > li').map((li) => li.querySelector('strong')!.textContent)).toEqual(['20 viajes', '10 viajes']);
+    expect(more.querySelector('summary')!.textContent).toBe('Ver los 3 motivos restantes');
+    expect(qa('[data-testid="more-reasons-list"] > li').map((li) => li.querySelector('strong')!.textContent)).toEqual(['30 viajes', '20 viajes', '10 viajes']);
     expect(more.textContent).toContain('Corrige los valores que no son números o están fuera de rango.');
   });
 
   it('con un solo motivo restante usa el singular', () => {
-    open(importDetailDto({ review: reviewDto({ pending_reasons: [reason('A', 4), reason('B', 3), reason('C', 2), reason('D', 1)] }) }));
+    open(importDetailDto({ review: reviewDto({ pending_reasons: [reason('A', 4), reason('B', 3), reason('C', 2)] }) }));
 
     expect(text('[data-testid="more-reasons"] summary')).toBe('Ver el motivo restante');
   });
@@ -228,11 +231,115 @@ describe('ImportReviewDialogComponent: revisión de una carga', () => {
     expect(text('[data-testid="verdict-title"]')).toBe('No encontramos viajes en el archivo');
   });
 
-  it('el pie es una línea con placas y viajes distintos y la nota honesta', () => {
+  it('el pie es una línea con placas y viajes distintos, y ya no dice que no se calculan emisiones', () => {
     open();
 
     expect(flat(q('[data-testid="counters"]')!)).toBe('18 placas distintas · 190 viajes');
-    expect(text('[data-testid="honest-note"]')).toBe('Esta revisión todavía no guarda viajes ni calcula emisiones.');
+    expect(q('[data-testid="honest-note"]')).toBeNull();
+    expect(el().textContent).not.toContain('todavía no guarda viajes ni calcula emisiones');
+  });
+
+  describe('huella de la carga', () => {
+    const months = (n: number) => Array.from({ length: n }, (_, i) => ({ month: `2026-${String(i + 1).padStart(2, '0')}`, kg_co2: 100 * (i + 1), trips_calculated: 1 }));
+
+    it('sin bloque `footprint` (carga anterior al cálculo) dice que no está calculada y no inventa cifras', () => {
+      open(importDetailDto({ footprint: null }));
+
+      expect(text('[data-testid="review-no-footprint"]')).toBe('Esta carga todavía no tiene su huella calculada, por eso no mostramos cifras de CO₂.');
+      expect(q('[data-testid="review-footprint"]')).toBeNull();
+      expect(q('[data-testid="footprint-total"]')).toBeNull();
+    });
+
+    it('con huella parcial muestra el total en kg CO₂, «Parcial», viajes por estado, medido y estimado, meses y cobertura con su aclaración', () => {
+      open(importDetailDto({ footprint: importFootprintDto() }));
+
+      expect(text('[data-testid="footprint-total"]')).toBe('3.201');
+      expect(text('[data-testid="review-footprint"] .unit')).toBe('kg CO₂');
+      expect(text('[data-testid="footprint-partial"]')).toBe('Parcial');
+      expect(text('[data-testid="footprint-trips"]')).toBe('7 calculados · 2 pendientes · 1 bloqueados · 0 duplicados');
+      expect(text('[data-testid="footprint-method"]')).toContain('Medido 1.200 kg · Estimado 2.000 kg');
+      expect(q('[data-testid="footprint-method"]')!.getAttribute('title')).toContain('Consumo medido (el que reportaste): 1.200 kg CO₂ en 3 viajes');
+      expect(text('[data-testid="footprint-months"]')).toBe('Oct 2026: 3.201 kg');
+      expect(text('[data-testid="footprint-coverage"]')).toContain('7 de 10 viajes calculados (70,0 % de los viajes) · % por cantidad de viajes, no por emisiones');
+      expect(q('[data-testid="footprint-coverage"]')!.getAttribute('title')).toContain('El porcentaje es por cantidad de viajes y no necesariamente representa el porcentaje de emisiones cubiertas.');
+      expect(text('[data-testid="footprint-coverage"] .sr-only')).toContain('no necesariamente representa el porcentaje de emisiones cubiertas');
+    });
+
+    it('con viajes retenidos dice cuántos no están sumados y enlaza a Calidad de datos filtrado por esa carga', () => {
+      open(importDetailDto({ footprint: importFootprintDto({ trips: { calculated: 7, pending: 2, blocked: 1, duplicate: 0, possible_duplicate: 12 } }) }), importSummaryDto({ id: 'imp-1' }));
+      const link = q('[data-testid="review-duplicates-link"]') as HTMLAnchorElement;
+
+      expect(text('[data-testid="footprint-possible-duplicates"]')).toContain('12 operaciones por revisar (posibles duplicados) no están sumadas');
+      expect(link.textContent!.trim()).toBe('Revisar posibles duplicados');
+      expect(link.getAttribute('href')).toBe('/calidad?import_file_id=imp-1');
+    });
+
+    it('sin viajes retenidos no aparece la frase ni el enlace', () => {
+      open();
+
+      expect(q('[data-testid="footprint-possible-duplicates"]')).toBeNull();
+      expect(q('[data-testid="review-duplicates-link"]')).toBeNull();
+    });
+
+    it('un resultado completo no lleva «Parcial» ni línea de cobertura', () => {
+      open(importDetailDto({ footprint: importFootprintDto({ partial: false, trips: { calculated: 10, pending: 0, blocked: 0, duplicate: 2 }, coverage_trips_pct: 100 }) }));
+
+      expect(q('[data-testid="footprint-partial"]')).toBeNull();
+      expect(q('[data-testid="footprint-coverage"]')).toBeNull();
+      expect(text('[data-testid="footprint-trips"]')).toContain('2 duplicados');
+    });
+
+    it('muestra hasta 6 meses y «+N más» con el resto en tooltip y texto accesible', () => {
+      open(importDetailDto({ footprint: importFootprintDto({ by_month: months(8) }) }));
+
+      expect(qa('[data-testid="footprint-months"] li').length).toBe(7);
+      expect(flat(q('[data-testid="footprint-more-months"]')!)).toContain('+2 más');
+      expect(q('[data-testid="footprint-more-months"]')!.getAttribute('title')).toBe('Jul 2026: 700 kg · Ago 2026: 800 kg');
+      expect(q('[data-testid="footprint-more-months"] .sr-only')!.textContent).toContain('Jul 2026: 700 kg');
+    });
+
+    it('sin viajes calculados no muestra kg: explica cuántos faltan', () => {
+      open(importDetailDto({ footprint: importFootprintDto({ kg_co2: 0, by_month: [], trips: { calculated: 0, pending: 3, blocked: 0, duplicate: 0 }, coverage_trips_pct: 0 }) }));
+
+      expect(text('[data-testid="footprint-total"]')).toBe('—');
+      expect(text('[data-testid="footprint-empty"]')).toBe('Aún no hay emisiones calculadas: faltan datos en 3 viajes');
+      expect(q('[data-testid="footprint-months"]')).toBeNull();
+    });
+
+    it('un informe con rutas, varios motivos pendientes y la huella cabe en 1337 × 896 (≤ 872 px útiles) sin abrir ningún <details>', () => {
+      open(importDetailDto({ review: reviewDto({ pending_reasons: [reason('MISSING_DISTANCE_WITH_ROUTE', 20), reason('MISSING_UNIT', 6), reason('INVALID_VALUES', 4), reason('OTRO', 2)] }), footprint: importFootprintDto({ by_month: months(6) }) }));
+      const body = q<HTMLElement>('.body')!;
+
+      expect(q('.head')!.getBoundingClientRect().height + body.scrollHeight).toBeLessThanOrEqual(872);
+      expect(q('dialog')!.querySelector('details[open]')).toBeNull();
+      expect(text('[data-testid="more-reasons"] summary')).toBe('Ver los 2 motivos restantes');
+    });
+
+    it('con la huella el informe típico cabe en 1337 × 896 (menos de 840 px de contenido)', () => {
+      open(importDetailDto({ footprint: importFootprintDto({ by_month: months(6) }) }));
+      const body = q<HTMLElement>('.body')!;
+
+      // La ventana de pruebas es baja y recorta el diálogo: se mide el contenido completo (cabecera + cuerpo) contra el alto útil de 896 px (872).
+      expect(q('.head')!.getBoundingClientRect().height + body.scrollHeight).toBeLessThan(840);
+    });
+  });
+
+  it('mientras se calculan las emisiones el avance es el general (paso 2 de 2, nunca menos de 50 %) y dice el paso y las filas', () => {
+    open(importDetailDto({ status: 'RUNNING', phase: 'CALCULATING', rows_processed: 3, rows_total: 200, review: null, format: null, headline: null }));
+
+    expect(text('[data-testid="review-progress"] .muted')).toBe('Paso 2 de 2 · Calculando emisiones · 3 de 200 filas');
+    expect(q('[data-testid="review-progress"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('51');
+  });
+
+  it('una carga terminada muestra en la cabecera «Procesada en …» (de started_at a finished_at) y sin started_at no muestra nada', () => {
+    open();
+
+    expect(text('[data-testid="review-took"]')).toBe('Procesada en 1 min 55 s');
+    expect(text('[data-testid="review-meta"]')).toContain('20 KB');
+    TestBed.resetTestingModule();
+    open(importDetailDto({ started_at: null }), importSummaryDto({ started_at: null }));
+
+    expect(q('[data-testid="review-took"]')).toBeNull();
   });
 
   it('en el caso típico el informe cabe sin scroll interno y a menos de 640 px con los <details> cerrados', () => {
@@ -269,11 +376,11 @@ describe('ImportReviewDialogComponent: revisión de una carga', () => {
   });
 
   it('una revisión en curso muestra el avance con el camión y la fase', () => {
-    open(importDetailDto({ status: 'RUNNING', phase: 'REVIEWING', rows_processed: 50, rows_total: 200, review: null, format: null }));
+    open(importDetailDto({ status: 'RUNNING', phase: 'READING', rows_processed: 50, rows_total: 200, review: null, format: null }));
 
-    expect(q('app-truck-progress [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('25');
+    expect(q('app-truck-progress [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('13');
     expect(q('[data-testid="review-verdict"]')).toBeNull();
-    expect(text('[data-testid="review-progress"]')).toContain('Revisando los datos');
+    expect(text('[data-testid="review-progress"]')).toContain('Paso 1 de 2 · Leyendo filas');
     expect(text('[data-testid="review-progress"]')).toContain('50 de 200 filas');
   });
 
@@ -374,7 +481,7 @@ describe('ImportReviewDialogComponent: revisión de una carga', () => {
         { code: 'ROUTES_UNAVAILABLE', severity: 'WARNING', field: null, message: 'El motor de rutas no respondió.', rows: 40, sample_rows: [] },
         { code: 'ROUTE_LIMIT', severity: 'INFO', field: null, message: 'Se alcanzó el tope de rutas.', rows: 10, sample_rows: [] },
       ]));
-      const todo = flat(q('[data-testid="review-todo"]')!);
+      const todo = (q('[data-testid="review-todo"]')!.textContent ?? '').replace(/\s+/g, ' ');
 
       expect(todo).toContain('No pudimos calcular algunas rutas ahora. Vuelve a subir el archivo más tarde o agrega la distancia en km.');
       expect(todo).toContain('Había más rutas distintas de las que se calculan por carga; agrega la distancia en km a los viajes restantes.');

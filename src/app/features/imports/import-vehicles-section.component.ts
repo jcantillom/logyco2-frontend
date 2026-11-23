@@ -110,7 +110,7 @@ const TABS: readonly DetectedTab[] = ['NEW', 'CHANGED'];
                       </ul>
                     }
                     @for (k of c.conflicts; track k.field) {
-                      <p class="muted" data-testid="conflict">El archivo trae valores distintos para {{ k.label }}; no se propone.</p>
+                      <p class="muted" data-testid="conflict">El archivo trae valores distintos para {{ k.label }}. Revisa este vehículo para mantener limpio tu inventario; tus viajes se calculan igual con los datos de cada fila.</p>
                     }
                     @if (c.inactive) { <p class="warn" data-testid="inactive-note">Este vehículo está inactivo: aprobar no lo reactiva.</p> }
                     @if (canManage() && c.decision === 'PENDING') {

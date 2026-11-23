@@ -14,6 +14,7 @@ export const importSummaryDto = (overrides: Partial<ImportSummaryDto> = {}): Imp
   rows_total: 200,
   rows_processed: 200,
   created_at: '2026-03-01T10:00:00Z',
+  started_at: '2026-03-01T10:00:05Z',
   finished_at: '2026-03-01T10:02:00Z',
   created_by_name: 'Ana Prueba',
   headline: { rows_read: 200, real_consumption: 120, estimated_consumption: 50, pending: 30 },

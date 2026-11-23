@@ -1,3 +1,4 @@
+import { ImportFootprintDto } from './footprint.dto';
 /** Contratos JSON de `/organizations/{id}/imports…`. */
 export interface ImportHeadlineDto {
   readonly rows_read: number;
@@ -23,6 +24,7 @@ export interface ImportSummaryDto {
   readonly rows_total: number | null;
   readonly rows_processed: number;
   readonly created_at: string;
+  readonly started_at?: string | null;
   readonly finished_at: string | null;
   readonly created_by_name: string | null;
   readonly headline: ImportHeadlineDto | null;
@@ -114,12 +116,16 @@ export interface ImportReviewDto {
 
 export interface ImportDetailDto extends ImportSummaryDto {
   readonly review: ImportReviewDto | null;
+  /** Huella de la carga; `null` si no tiene viajes (o es anterior al cálculo). */
+  readonly footprint?: ImportFootprintDto | null;
 }
 
 export interface ImportCreatedDto {
   readonly id: string;
   readonly status: string;
   readonly duplicate: boolean;
+  readonly file_name?: string;
+  readonly created_at?: string;
 }
 
 export interface VehicleCandidateDto {

@@ -1,18 +1,24 @@
 import { FootprintByFuel } from '../../domain/models/footprint';
 import { ImportCounts } from '../../domain/models/imports';
+import { consumptionText } from '../../shared/ui/footprint.format';
 
 export const KG_UNIT = 'kg CO₂';
 
 const WHOLE = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 const ONE_DECIMAL = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 });
+const ONE_DECIMAL_FIXED = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** Un combustible del resultado, listo para mostrar. */
 export interface FuelResultView {
   readonly fuelCode: string;
   readonly name: string;
-  /** kg de CO₂ equivalente redondeados al entero, con separador de miles es-CO («43.432»). */
+  /** kg de CO₂ redondeados al entero, con separador de miles es-CO («43.432»). */
   readonly value: string;
   readonly unit: string;
+  /** Consumo del combustible con su unidad («1.234 gal»); vacío si el servidor no lo trae. */
+  readonly consumption: string;
+  /** Participación del combustible en el total de los combustibles del periodo, con un decimal («96,6»); vacío si no se puede calcular. */
+  readonly share: string;
 }
 
 /** Una cifra total de la mitad derecha: valor y unidad, o «—» (`value` null) con la nota de por qué no hay. */
@@ -40,7 +46,10 @@ export const formatTons = (tons: number): string => (tons < 100 ? ONE_DECIMAL.fo
  * Sin dato (`null`, vacío o todo inválido) devuelve vacío: la tarjeta muestra el estado «pendiente», sin rotación.
  */
 export function fuelResults(byFuel: FootprintByFuel | null): FuelResultView[] {
-  return (byFuel ?? []).filter((f) => Number.isFinite(f.kgCo2e) && f.kgCo2e >= 0).map((f) => ({ fuelCode: f.fuelCode, name: f.name, value: formatKg(f.kgCo2e), unit: KG_UNIT }));
+  const valid = (byFuel ?? []).filter((f) => Number.isFinite(f.kgCo2) && f.kgCo2 >= 0);
+  const total = valid.reduce((sum, f) => sum + f.kgCo2, 0);
+
+  return valid.map((f) => ({ fuelCode: f.fuelCode, name: f.name, value: formatKg(f.kgCo2), unit: KG_UNIT, consumption: consumptionText(f), share: total > 0 ? ONE_DECIMAL_FIXED.format((f.kgCo2 / total) * 100) : '' }));
 }
 
 const trips = (count: number): string => `${WHOLE.format(count)} ${count === 1 ? 'viaje' : 'viajes'}`;

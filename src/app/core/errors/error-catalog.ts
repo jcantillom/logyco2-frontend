@@ -65,6 +65,17 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   COUNTERPART_REGISTERED: 'Esa empresa ya está registrada en LoGyCO₂: solicita el vínculo en lugar de registrarla como externa.',
   FIELD_REQUIRED: 'Ese dato es obligatorio.',
 
+  // Conciliación de viajes entre empresas vinculadas
+  LINK_NOT_ACTIVE: 'El vínculo ya no está vigente, así que no se puede autorizar. Revocar sí es posible.',
+  SHARE_REQUIRES_MATCHING: 'Para compartir los resultados primero hay que permitir la búsqueda de viajes compartidos con esa empresa.',
+  MATCHING_NOT_ACTIVE: 'La conciliación con esa empresa ya no está activa porque alguna de las dos dejó de permitirla. Actualiza la lista.',
+  CANDIDATE_NOT_FOUND: 'Alguna de las coincidencias ya no está disponible para revisar. Actualiza la lista e inténtalo de nuevo.',
+  CANDIDATE_ALREADY_RESOLVED: 'Esa coincidencia ya quedó resuelta y su decisión no se puede cambiar. Actualiza la lista.',
+  PAIR_NOT_CONFIRMABLE: 'Este par ya no se puede confirmar. Actualiza la lista.',
+  OPERATION_NOT_FOUND: 'La operación compartida ya no está disponible. Actualiza la lista e inténtalo de nuevo.',
+  OPERATION_NOT_IN_CONFLICT: 'Esa operación no tiene datos en conflicto, así que no hay declaración que elegir.',
+  CONSENT_REQUIRED: 'Para ver y elegir entre los valores de las dos empresas, ambas deben permitir compartir los resultados.',
+
   // Invitaciones
   INVITATION_NOT_FOUND: 'La invitación no existe.',
   INVITATION_NOT_AVAILABLE: 'La invitación no está disponible.',
@@ -94,6 +105,10 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   IMPORT_NOT_FOUND: 'La carga no existe. Vuelve al historial y actualízalo.',
   IMPORT_NOT_RETRYABLE: 'Esta carga no se puede reintentar porque no falló. Actualiza el historial.',
   IMPORT_FILE_UNAVAILABLE: 'El archivo de esta carga ya no está disponible. Vuelve a subirlo.',
+  IDEMPOTENCY_KEY_REUSED: 'Este envío se identificó igual que otro con un archivo distinto, por eso no se pudo completar. Vuelve a seleccionar el archivo e inténtalo de nuevo.',
+  IMPORT_ALREADY_PROCESSED: 'Este archivo ya fue procesado en otra carga de tu empresa. Consulta su resultado en la cola de cargas.',
+  KEEP_VERSION_NOT_CALCULATED: 'La versión que quieres conservar todavía no tiene resultado calculado. Corrige sus datos o elige la otra versión.',
+  TRIP_NOT_FOUND: 'Alguno de los viajes ya no está disponible para revisar. Actualiza la lista e inténtalo de nuevo.',
   IMPORT_NOT_REVIEWED: 'La revisión de esta carga aún no termina. Espera a que esté lista para decidir sobre sus vehículos.',
   SELECTION_TOO_LARGE: 'Seleccionaste demasiados vehículos para una sola operación. Decide por partes más pequeñas.',
   STORAGE_QUOTA_EXCEEDED: 'Se alcanzó el espacio de almacenamiento disponible para tu empresa. Contacta al administrador de la plataforma.',

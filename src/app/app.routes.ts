@@ -107,13 +107,10 @@ export const routes: Routes = [
       },
       {
         path: 'calidad',
-        data: {
-          breadcrumb: 'Calidad de datos',
-          title: 'Calidad de datos',
-          description: 'Mostrará inconsistencias, registros incompletos, duplicados potenciales y operaciones que no se pueden calcular, y permitirá corregir los problemas o gestionarlos según el flujo aprobado.',
-        },
-        canActivate: [permissionGuard('indicators:read')],
-        loadComponent: () => import('./features/system/coming-soon.component').then((m) => m.ComingSoonComponent),
+        // Los posibles duplicados se resuelven con el mismo permiso que sube las cargas (los endpoints exigen `imports:create`).
+        data: { breadcrumb: 'Calidad de datos', wide: true },
+        canActivate: [permissionGuard('imports:create')],
+        loadComponent: () => import('./features/quality/quality.component').then((m) => m.QualityComponent),
       },
       {
         path: 'analisis',

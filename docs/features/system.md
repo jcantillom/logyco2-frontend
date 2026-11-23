@@ -41,7 +41,6 @@ Espacio de empresa (`app.routes.ts`; `permissionGuard` indicado):
 |---|---|---|
 | `/operaciones` (`/operaciones/:id` redirige a `/operaciones`) | `indicators:read` | Operaciones de transporte |
 | `/conciliacion` | `indicators:read` | Conciliación y calidad de datos |
-| `/calidad` | `indicators:read` | Calidad de datos |
 | `/analisis` | `indicators:read` | Análisis de emisiones |
 | `/ayuda` | — | Ayuda y soporte |
 | `/evidencias` | `indicators:read` | Evidencias y trazabilidad |

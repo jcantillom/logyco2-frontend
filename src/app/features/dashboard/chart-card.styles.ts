@@ -9,6 +9,7 @@ export const CHART_CARD_STYLES = `
       .cc h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--c-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .cc .ht p { margin: 0; font-size: 0.76rem; color: var(--c-mu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .cc .pchip { flex: none; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--c-primary) 14%, var(--c-sf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-primary) 40%, var(--c-sf)); color: var(--c-head); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+      .cc .pchip.partial { background: var(--c-sf); box-shadow: inset 0 0 0 1px var(--c-primary); }
       .cc .body { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
       /* Marco vacío y neutro del gráfico (estado pendiente / sin cálculo en el periodo): decorativo, sin datos ni cifras; solo el texto de estado es accesible. */
       .cc .note { margin: 0; font-size: 0.82rem; color: var(--c-text2); }
@@ -20,7 +21,7 @@ export const CHART_CARD_STYLES = `
       .cc .months { display: flex; justify-content: space-between; gap: 4px; margin-left: 4px; font-size: 0.68rem; color: var(--c-mu); min-height: 12px; }
       .cc .months.all { justify-content: space-around; }
       .cc .ring { flex: none; width: 150px; height: 150px; }
-      .cc .ring .track { fill: none; stroke: var(--c-s3); stroke-width: 16; }
+      .cc .ring .track { fill: none; stroke: var(--c-s3); stroke-width: 18; }
       .cc .ring .edge { fill: none; stroke: var(--c-bd); stroke-width: 1; stroke-dasharray: 3 3; }
       .cc .ring .dash { text-anchor: middle; fill: var(--c-mute2); font-size: 16px; font-weight: 800; }
       .cc .ring .sub { text-anchor: middle; fill: var(--c-mu); font-size: 8px; font-weight: 600; }

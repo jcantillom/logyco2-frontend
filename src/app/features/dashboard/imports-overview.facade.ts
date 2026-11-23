@@ -32,8 +32,8 @@ export class ImportsOverviewFacade {
     inject(ContextResetRegistry).track({ reset: () => this.chosen.set(null) });
   }
 
-  /** Pide la lista de periodos y, con la selección resuelta, los conteos. */
-  load(): void {
+  /** Pide la lista de periodos y, con la selección resuelta, los conteos. Con `background` los conteos se renuevan sin pasar por «cargando». */
+  load(options: { background?: boolean } = {}): void {
     const organizationId = this.context.activeOrganizationId();
 
     if (!organizationId) {
@@ -47,10 +47,10 @@ export class ImportsOverviewFacade {
         tap({
           next: (list) => {
             this.reconcile(list);
-            this.reloadCounts();
+            this.reloadCounts(options);
           },
           // Sin la lista de periodos las tarjetas igual deben mostrar algo: todos los periodos.
-          error: () => this.reloadCounts(),
+          error: () => this.reloadCounts(options),
         }),
       ),
       { keepData: true },
@@ -64,14 +64,14 @@ export class ImportsOverviewFacade {
   }
 
   /** Vuelve a pedir solo los conteos (con la selección vigente). */
-  reloadCounts(): void {
+  reloadCounts(options: { background?: boolean } = {}): void {
     const organizationId = this.context.activeOrganizationId();
 
     if (!organizationId) return this.counts.reset();
 
     const selection = this.selection();
 
-    this.counts.load(this.repository.counts(organizationId, selection === 'ALL' ? undefined : selection));
+    this.counts.load(this.repository.counts(organizationId, selection === 'ALL' ? undefined : selection), { keepData: options.background });
   }
 
   private reconcile(list: readonly ImportPeriod[]): void {

@@ -4,6 +4,7 @@ import { Label } from '../../shared/ui/labels';
 const PHASES: Readonly<Record<string, string>> = {
   READING: 'Leyendo el archivo',
   REVIEWING: 'Revisando los datos',
+  CALCULATING: 'Calculando emisiones',
   DONE: 'Revisión terminada',
 };
 
@@ -111,6 +112,8 @@ const PENDING_ACTIONS: Readonly<Record<string, string>> = {
   ELECTRIC_NEEDS_KWH: 'Registra el consumo eléctrico en kWh.',
   NO_EMISSION_FACTOR: 'Este combustible aún no tiene factor de emisión verificado: no se puede calcular por ahora.',
   INVALID_VALUES: 'Corrige los valores que no son números o están fuera de rango.',
+  // Motivo de filas guardadas antes de que un conflicto de vehículo dejara de frenar el cálculo: se libera al recalcular la carga.
+  VEHICLE_CONFLICT: 'Los datos distintos de un vehículo ya no frenan el cálculo: este viaje se calcula al recalcular la carga, con los datos de su fila.',
   // Hallazgos (no motivos pendientes) del cálculo de distancias por ruta.
   PLACE_NOT_RECOGNIZED: 'Revisa el nombre del municipio y del departamento.',
   SAME_PLACE: 'Si el viaje fue dentro del municipio, agrega la distancia en km; si no, revisa el origen y el destino.',
@@ -146,3 +149,12 @@ export const tripsCount = (value: number): string => `${formatCount(value)} ${va
 
 /** «12 rutas por municipio» / «1 ruta por municipio». */
 export const routesCount = (pairs: number): string => `${formatCount(pairs)} ${pairs === 1 ? 'ruta' : 'rutas'} por municipio`;
+
+const LONG_DATE = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+
+/** «22 de noviembre de 2026»; `null` si no hay fecha o no es válida. */
+export function longDate(iso: string | null): string | null {
+  const time = iso ? Date.parse(iso) : Number.NaN;
+
+  return Number.isNaN(time) ? null : LONG_DATE.format(time);
+}

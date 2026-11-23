@@ -11,8 +11,8 @@ const BARS = 'M5 20V11M12 20V4M19 20v-6M3 20h18';
 
 /**
  * Tarjeta «Emisiones de CO₂ por mes» (barras con tendencia). Sigue el periodo elegido: el eje X son los meses del periodo (`slots`) y un mes sin dato queda
- * vacío. Presentacional: hoy `monthly` es `null` (no existe el cálculo) y muestra el estado pendiente sin dibujar nada; con cálculo pero sin datos del
- * periodo dice «No hay cálculo para este periodo».
+ * vacío. Presentacional: `monthly` es `null` si aún no se pidió la huella (estado pendiente, sin dibujar nada); con huella pero sin viajes calculados dice por qué
+ * (`emptyText`) o «No hay cálculo para este periodo». Un resultado parcial lleva el marcador «Parcial».
  */
 @Component({
   selector: 'app-monthly-emissions-card',
@@ -25,6 +25,8 @@ const BARS = 'M5 20V11M12 20V4M19 20v-6M3 20h18';
         <span class="ico chip" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="icon" /></svg></span>
         <div class="ht"><h2 id="mc-title">Emisiones de CO₂ por mes</h2><p>Kg de CO₂ por mes del periodo elegido</p></div>
         @if (periodLabel(); as label) { <span class="pchip" data-testid="chart-period">{{ label }}</span> }
+        @if (partial()) { <span class="pchip partial" data-testid="chart-partial" [attr.title]="partialHint()">Parcial</span> }
+        @if (partialHint()) { <span class="sr-only" data-testid="chart-partial-hint">{{ partialHint() }}</span> }
       </header>
       <div class="body">
         @switch (status()) {
@@ -39,7 +41,7 @@ const BARS = 'M5 20V11M12 20V4M19 20v-6M3 20h18';
                   @if (slots().length > 0 && slots().length <= 12) { <div class="slots">@for (slot of slots(); track slot) { <span data-testid="frame-slot">—</span> }</div> }
                 </div>
                 @if (slotLabels().length > 0) { <div class="months" [class.all]="slots().length <= 6" aria-hidden="true" data-testid="frame-months">@for (label of slotLabels(); track $index) { <span>{{ label }}</span> }</div> }
-                <p class="note" role="status" data-testid="chart-message">{{ state() === 'pending' ? pendingText : noPeriodText }}</p>
+                <p class="note" role="status" data-testid="chart-message">{{ state() === 'pending' ? pendingText : (emptyText() ?? noPeriodText) }}</p>
               </div>
             }
           }
@@ -50,11 +52,17 @@ const BARS = 'M5 20V11M12 20V4M19 20v-6M3 20h18';
   `,
 })
 export class MonthlyEmissionsCardComponent {
-  /** Huella por mes del periodo elegido; `null` mientras no exista el cálculo. */
+  /** Huella por mes del periodo elegido; `null` mientras no se haya pedido. */
   readonly monthly = input<FootprintMonthly | null>(null);
   /** Meses del periodo elegido (`YYYY-MM`), uno por ranura del eje X. */
   readonly slots = input<readonly string[]>([]);
   readonly periodLabel = input<string | null>(null);
+  /** El resultado es parcial (hay viajes sin calcular): se marca junto al periodo. */
+  readonly partial = input(false);
+  /** Aclaración del resultado parcial (cobertura por viajes), para `title` y lectores de pantalla. */
+  readonly partialHint = input<string | null>(null);
+  /** Texto del estado vacío cuando hay huella pero ningún viaje calculado (explica por qué); `null` = el genérico. */
+  readonly emptyText = input<string | null>(null);
   readonly status = input<ResourceStatus>('ready');
   readonly retry = output();
 

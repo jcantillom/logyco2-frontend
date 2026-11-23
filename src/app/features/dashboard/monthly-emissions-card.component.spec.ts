@@ -3,7 +3,7 @@ import { FootprintMonthly } from '../../domain/models/footprint';
 import { MonthlyEmissionsCardComponent } from './monthly-emissions-card.component';
 
 const SLOTS = ['2026-01', '2026-02', '2026-03'];
-const DATA: FootprintMonthly = [{ month: '2026-01', kgCo2e: 16_820 }, { month: '2026-02', kgCo2e: 18_432 }, { month: '2026-03', kgCo2e: 15_493 }];
+const DATA: FootprintMonthly = [{ month: '2026-01', kgCo2: 16_820, tripsCalculated: 1 }, { month: '2026-02', kgCo2: 18_432, tripsCalculated: 1 }, { month: '2026-03', kgCo2: 15_493, tripsCalculated: 1 }];
 
 describe('MonthlyEmissionsCardComponent', () => {
   let fixture: ComponentFixture<MonthlyEmissionsCardComponent>;
@@ -50,7 +50,7 @@ describe('MonthlyEmissionsCardComponent', () => {
   });
 
   it('un mes del periodo sin dato sale como ranura vacía y los datos fuera del periodo no se dibujan', () => {
-    render({ monthly: [{ month: '2026-01', kgCo2e: 10 }, { month: '2025-06', kgCo2e: 99 }], slots: SLOTS });
+    render({ monthly: [{ month: '2026-01', kgCo2: 10, tripsCalculated: 1 }, { month: '2025-06', kgCo2: 99, tripsCalculated: 1 }], slots: SLOTS });
 
     expect(el().querySelectorAll('[data-testid="bar"]').length).toBe(1);
     expect(el().querySelectorAll('[data-testid="bar-empty"]').length).toBe(2);
@@ -58,7 +58,7 @@ describe('MonthlyEmissionsCardComponent', () => {
   });
 
   it('con cálculo pero sin datos para el periodo dice «No hay cálculo para este periodo» (distinto del estado «aún no hay cálculo»)', () => {
-    render({ monthly: [{ month: '2025-06', kgCo2e: 99 }], slots: SLOTS });
+    render({ monthly: [{ month: '2025-06', kgCo2: 99, tripsCalculated: 1 }], slots: SLOTS });
 
     expect(text('[data-testid="chart-message"]')).toBe('No hay cálculo para este periodo');
     expect(q('app-bar-chart')).toBeNull();
@@ -160,7 +160,7 @@ describe('MonthlyEmissionsCardComponent', () => {
     });
 
     it('con cálculo pero sin datos del periodo también muestra el marco, con «No hay cálculo para este periodo»', () => {
-      render({ monthly: [{ month: '2025-06', kgCo2e: 99 }], slots: SLOTS });
+      render({ monthly: [{ month: '2025-06', kgCo2: 99, tripsCalculated: 1 }], slots: SLOTS });
 
       expect(frame()).not.toBeNull();
       expect(text('[data-testid="chart-message"]')).toBe('No hay cálculo para este periodo');
@@ -180,6 +180,50 @@ describe('MonthlyEmissionsCardComponent', () => {
 
       expect(q('[data-testid="chart-skeleton"]')).not.toBeNull();
       expect(frame()).toBeNull();
+    });
+  });
+  describe('datos reales y resultado parcial', () => {
+    it('un mes del periodo sin viajes calculados (o sin datos) queda como ranura vacía con «—», no como 0', () => {
+      render({ monthly: [{ month: '2026-01', kgCo2: 10, tripsCalculated: 2 }, { month: '2026-02', kgCo2: 0, tripsCalculated: 0 }], slots: SLOTS });
+
+      expect(q('app-bar-chart')).not.toBeNull();
+      expect(text('app-bar-chart')).not.toMatch(/\b0\b/);
+    });
+
+    it('un resultado parcial lleva «Parcial» junto al periodo, con la aclaración de que el porcentaje es por viajes', () => {
+      render({ monthly: DATA, slots: SLOTS, periodLabel: 'Ene 2026 a Mar 2026', partial: true, partialHint: 'Resultado parcial: 12 de 18 viajes calculados. El porcentaje es por cantidad de viajes.' });
+
+      expect(text('[data-testid="chart-partial"]')).toBe('Parcial');
+      expect(q('[data-testid="chart-partial"]')!.getAttribute('title')).toContain('12 de 18 viajes calculados');
+      expect(text('[data-testid="chart-partial-hint"]')).toContain('por cantidad de viajes');
+    });
+
+    it('un resultado completo no lleva «Parcial»', () => {
+      render({ monthly: DATA, slots: SLOTS });
+
+      expect(q('[data-testid="chart-partial"]')).toBeNull();
+    });
+
+    it('con huella pero sin viajes calculados explica por qué en lugar del texto genérico', () => {
+      render({ monthly: [], slots: SLOTS, emptyText: 'Aún no hay emisiones calculadas: faltan datos en 3 viajes' });
+
+      expect(text('[data-testid="chart-message"]')).toBe('Aún no hay emisiones calculadas: faltan datos en 3 viajes');
+    });
+
+    it('sin `emptyText` y con huella vacía dice «No hay cálculo para este periodo»; sin huella, «Se activa cuando calcules tu huella de CO₂»', () => {
+      render({ monthly: [], slots: SLOTS });
+      expect(text('[data-testid="chart-message"]')).toBe('No hay cálculo para este periodo');
+
+      TestBed.resetTestingModule();
+      render({ slots: SLOTS });
+      expect(text('[data-testid="chart-message"]')).toBe('Se activa cuando calcules tu huella de CO₂');
+    });
+
+    it('la altura de la tarjeta no cambia con el marcador «Parcial» (256 px)', () => {
+      render({ monthly: DATA, slots: SLOTS, periodLabel: 'Ene 2026 a Mar 2026', partial: true, partialHint: 'x' });
+      el().style.width = '560px';
+
+      expect(q('.cc')!.getBoundingClientRect().height).toBe(256);
     });
   });
 });

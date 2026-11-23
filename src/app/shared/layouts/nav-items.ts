@@ -34,7 +34,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Resumen', path: '/resumen', icon: 'M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z', requires: [], soon: false, group: 'start' },
   { label: 'Mis vehículos', path: '/vehiculos', icon: 'M3 7h18v10H3zM6.5 12h2M11 12h2M15.5 12h2', requires: ['vehicles:read'], soon: false, group: 'data' },
   { label: 'Cargar información', path: '/cargas', icon: 'M12 16V4M7 9l5-5 5 5M4 20h16', requires: ['imports:create'], soon: false, group: 'data' },
-  { label: 'Calidad de datos', path: '/calidad', icon: 'M9 4h6l1 2h3v15H5V6h3zM9 14l2 2 4-4', requires: ['indicators:read'], soon: true, group: 'data' },
+  { label: 'Calidad de datos', path: '/calidad', icon: 'M9 4h6l1 2h3v15H5V6h3zM9 14l2 2 4-4', requires: ['imports:create'], soon: false, group: 'data' },
   { label: 'Operaciones logísticas', path: '/operaciones', icon: 'M2 6h12v10H2zM14 9h4l3 3v4h-7zM5 19.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0M16 19.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0', requires: ['indicators:read'], soon: true, group: 'data' },
   { label: 'Mis emisiones', path: '/emisiones', icon: 'M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19c2-5 6-8 10-10', requires: ['indicators:read'], soon: true, group: 'carbon' },
   { label: 'Análisis de emisiones', path: '/analisis', icon: 'M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6M20 16v-9', requires: ['indicators:read'], soon: true, group: 'carbon' },

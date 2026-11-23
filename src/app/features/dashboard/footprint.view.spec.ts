@@ -1,115 +1,118 @@
-import { FootprintPeriod } from '../../domain/models/footprint';
-import { footprintView, variationOf } from './footprint.view';
+import { Footprint, FootprintPeriod } from '../../domain/models/footprint';
+import { buildFootprint, completeTotals, emptyTotals, footprintTotals } from '../../../testing/footprint';
+import { footprintView, noEmissionsText, variationOf } from './footprint.view';
 
-const month = (year: number, m: number, kg: number): FootprintPeriod => {
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  const last = new Date(Date.UTC(year, m, 0)).getUTCDate();
+const period = (start: string, end: string, kg: number): FootprintPeriod => ({ start, end, kgCo2: kg });
+const prev = period('2026-08-01', '2026-09-30', 4_000);
+const current = (kg = 5_588.4016): FootprintPeriod => period('2026-10-01', '2026-11-30', kg);
+const withPeriods = (periods: readonly FootprintPeriod[], totals = footprintTotals()): Footprint => buildFootprint({ periods, totals });
 
-  return { start: `${year}-${pad(m)}-01`, end: `${year}-${pad(m)}-${last}`, kgCo2e: kg };
-};
-
-describe('footprintView (lógica pura de la tarjeta «Huella de carbono»)', () => {
-  it('sin dato (null, vacío o solo periodos inválidos) no hay vista: estado pendiente', () => {
-    expect(footprintView(null)).toBeNull();
-    expect(footprintView({ periods: [] })).toBeNull();
-    expect(footprintView({ periods: [month(2026, 10, -5), month(2026, 11, Number.NaN)] })).toBeNull();
+describe('footprint.view', () => {
+  describe('variationOf', () => {
+    it('da signo explícito y un decimal es-CO; lo que redondea a cero es neutro', () => {
+      expect(variationOf(87.7, 100)).toEqual({ text: '−12,3 %', direction: 'down' });
+      expect(variationOf(108.5, 100)).toEqual({ text: '+8,5 %', direction: 'up' });
+      expect(variationOf(100.01, 100)).toEqual({ text: '0,0 %', direction: 'flat' });
+    });
   });
 
-  it('muestra el periodo anterior al actual (el último cerrado) con su variación contra el que lo precede', () => {
-    const view = footprintView({ periods: [month(2026, 8, 60_000), month(2026, 9, 50_745), month(2026, 10, 12_000)] })!;
+  describe('viajes retenidos como posibles duplicados', () => {
+    const SENTENCE = '12 operaciones por revisar (posibles duplicados) no están sumadas';
 
-    expect(view.periodLabel).toBe('Sep 2026');
-    expect(view.value).toBe('50.745');
-    expect(view.unit).toBe('kg CO₂e');
-    expect(view.isPrevious).toBeTrue();
-    expect(view.variation).toEqual({ text: '−15,4 %', direction: 'down' });
-    expect(view.note).toBeNull();
+    it('con viajes retenidos agrega una frase a la ayuda, también en un resultado completo, y sin ellos no cambia nada', () => {
+      const complete = footprintView(withPeriods([], completeTotals({ tripsPossibleDuplicate: 12 })))!;
+      const partial = footprintView(withPeriods([], footprintTotals({ tripsPossibleDuplicate: 12 })))!;
+
+      expect(complete.partial).toBeFalse();
+      expect(complete.hint).toBe(`${SENTENCE}.`);
+      expect(complete.coverageHint).toBeNull();
+      expect(partial.hint).toContain('Resultado parcial: 12 de 18 viajes calculados');
+      expect(partial.hint!.endsWith(`${SENTENCE}.`)).toBeTrue();
+      expect(footprintView(withPeriods([], completeTotals()))!.hint).toBeNull();
+      expect(footprintView(withPeriods([], footprintTotals()))!.hint).toBe(footprintView(withPeriods([], footprintTotals()))!.coverageHint);
+    });
+
+    it('en singular dice «1 operación por revisar (posible duplicado) no está sumada»', () => {
+      expect(footprintView(withPeriods([], completeTotals({ tripsPossibleDuplicate: 1 })))!.hint).toBe('1 operación por revisar (posible duplicado) no está sumada.');
+    });
   });
 
-  it('subir las emisiones es una variación positiva con signo explícito', () => {
-    const view = footprintView({ periods: [month(2026, 8, 10_000), month(2026, 9, 10_850), month(2026, 10, 1)] })!;
+  describe('footprintView', () => {
+    it('sin huella o sin viajes calculados no hay vista (estado vacío, nunca ceros como resultado)', () => {
+      expect(footprintView(null)).toBeNull();
+      expect(footprintView(buildFootprint({ totals: emptyTotals() }))).toBeNull();
+    });
 
-    expect(view.variation).toEqual({ text: '+8,5 %', direction: 'up' });
+    it('la cifra es el total del periodo, en kg CO₂ (no CO₂e), con separador de miles es-CO', () => {
+      const v = footprintView(withPeriods([], completeTotals({ kgCo2: 3_400_000.4 })))!;
+
+      expect(v.value).toBe('3.400.000');
+      expect(v.unit).toBe('kg CO₂');
+      expect(v.unit).not.toContain('e');
+    });
+
+    it('el periodo sale de period.from/to; sin fechas (todos) no hay etiqueta', () => {
+      expect(footprintView(withPeriods([]))!.periodLabel).toBe('Oct 2026 a Nov 2026');
+      expect(footprintView(buildFootprint({ period: { from: null, to: null } }))!.periodLabel).toBeNull();
+    });
+
+    it('la variación compara el total con el periodo contiguo anterior de `periods`', () => {
+      const v = footprintView(withPeriods([prev, current()]))!;
+
+      expect(v.variation).toEqual({ text: '+39,7 %', direction: 'up' });
+      expect(v.note).toBeNull();
+    });
+
+    it('sin periodo anterior, con base 0 o no contiguo no hay variación ni número inventado: «Sin base de comparación»', () => {
+      for (const periods of [[], [current()], [period('2026-08-01', '2026-09-30', 0), current()], [period('2026-05-01', '2026-06-30', 4_000), current()]]) {
+        const v = footprintView(withPeriods(periods))!;
+
+        expect(v.variation).withContext(JSON.stringify(periods)).toBeNull();
+        expect(v.note).toBe('Sin base de comparación');
+      }
+    });
+
+    it('si el último periodo no termina en `to` (el actual no tiene viajes calculados) no se compara', () => {
+      expect(footprintView(withPeriods([period('2026-04-01', '2026-05-31', 10), prev]))!.variation).toBeNull();
+    });
+
+    it('un resultado parcial lo dice con «12 de 18 viajes calculados» y la aclaración de que el porcentaje es por viajes, no por emisiones', () => {
+      const v = footprintView(withPeriods([]))!;
+
+      expect(v.partial).toBeTrue();
+      expect(v.coverage).toBe('12 de 18 viajes calculados');
+      expect(v.coverageHint).toContain('66,7 % de los viajes');
+      expect(v.coverageHint).toContain('por cantidad de viajes y no necesariamente representa el porcentaje de emisiones cubiertas');
+    });
+
+    it('los duplicados no entran en la cobertura', () => {
+      const v = footprintView(withPeriods([], footprintTotals({ tripsCalculated: 3, tripsPending: 1, tripsBlocked: 0, tripsDuplicate: 50 })))!;
+
+      expect(v.coverage).toBe('3 de 4 viajes calculados');
+    });
+
+    it('un resultado completo no lleva marca de parcial ni línea de cobertura', () => {
+      const v = footprintView(withPeriods([], completeTotals()))!;
+
+      expect([v.partial, v.coverage, v.coverageHint]).toEqual([false, null, null]);
+    });
+
+    it('descarta periodos inválidos al comparar', () => {
+      const v = footprintView(withPeriods([period('no-fecha', 'no-fecha', 1), prev, current(), period('2026-01-01', '2026-02-28', -5)]))!;
+
+      expect(v.variation?.direction).toBe('up');
+    });
   });
 
-  it('sin periodo anterior al actual se muestra el actual y dice «Primer periodo calculado», sin variación', () => {
-    const view = footprintView({ periods: [month(2026, 10, 7_300)] })!;
+  describe('noEmissionsText', () => {
+    it('sin huella pedida: se activa al calcular; sin viajes por calcular: aún no hay emisiones', () => {
+      expect(noEmissionsText(null)).toBe('Se activa al calcular tu huella');
+      expect(noEmissionsText(buildFootprint({ totals: emptyTotals({ tripsPending: 0, tripsBlocked: 0 }) }))).toBe('Aún no hay emisiones calculadas');
+    });
 
-    expect(view.periodLabel).toBe('Oct 2026');
-    expect(view.value).toBe('7.300');
-    expect(view.isPrevious).toBeFalse();
-    expect(view.variation).toBeNull();
-    expect(view.note).toBe('Primer periodo calculado');
-  });
-
-  it('con dos periodos se muestra el primero (el cerrado) y no hay con qué compararlo', () => {
-    const view = footprintView({ periods: [month(2026, 9, 5_000), month(2026, 10, 9_000)] })!;
-
-    expect(view.periodLabel).toBe('Sep 2026');
-    expect(view.isPrevious).toBeTrue();
-    expect(view.note).toBe('Primer periodo calculado');
-    expect(view.variation).toBeNull();
-  });
-
-  it('si la base vale 0 no hay variación ni «∞»: «Sin base de comparación»', () => {
-    const view = footprintView({ periods: [month(2026, 8, 0), month(2026, 9, 4_000), month(2026, 10, 1)] })!;
-
-    expect(view.variation).toBeNull();
-    expect(view.note).toBe('Sin base de comparación');
-    expect(JSON.stringify(view)).not.toMatch(/Infinity|∞|NaN/);
-  });
-
-  it('si el periodo previo no es consecutivo (hueco) no se compara contra uno lejano', () => {
-    const view = footprintView({ periods: [month(2026, 6, 9_000), month(2026, 9, 4_000), month(2026, 10, 1)] })!;
-
-    expect(view.periodLabel).toBe('Sep 2026');
-    expect(view.variation).toBeNull();
-    expect(view.note).toBe('Sin base de comparación');
-  });
-
-  it('un hueco entre el cerrado y el actual no impide mostrar el último registro cerrado', () => {
-    const view = footprintView({ periods: [month(2026, 7, 8_000), month(2026, 8, 6_000), month(2026, 10, 1)] })!;
-
-    expect(view.periodLabel).toBe('Ago 2026');
-    expect(view.variation).toEqual({ text: '−25,0 %', direction: 'down' });
-  });
-
-  it('ordena cronológicamente aunque lleguen desordenados y descarta los periodos imposibles (negativos)', () => {
-    const view = footprintView({ periods: [month(2026, 10, 1), month(2026, 8, 100), month(2026, 9, 110), month(2026, 7, -40)] })!;
-
-    expect(view.periodLabel).toBe('Sep 2026');
-    expect(view.variation).toEqual({ text: '+10,0 %', direction: 'up' });
-  });
-
-  it('una variación que redondea a cero es neutra: «0,0 %»', () => {
-    expect(variationOf(100, 100)).toEqual({ text: '0,0 %', direction: 'flat' });
-    expect(variationOf(100.02, 100)).toEqual({ text: '0,0 %', direction: 'flat' });
-    expect(variationOf(99.96, 100)).toEqual({ text: '0,0 %', direction: 'flat' });
-  });
-
-  it('redondea la variación a un decimal con coma y signo menos tipográfico', () => {
-    expect(variationOf(87.7, 100)).toEqual({ text: '−12,3 %', direction: 'down' });
-    expect(variationOf(108.54, 100)).toEqual({ text: '+8,5 %', direction: 'up' });
-    expect(variationOf(1, 3)).toEqual({ text: '−66,7 %', direction: 'down' });
-  });
-
-  it('las cifras de 7 dígitos o más llevan separador de miles y redondean al entero', () => {
-    const view = footprintView({ periods: [month(2026, 8, 3_100_000), month(2026, 9, 3_400_000.6), month(2026, 10, 1)] })!;
-
-    expect(view.value).toBe('3.400.001');
-    expect(view.variation).toEqual({ text: '+9,7 %', direction: 'up' });
-    expect(footprintView({ periods: [month(2026, 10, 1_234_567_890)] })!.value).toBe('1.234.567.890');
-  });
-
-  it('un periodo sin consumo (0) se muestra como 0 y no rompe nada', () => {
-    const view = footprintView({ periods: [month(2026, 9, 0), month(2026, 10, 5)] })!;
-
-    expect(view.value).toBe('0');
-    expect(view.note).toBe('Primer periodo calculado');
-  });
-
-  it('la etiqueta del periodo usa el formateador compartido: un mes o «Mes a Mes»', () => {
-    expect(footprintView({ periods: [month(2026, 10, 1)] })!.periodLabel).toBe('Oct 2026');
-    expect(footprintView({ periods: [{ start: '2026-01-01', end: '2026-03-31', kgCo2e: 5 }] })!.periodLabel).toBe('Ene 2026 a Mar 2026');
+    it('con viajes pendientes o bloqueados explica por qué', () => {
+      expect(noEmissionsText(buildFootprint({ totals: emptyTotals({ tripsPending: 3, tripsBlocked: 2 }) }))).toBe('Aún no hay emisiones calculadas: faltan datos en 5 viajes');
+      expect(noEmissionsText(buildFootprint({ totals: emptyTotals({ tripsPending: 1, tripsBlocked: 0 }) }))).toBe('Aún no hay emisiones calculadas: faltan datos en 1 viaje');
+    });
   });
 });

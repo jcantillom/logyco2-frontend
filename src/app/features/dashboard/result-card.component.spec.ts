@@ -2,12 +2,13 @@ import { ComponentFixture, TestBed, discardPeriodicTasks, fakeAsync, tick } from
 import { FootprintByFuel } from '../../domain/models/footprint';
 import { ImportCounts } from '../../domain/models/imports';
 import { ROTATION_MS } from '../../shared/ui/rotation';
+import { buildFootprint, completeTotals, emptyTotals } from '../../../testing/footprint';
 import { ResultCardComponent } from './result-card.component';
 
 const FUELS: FootprintByFuel = [
-  { fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', kgCo2e: 4_972 },
-  { fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2e: 2_341 },
-  { fuelCode: 'DIESEL_B2', name: 'Diésel B2', kgCo2e: 43_432 },
+  { fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', kgCo2: 4_972, consumption: [] },
+  { fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2: 2_341, consumption: [] },
+  { fuelCode: 'DIESEL_B2', name: 'Diésel B2', kgCo2: 43_432, consumption: [] },
 ];
 const COUNTS: ImportCounts = {
   total: 2, inProgress: 0, completed: 2, failed: 0, vehiclesPending: 0, rowsRead: 3_400_000, rowsCalculable: 3_000_000, rowsPending: 400_000, rowsReal: 2_000_000, rowsEstimated: 1_000_000, vehiclesNewPending: 0, vehiclesChangedPending: 0,
@@ -24,7 +25,12 @@ describe('ResultCardComponent', () => {
   function render(inputs: Record<string, unknown> = {}): void {
     TestBed.configureTestingModule({ imports: [ResultCardComponent] });
     fixture = TestBed.createComponent(ResultCardComponent);
-    for (const [key, value] of Object.entries(inputs)) fixture.componentRef.setInput(key, value);
+    // `byFuel` es atajo de las pruebas: un resultado completo con esos combustibles.
+    const { byFuel, ...rest } = inputs;
+
+    if (byFuel) rest['footprint'] = buildFootprint({ byFuel: byFuel as FootprintByFuel, totals: completeTotals() });
+
+    for (const [key, value] of Object.entries(rest)) fixture.componentRef.setInput(key, value);
     fixture.detectChanges();
   }
 
@@ -32,7 +38,7 @@ describe('ResultCardComponent', () => {
     spyOn(window, 'matchMedia').and.returnValue({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined } as unknown as MediaQueryList);
   });
 
-  describe('estado pendiente (hoy no hay cálculo de CO₂)', () => {
+  describe('estado pendiente (sin huella pedida)', () => {
     it('muestra «—» y «Se activa al calcular tu huella», sin segmentos ni pausa ni kg inventados', () => {
       render({ counts: COUNTS });
 
@@ -55,6 +61,16 @@ describe('ResultCardComponent', () => {
   });
 
   describe('con resultado por combustible', () => {
+    it('junto al nombre muestra la participación del combustible en el total y una barra fina de medido y estimado', fakeAsync(() => {
+      render({ byFuel: FUELS, counts: COUNTS });
+
+      expect(text('result-share')).toMatch(/^\d+,\d %$/);
+      expect(q('[data-testid="result-split"] i.m')).not.toBeNull();
+      expect(q('[data-testid="result-split"] i.e')).not.toBeNull();
+      expect(q('[data-testid="result-split"]')!.getAttribute('aria-hidden')).toBe('true');
+      discardPeriodicTasks();
+    }));
+
     it('muestra el primer combustible: kg CO₂ con separador de miles, su nombre y tres segmentos', fakeAsync(() => {
       render({ byFuel: FUELS, counts: COUNTS });
 
@@ -153,7 +169,7 @@ describe('ResultCardComponent', () => {
     }));
 
     it('una cifra de 7 dígitos con la unidad no desborda la tarjeta', fakeAsync(() => {
-      render({ byFuel: [{ fuelCode: 'X', name: 'Diésel B2', kgCo2e: 3_400_000 }, FUELS[0]], counts: COUNTS });
+      render({ byFuel: [{ fuelCode: 'X', name: 'Diésel B2', kgCo2: 3_400_000, consumption: [] }, FUELS[0]], counts: COUNTS });
       el().style.width = '300px';
       const card = q('.rc')!;
 
@@ -410,5 +426,111 @@ describe('ResultCardComponent', () => {
       expect(css).toContain(':focus-visible');
       expect(css).toContain('outline: 3px solid var(--c-focus)');
     });
+  });
+  describe('datos reales de la huella', () => {
+    const PARTIAL = buildFootprint({ byFuel: FUELS.map((f) => ({ ...f, consumption: f.fuelCode === 'NATURAL_GAS' ? [{ unit: 'm3', quantity: 560.4 }] : [{ unit: 'gal', quantity: 1_234.6 }] })) });
+
+    it('muestra el consumo de cada combustible con su unidad (gal o m³) junto al nombre', fakeAsync(() => {
+      render({ footprint: PARTIAL, counts: COUNTS });
+
+      expect(text('result-fuel-name')).toBe('Gasolina motor · 1.235 gal');
+      q<HTMLButtonElement>('[data-testid="result-segment-1"]')!.click();
+      settle();
+      expect(text('result-fuel-name')).toBe('Gas natural · 560 m³');
+      discardPeriodicTasks();
+      fixture.destroy();
+    }));
+
+    it('con consumo vacío muestra solo el nombre', () => {
+      render({ byFuel: [FUELS[0]] });
+
+      expect(text('result-fuel-name')).toBe('Gasolina motor');
+      expect(q('[data-testid="result-consumption"]')).toBeNull();
+    });
+
+    it('diferencia medido y estimado con una línea corta y la explicación completa en title y texto accesible', fakeAsync(() => {
+      render({ footprint: PARTIAL, counts: COUNTS });
+      const note = q('[data-testid="result-measured"]')!;
+
+      expect(note.firstChild!.textContent).toBe('Medido 2.499 kg · Estimado 3.089 kg');
+      expect(note.getAttribute('title')).toBe('Consumo medido (el que reportaste): 2.499 kg CO₂ en 7 viajes. Consumo estimado (con distancia y rendimiento): 3.089 kg CO₂ en 5 viajes.');
+      expect(text('result-measured-hint')).toContain('Consumo medido');
+      discardPeriodicTasks();
+      fixture.destroy();
+    }));
+
+    it('un resultado parcial lleva «Parcial» junto al periodo, con la aclaración de que el porcentaje es por viajes', fakeAsync(() => {
+      render({ footprint: PARTIAL, counts: COUNTS, periodLabel: 'Oct 2026 a Nov 2026' });
+
+      expect(text('result-partial')).toBe('Parcial');
+      expect(q('[data-testid="result-partial"]')!.getAttribute('title')).toContain('por cantidad de viajes y no necesariamente representa el porcentaje de emisiones cubiertas');
+      expect(text('result-partial-hint')).toContain('12 de 18 viajes calculados');
+      discardPeriodicTasks();
+      fixture.destroy();
+    }));
+
+    it('con viajes retenidos la frase va solo en el texto accesible (sin marcador nuevo) y la tarjeta sigue ≤ 215 px', fakeAsync(() => {
+      render({ footprint: buildFootprint({ totals: completeTotals({ tripsPossibleDuplicate: 12 }) }), counts: COUNTS });
+      el().style.width = '900px';
+
+      expect(text('result-partial-hint')).toBe('12 operaciones por revisar (posibles duplicados) no están sumadas.');
+      expect(q('[data-testid="result-partial"]')).toBeNull();
+      expect(q('[data-testid="result-partial-hint"]')!.classList).toContain('sr-only');
+      expect(q('[data-testid="period-result"]')!.getBoundingClientRect().height).toBeLessThanOrEqual(215);
+      discardPeriodicTasks();
+      fixture.destroy();
+    }));
+
+    it('un resultado completo no lleva «Parcial»', () => {
+      render({ byFuel: FUELS.slice(0, 1) });
+
+      expect(q('[data-testid="result-partial"]')).toBeNull();
+    });
+
+    it('con huella pero sin viajes calculados es el estado vacío: explica por qué, sin kg ni línea de medido', () => {
+      render({ footprint: buildFootprint({ totals: emptyTotals({ tripsPending: 2, tripsBlocked: 1 }), byFuel: [], byMonth: [] }), counts: COUNTS });
+
+      expect(text('result-pending')).toBe('Aún no hay emisiones calculadas: faltan datos en 3 viajes');
+      expect(text('result-value')).toBe('—');
+      expect(q('[data-testid="result-measured"]')).toBeNull();
+      expect(q('[data-testid="result-partial"]')).toBeNull();
+    });
+
+    it('mientras carga la huella la mitad izquierda es un esqueleto y la derecha sigue con sus datos', () => {
+      render({ footprintStatus: 'loading', counts: COUNTS });
+
+      expect(q('[data-testid="result-fuel"] .skeleton')).not.toBeNull();
+      expect(text('result-distance-value')).toBe('1.234.567');
+    });
+
+    it('si falla la huella la mitad izquierda ofrece «Reintentar» y la derecha no se afecta', () => {
+      render({ footprintStatus: 'error', counts: COUNTS });
+      let retried = false;
+      fixture.componentInstance.retryFootprint.subscribe(() => (retried = true));
+      q<HTMLButtonElement>('[data-testid="result-fuel-error"] button')!.click();
+
+      expect(retried).toBeTrue();
+      expect(text('result-distance-value')).toBe('1.234.567');
+    });
+
+    it('con 3 combustibles, parcial y la línea de medido sigue midiendo ≤ 215 px', fakeAsync(() => {
+      render({ footprint: PARTIAL, counts: COUNTS, periodLabel: 'Ene 2026 a Mar 2026' });
+      el().style.width = '540px';
+
+      expect(q('.rc')!.getBoundingClientRect().height).toBeLessThanOrEqual(215);
+      discardPeriodicTasks();
+      fixture.destroy();
+    }));
+
+    it('la rotación de 3 s sigue funcionando con los datos reales', fakeAsync(() => {
+      render({ footprint: PARTIAL, counts: COUNTS });
+      expect(text('result-fuel-name')).toContain('Gasolina motor');
+
+      tick(ROTATION_MS);
+      settle();
+      expect(text('result-fuel-name')).toContain('Gas natural');
+      discardPeriodicTasks();
+      fixture.destroy();
+    }));
   });
 });

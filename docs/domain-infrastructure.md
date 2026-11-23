@@ -56,6 +56,7 @@ Clases abstractas; las facades las inyectan por token. Todos los métodos devuel
 | | `InsightsRepository`: `trends`, `attention`, `operations`, `activity`, `audit`, `auditEvent` | `HttpInsightsRepository` (idem) |
 | | `RbacRepository`: `catalog`, `assignments` | `HttpRbacRepository` (idem) |
 | `emissions.repositories.ts` | `EmissionsRepository`: `vehicles`, `fuels`, `simulate` (solo lectura y simulación; nada se guarda). |
+| `footprint.repositories.ts` | `FootprintRepository`: `footprint(orgId, period?)` (huella de la empresa en un periodo; modelos en `domain/models/footprint.ts`: `Footprint`, `FootprintTotals`, `FootprintByFuel`, `FootprintMonthly`, `FootprintPeriod`, `ImportFootprint`; unidad kg CO₂, no CO₂e). |
 | `platform.repositories.ts` | `HealthRepository`: `check` | `HttpHealthRepository` (`http-health.repository.ts`) |
 | | `AdminMetricsRepository`: `get` | `HttpAdminMetricsRepository` (`http-admin-metrics.repository.ts`) |
 | `intelligence.repositories.ts` | `IntelligenceRepository`: `summary`, `history`, `areas`, `ictcGroups`, `sources`, `refreshSource` | `HttpIntelligenceRepository` (`http-intelligence.repository.ts`) |
@@ -110,6 +111,7 @@ Prefijo `apiBaseUrl` + `apiPrefix` salvo indicación. Ids con `encodeURIComponen
 | `HttpOnboardingRepository` | `onboardOrganization` -> `POST /onboarding/organizations`; `onboardMember` -> `POST /onboarding/members`; `status` -> `GET /onboarding/invitations/{id}`; `resend` -> `POST /onboarding/invitations/{id}/resend`; `checkActivation` -> `POST /onboarding/activation/check`; `activate` -> `POST /onboarding/activation` |
 | `HttpLinksRepository` (base `/organizations/{id}`) | `summary` -> `GET links/summary`; `list` -> `GET links` (paginado; `view`, `search`, `relationship_type`); `get` -> `GET links/{linkId}`; `search` -> `GET links/candidates?q=`; `request` -> `POST links`; `respond` -> `POST links/{linkId}/{accept\|reject\|cancel\|end}`; `listExternal` -> `GET external-counterparts`; `createExternal` -> `POST external-counterparts`; `updateExternal` -> `PATCH external-counterparts/{id}`; `removeExternal` -> `DELETE external-counterparts/{id}` |
 | `HttpAdminMetricsRepository` | `get` -> `GET /platform/metrics` |
+| `HttpFootprintRepository` | `footprint` -> `GET /organizations/{org}/emissions/footprint?from=&to=` (sin periodo, sin parámetros); DTO `footprint.dto.ts`, mappers `footprint.mappers.ts` (`toFootprint`, `toImportFootprint`) |
 | `HttpEmissionsRepository` (base `/emissions`) | `vehicles` -> `GET /vehicles`; `fuels` -> `GET /reference/fuels`; `simulate` -> `POST /simulate` con `{ fuel_code, distance_km, efficiency }` |
 | `HttpSuperAdminsRepository` (base `/platform/super-admins`) | `overview` -> `GET`; `detail` -> `GET /{userId}`; `invite` -> `POST /invitations`; `revokeInvitation` -> `POST /invitations/{id}/revoke`; `revoke` -> `POST /{userId}/revoke`; `accept` -> `POST /invitations/accept` |
 | `HttpInsightsRepository` | `trends` -> `GET /platform/metrics/trends` (`days` o `date_from`+`date_to`); `operations` -> `GET /platform/operations?days=`; `attention` -> `GET /platform/attention`; `activity` -> `GET /platform/activity` (`limit`, `days`, `organization_id`); `audit` -> `GET /platform/audit` (`getBody`; `page_size`, `cursor`, `days`, `date_from`, `date_to`, `organization_id`, `category`, `channel`, `q`); `auditEvent` -> `GET /platform/audit/{id}` |
@@ -119,7 +121,7 @@ Prefijo `apiBaseUrl` + `apiPrefix` salvo indicación. Ids con `encodeURIComponen
 
 ## 7. `providers.ts`
 
-`provideRepositories(): EnvironmentProviders` (`makeEnvironmentProviders`): una lista de `{ provide: Puerto, useClass: Http* }` agrupada en: identidad, organizaciones, onboarding y vínculos (`AuthRepository`, `OrganizationsRepository`, `UsersRepository`, `InvitationsRepository`, `MembershipsRepository`, `OnboardingRepository`, `OrganizationAdminRepository`, `LinksRepository`); consola de plataforma (`HealthRepository`, `AdminMetricsRepository`, `SuperAdminsRepository`, `InsightsRepository`), `IntelligenceRepository`, `RbacRepository` y `EmissionsRepository`. Son los mismos 15 puertos de la tabla de la sección 2; no hay proxys ni selección en tiempo de ejecución. [V]
+`provideRepositories(): EnvironmentProviders` (`makeEnvironmentProviders`): una lista de `{ provide: Puerto, useClass: Http* }` agrupada en: identidad, organizaciones, onboarding y vínculos (`AuthRepository`, `OrganizationsRepository`, `UsersRepository`, `InvitationsRepository`, `MembershipsRepository`, `OnboardingRepository`, `OrganizationAdminRepository`, `LinksRepository`); consola de plataforma (`HealthRepository`, `AdminMetricsRepository`, `SuperAdminsRepository`, `InsightsRepository`), `IntelligenceRepository`, `RbacRepository`, `EmissionsRepository` y `FootprintRepository`. Son los mismos 15 puertos de la tabla de la sección 2; no hay proxys ni selección en tiempo de ejecución. [V]
 
 ## 8. Specs y utilidades de test
 

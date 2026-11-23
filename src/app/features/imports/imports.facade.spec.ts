@@ -106,6 +106,22 @@ describe('ImportsFacade', () => {
     http.match(() => true);
   });
 
+  it('un archivo ya cargado guarda su carga original (nombre y fecha) una sola vez aunque se suba varias veces', () => {
+    facade.enqueue([file('a.xlsx'), file('b.xlsx')]);
+    const [first, second] = posts();
+    const original = { data: { id: 'imp-0', status: 'COMPLETED', duplicate: true, file_name: 'original.xlsx', created_at: '2026-03-01T10:00:00Z' } };
+
+    first.flush(original, { status: 200, statusText: 'OK' });
+    second.flush(original, { status: 200, statusText: 'OK' });
+
+    expect(facade.duplicates()).toBe(2);
+    expect(facade.duplicateOriginals()).toEqual([{ id: 'imp-0', fileName: 'original.xlsx', createdAt: '2026-03-01T10:00:00Z' }]);
+    expect(facade.uploads().length).toBe(0);
+    facade.dismissDuplicates();
+    expect(facade.duplicateOriginals()).toEqual([]);
+    http.match(() => true);
+  });
+
   it('subir mientras hay otra pestaña activa vuelve a «Todas» en la página 1', () => {
     facade.setFilter('FAILED');
     http.match(() => true);

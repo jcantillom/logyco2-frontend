@@ -5,6 +5,7 @@ import { BarBox, BarDatum, barLayout, formatTick } from './bar-chart';
 export const BAR_CHART_HEIGHT = 150;
 const DEFAULT_WIDTH = 560;
 const CHAR = 5.4;
+let nextId = 0;
 
 /**
  * Barras verticales con línea de tendencia, eje Y de marcas redondas y cifra sobre cada barra; SVG propio y presentacional. El ancho se adapta al contenedor
@@ -22,34 +23,43 @@ const CHAR = 5.4;
       .grid { stroke: var(--c-bd); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.7; }
       .tick { text-anchor: end; fill: var(--c-text2); font-size: 9px; font-variant-numeric: tabular-nums; }
       .unit { text-anchor: start; fill: var(--c-text2); font-size: 9px; font-weight: 700; }
-      .bar { fill: var(--c-primary); transition: fill 0.15s; }
-      .bar:hover { fill: color-mix(in srgb, var(--c-primary) 80%, var(--c-sf)); }
+      .track { fill: var(--c-s2); }
+      .bar { fill: var(--c-primary); transition: opacity 0.2s ease; }
+      .sheen { pointer-events: none; transition: opacity 0.2s ease; }
+      svg:has(.bar:hover) .bar:not(:hover), svg:has(.bar:hover) .sheen:not(.on) { opacity: 0.45; }
+      .sheen-top { stop-color: var(--c-sf); stop-opacity: 0.16; }
+      .sheen-bottom { stop-color: var(--c-sf); stop-opacity: 0; }
       .none { fill: var(--c-mute2); text-anchor: middle; font-size: 11px; }
       .val { text-anchor: middle; fill: var(--c-head); font-size: 9.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
       .month { text-anchor: middle; fill: var(--c-text2); font-size: 9.5px; }
       .month.rot { text-anchor: end; }
-      .trend { fill: none; stroke: var(--c-head); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+      .trend { fill: none; stroke: var(--c-head); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 5 4; }
       .dot { fill: var(--c-sf); stroke: var(--c-head); stroke-width: 1.4; }
       .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 2px 0 0; padding: 0 0 0 4px; font-size: 0.74rem; color: var(--c-text2); }
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
       .legend i.sq { width: 10px; height: 10px; border-radius: 3px; background: var(--c-primary); }
       .legend i.ln { width: 16px; height: 0; border-top: 2px solid var(--c-head); position: relative; }
-      @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+      @media (prefers-reduced-motion: reduce) { .bar, .sheen { transition: none; } }
     `,
   ],
   template: `
     <figure>
       <svg [attr.viewBox]="'0 0 ' + width() + ' ' + height" [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="summary()" data-testid="bar-svg">
+        <defs><linearGradient [attr.id]="gradientId" x1="0" y1="0" x2="0" y2="1"><stop class="sheen-top" offset="0" /><stop class="sheen-bottom" offset="1" /></linearGradient></defs>
         <text class="unit" x="0" y="8">{{ unit() }}</text>
         @for (tick of layout().ticks; track tick.value) {
           <line class="grid" [attr.x1]="box().left" [attr.x2]="width() - box().right" [attr.y1]="tick.y" [attr.y2]="tick.y" />
           <text class="tick" [attr.x]="box().left - 6" [attr.y]="tick.y + 3">{{ tick.label }}</text>
         }
         @for (bar of layout().bars; track $index) {
+          <rect class="track" [attr.x]="bar.x" [attr.y]="box().top" [attr.width]="bar.width" [attr.height]="box().height - box().top - box().bottom" rx="5" aria-hidden="true" />
+        }
+        @for (bar of layout().bars; track $index) {
           @if (bar.value === null) {
             <text class="none" [attr.x]="bar.cx" [attr.y]="bar.y - 4" data-testid="bar-empty">—</text>
           } @else {
-            <rect class="bar" [attr.x]="bar.x" [attr.y]="bar.y" [attr.width]="bar.width" [attr.height]="bar.height" rx="3" data-testid="bar"><title>{{ bar.label }}: {{ bar.valueLabel }} {{ unit() }}</title></rect>
+            <rect class="bar" [attr.x]="bar.x" [attr.y]="bar.y" [attr.width]="bar.width" [attr.height]="bar.height" rx="5" data-testid="bar"><title>{{ bar.label }}: {{ bar.valueLabel }} {{ unit() }}</title></rect>
+            <rect class="sheen" [attr.x]="bar.x" [attr.y]="bar.y" [attr.width]="bar.width" [attr.height]="bar.height" rx="5" [attr.fill]="'url(#' + gradientId + ')'" aria-hidden="true" />
             <text class="val" [attr.x]="layout().rotateValues ? bar.cx + 3 : bar.cx" [attr.y]="bar.y - 4" [attr.transform]="layout().rotateValues ? 'rotate(-90 ' + (bar.cx + 3) + ' ' + (bar.y - 4) + ')' : null" [attr.text-anchor]="layout().rotateValues ? 'start' : 'middle'" data-testid="bar-value">{{ bar.valueLabel }}</text>
           }
           <text class="month" [class.rot]="layout().rotateAxis" [attr.x]="bar.cx" [attr.y]="box().height - box().bottom + 13" [attr.transform]="layout().rotateAxis ? 'rotate(-40 ' + bar.cx + ' ' + (box().height - box().bottom + 13) + ')' : null" data-testid="bar-month">{{ bar.label }}</text>
@@ -58,7 +68,7 @@ const CHAR = 5.4;
           <polyline class="trend" [attr.points]="points" data-testid="bar-trend" />
         }
         @for (bar of layout().bars; track $index) {
-          @if (bar.value !== null) { <circle class="dot" [attr.cx]="bar.cx" [attr.cy]="bar.cy" r="2.6" /> }
+          @if (bar.value !== null && layout().trend.length > 0) { <circle class="dot" [attr.cx]="bar.cx" [attr.cy]="bar.cy" r="2.6" /> }
         }
       </svg>
       <figcaption class="legend" data-testid="bar-legend"><span><i class="sq" aria-hidden="true"></i>{{ seriesName() }}</span><span><i class="ln" aria-hidden="true"></i>{{ trendName() }}</span></figcaption>
@@ -77,6 +87,7 @@ export class BarChartComponent {
   readonly seriesName = input('Emisiones (kg CO₂)');
   readonly trendName = input('Tendencia');
 
+  protected readonly gradientId = `bar-sheen-${nextId++}`;
   protected readonly height = BAR_CHART_HEIGHT;
   protected readonly width = signal(DEFAULT_WIDTH);
   protected readonly box = computed<BarBox>(() => {

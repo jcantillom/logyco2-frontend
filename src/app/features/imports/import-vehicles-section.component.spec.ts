@@ -107,7 +107,8 @@ describe('ImportVehiclesSectionComponent: vehículos detectados', () => {
     });
 
     const rows = qa('[data-testid="candidate"]');
-    expect(rows[0].querySelector('[data-testid="conflict"]')!.textContent).toBe('El archivo trae valores distintos para Combustible; no se propone.');
+    expect(rows[0].querySelector('[data-testid="conflict"]')!.textContent).toBe('El archivo trae valores distintos para Combustible. Revisa este vehículo para mantener limpio tu inventario; tus viajes se calculan igual con los datos de cada fila.');
+    expect(rows[0].querySelector('[data-testid="conflict"]')!.textContent).not.toMatch(/bloque|no se calcula|impide/i);
     expect(rows[0].querySelector('[data-testid="inactive"]')).not.toBeNull();
     expect(rows[0].querySelector('[data-testid="inactive-note"]')!.textContent).toContain('no lo reactiva');
     expect(rows[1].querySelector('[data-testid="decision"]')!.textContent!.trim()).toBe('Aprobado');

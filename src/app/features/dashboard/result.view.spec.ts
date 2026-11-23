@@ -15,16 +15,16 @@ describe('resultado del periodo (lógica pura)', () => {
     });
 
     it('formatea kg CO₂ al entero con separador de miles es-CO, con el nombre y en el orden recibido', () => {
-      const byFuel: FootprintByFuel = [{ fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', kgCo2e: 43_432.4 }, { fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2e: 2_340.6 }];
+      const byFuel: FootprintByFuel = [{ fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', kgCo2: 43_432.4, consumption: [] }, { fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2: 2_340.6, consumption: [] }];
 
       expect(fuelResults(byFuel)).toEqual([
-        { fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', value: '43.432', unit: 'kg CO₂' },
-        { fuelCode: 'NATURAL_GAS', name: 'Gas natural', value: '2.341', unit: 'kg CO₂' },
+        { fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', value: '43.432', unit: 'kg CO₂', consumption: '', share: '94,9' },
+        { fuelCode: 'NATURAL_GAS', name: 'Gas natural', value: '2.341', unit: 'kg CO₂', consumption: '', share: '5,1' },
       ]);
     });
 
     it('descarta cifras negativas o no numéricas y soporta 7 dígitos o más', () => {
-      const out = fuelResults([{ fuelCode: 'A', name: 'A', kgCo2e: -1 }, { fuelCode: 'B', name: 'B', kgCo2e: Number.NaN }, { fuelCode: 'C', name: 'C', kgCo2e: 3_400_000 }, { fuelCode: 'D', name: 'D', kgCo2e: 0 }]);
+      const out = fuelResults([{ fuelCode: 'A', name: 'A', kgCo2: -1, consumption: [] }, { fuelCode: 'B', name: 'B', kgCo2: Number.NaN, consumption: [] }, { fuelCode: 'C', name: 'C', kgCo2: 3_400_000, consumption: [] }, { fuelCode: 'D', name: 'D', kgCo2: 0, consumption: [] }]);
 
       expect(out.map((f) => f.value)).toEqual(['3.400.000', '0']);
       expect(formatKg(12_345_678.5)).toBe('12.345.679');

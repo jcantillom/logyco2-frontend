@@ -1,9 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { reloadOnContextChange } from '../../core/org/organization-context';
 import { PageHeroComponent } from '../../shared/ui/page-hero.component';
 import { OrgRequiredComponent } from '../../shared/ui/org-required.component';
-import { FootprintByFuel, FootprintMonthly, FootprintSummary } from '../../domain/models/footprint';
 import { monthSlots, periodRangeLabel } from '../../domain/models/period';
 import { AccessPolicy } from '../../core/auth/access-policy';
 import { SessionStore } from '../../core/auth/session.store';
@@ -23,6 +22,12 @@ import { FuelShareCardComponent } from './fuel-share-card.component';
 import { MonthlyEmissionsCardComponent } from './monthly-emissions-card.component';
 import { ResultCardComponent } from './result-card.component';
 import { ImportsOverviewFacade } from './imports-overview.facade';
+import { FootprintFacade } from './footprint.facade';
+import { coverageHint, tripsInScope, withPossibleDuplicates } from '../../shared/ui/footprint.format';
+import { hasEmissions, noEmissionsText } from './footprint.view';
+
+/** Cada cuánto se renueva el Resumen mientras haya cargas en proceso (para ver la huella apenas termina el cálculo). */
+const REFRESH_MS = 5000;
 
 /** Resumen de la empresa: solo datos reales; lo que aún no tiene backend se anuncia como «Próximamente», nunca con ejemplos. */
 @Component({
@@ -74,7 +79,7 @@ import { ImportsOverviewFacade } from './imports-overview.facade';
           @if (showKpis()) {
             <section class="kpis" aria-label="Indicadores de la empresa" data-testid="kpi-row">
               <div class="kpis-in">
-                <app-footprint-card size="sm" data-testid="kpi-footprint" [summary]="footprint" [link]="canSeeImports() ? '/cargas' : null" />
+                <app-footprint-card size="sm" data-testid="kpi-footprint" [footprint]="footprint()" [status]="footprintStatus()" (retry)="reloadFootprint()" [link]="canSeeImports() ? '/cargas' : null" />
                 @if (canSeeImports()) {
                   <app-kpi-tile size="sm" data-testid="kpi-trips" label="Viajes procesados" [caption]="tripsCaption()" [icon]="icons.pin" [iconSolid]="true" [value]="tripsValue()" [status]="imports.counts.status()" link="/cargas" (retry)="imports.reloadCounts()" />
                   <app-kpi-tile size="sm" data-testid="kpi-missing" label="Datos por completar" [caption]="missingCaption()" [icon]="icons.alert" [value]="missingValue()" [tone]="missingTone()" [status]="imports.counts.status()" link="/cargas" (retry)="imports.reloadCounts()" />
@@ -90,12 +95,12 @@ import { ImportsOverviewFacade } from './imports-overview.facade';
           }
           <div class="row b">
             <app-factor-rotator-card appearance="tile" data-testid="emission-factor" />
-            <app-period-result-card data-testid="period-result-card" [byFuel]="footprintByFuel" [counts]="canSeeImports() ? counts() ?? null : null" [periodLabel]="resultPeriodLabel()" [status]="canSeeImports() ? imports.counts.status() : 'ready'" (retry)="imports.reloadCounts()" />
+            <app-period-result-card data-testid="period-result-card" [footprint]="footprint()" [footprintStatus]="footprintStatus()" (retryFootprint)="reloadFootprint()" [counts]="canSeeImports() ? counts() ?? null : null" [periodLabel]="resultPeriodLabel()" [status]="canSeeImports() ? imports.counts.status() : 'ready'" (retry)="imports.reloadCounts()" />
           </div>
 
           <div class="row b" data-testid="charts-row">
-            <app-monthly-emissions-card data-testid="monthly-chart" [monthly]="footprintMonthly" [slots]="chartSlots()" [periodLabel]="resultPeriodLabel()" [status]="chartStatus()" (retry)="imports.reloadCounts()" />
-            <app-fuel-share-card data-testid="fuel-chart" [byFuel]="footprintByFuel" [periodLabel]="resultPeriodLabel()" [status]="chartStatus()" (retry)="imports.reloadCounts()" />
+            <app-monthly-emissions-card data-testid="monthly-chart" [monthly]="footprint()?.byMonth ?? null" [slots]="chartSlots()" [periodLabel]="resultPeriodLabel()" [partial]="partial()" [partialHint]="partialHint()" [emptyText]="chartEmptyText()" [status]="footprintStatus()" (retry)="reloadFootprint()" />
+            <app-fuel-share-card data-testid="fuel-chart" [byFuel]="footprint()?.byFuel ?? null" [periodLabel]="resultPeriodLabel()" [partial]="partial()" [partialHint]="partialHint()" [emptyText]="chartEmptyText()" [status]="footprintStatus()" (retry)="reloadFootprint()" />
           </div>
 
           <div class="row c" [class.single]="!canSeeTeam()">
@@ -139,21 +144,30 @@ export class DashboardComponent {
   protected readonly vehicles = inject(VehiclesFacade);
   private readonly access = inject(AccessPolicy);
   protected readonly imports = inject(ImportsOverviewFacade);
-  /**
-   * Punto de conexión del cálculo de emisiones: hoy no hay dato (`null` = «pendiente»). Cuando exista `GET /organizations/{id}/emissions/footprint`,
-   * alimentar este valor con un facade (`FootprintSummary`); la tarjeta y su lógica ya están listas. No se simulan cifras.
-   */
-  protected readonly footprint: FootprintSummary | null = null;
-  /**
-   * Punto de conexión del resultado por combustible de «Resultado del periodo» (kg CO₂ del periodo calculado más reciente): hoy `null` (pendiente);
-   * cuando el endpoint `emissions/footprint` entregue `by_fuel`, alimentarlo aquí. La distancia y la carga de esa tarjeta ya son datos reales.
-   */
-  protected readonly footprintByFuel: FootprintByFuel | null = null;
-  /**
-   * Punto de conexión de «Emisiones de CO₂ por mes» (kg por mes del periodo elegido): hoy `null` (pendiente); cuando `emissions/footprint` entregue
-   * `by_month`, alimentarlo aquí. El eje X ya sigue el periodo elegido (`chartSlots`).
-   */
-  protected readonly footprintMonthly: FootprintMonthly | null = null;
+  private readonly footprints = inject(FootprintFacade);
+  /** La huella exige `indicators:read` (los tres roles de empresa la tienen). */
+  private readonly canSeeFootprint = computed(() => this.access.can('indicators:read'));
+  /** Huella real del periodo elegido (`null` mientras no llegue o sin permiso): alimenta la tarjeta de huella, el resultado por combustible y las dos gráficas. */
+  protected readonly footprint = computed(() => (this.canSeeFootprint() ? this.footprints.footprint.data() : null));
+  protected readonly footprintStatus = computed(() => (this.canSeeFootprint() ? this.footprints.footprint.status() : 'ready'));
+  /** El resultado es parcial: hay viajes sin calcular (se marca en la tarjeta, el resultado y las gráficas). */
+  protected readonly partial = computed(() => {
+    const f = this.footprint();
+
+    return hasEmissions(f) && f.totals.partial;
+  });
+  /** Ayuda de las gráficas: la cobertura si es parcial y la frase de posibles duplicados si hay viajes retenidos (esta última sin marcador visible nuevo). */
+  protected readonly partialHint = computed(() => {
+    const t = this.footprint()?.totals;
+
+    return t && hasEmissions(this.footprint()) ? withPossibleDuplicates(this.partial() ? coverageHint(t.tripsCalculated, tripsInScope(t), t.coverageTripsPct) : null, t.tripsPossibleDuplicate) : null;
+  });
+  /** Con huella pedida pero sin viajes calculados, las gráficas explican por qué (faltan datos); con emisiones, el texto genérico. */
+  protected readonly chartEmptyText = computed(() => {
+    const f = this.footprint();
+
+    return f && !hasEmissions(f) ? noEmissionsText(f) : null;
+  });
   /** Meses del periodo elegido para el eje X de las barras: del `from` al `to` (con «todos», del mínimo al máximo de la lista), los 24 más recientes. */
   protected readonly chartSlots = computed(() => {
     const selection = this.imports.selection();
@@ -161,12 +175,14 @@ export class DashboardComponent {
 
     if (selection !== 'ALL') return monthSlots(selection.from, selection.to);
 
-    if (list.length === 0) return [];
+    // Con «todos» el total suma TODAS las cargas calculadas, también las que abarcan más de un mes y no figuran como periodo en la lista: el eje cubre ambos.
+    const starts = [...list.map((p) => p.from), ...(this.footprint()?.byMonth ?? []).map((m) => `${m.month}-01`)];
+    const ends = [...list.map((p) => p.to), ...(this.footprint()?.byMonth ?? []).map((m) => `${m.month}-01`)];
 
-    return monthSlots(list.reduce((min, p) => (p.from < min ? p.from : min), list[0].from), list.reduce((max, p) => (p.to > max ? p.to : max), list[0].to));
+    if (starts.length === 0) return [];
+
+    return monthSlots(starts.reduce((min, d) => (d < min ? d : min)), ends.reduce((max, d) => (d > max ? d : max)));
   });
-  /** Las gráficas esperan al recargar los counts al cambiar de periodo (esqueleto); sin permiso de cargas no hay nada que esperar. */
-  protected readonly chartStatus = computed(() => (this.canSeeImports() ? this.imports.counts.status() : 'ready'));
   /** El periodo elegido en el selector, para el chip de «Resultado del periodo» («Todos los periodos» si no hay filtro). */
   protected readonly resultPeriodLabel = computed(() => {
     const selection = this.imports.selection();
@@ -217,7 +233,38 @@ export class DashboardComponent {
     leaf: 'M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19c2-5 6-8 10-10',
   } as const;
   protected readonly canSeeTeam = computed(() => this.access.canAny(['users:read', 'memberships:manage']));
+  /** Hubo cargas en proceso en la última lectura: al llegar a 0 se vuelve a pedir la huella (una carga terminó). */
+  private hadRunning = false;
+
+  /** Vuelve a pedir la huella del periodo elegido (reintento). */
+  protected reloadFootprint(): void {
+    this.footprints.reload();
+  }
+
   constructor() {
+    // La huella espera a que el periodo esté resuelto (lista de periodos lista o fallida) para no pedir «todos» y luego el periodo elegido.
+    effect(() => {
+      const selection = this.imports.selection();
+      const periods = this.imports.periods.status();
+      const allowed = this.canSeeFootprint() && (!this.canSeeImports() || periods === 'ready' || periods === 'error');
+
+      if (allowed) untracked(() => this.footprints.load(selection));
+    });
+    // Mientras haya cargas en proceso el Resumen se renueva solo, sin parpadeo; cuando la última termina se pide la huella una vez más.
+    effect((onCleanup) => {
+      const running = this.canSeeImports() && (this.counts()?.inProgress ?? 0) > 0;
+      const finished = this.hadRunning && !running;
+
+      this.hadRunning = running;
+
+      if (finished && this.canSeeFootprint()) untracked(() => this.footprints.reload({ background: true }));
+
+      if (!running) return;
+
+      const timer = setTimeout(() => untracked(() => this.refresh()), REFRESH_MS);
+
+      onCleanup(() => clearTimeout(timer));
+    });
     reloadOnContextChange(() => {
       this.intel.loadSummary();
       if (this.canSeeVehicles()) this.vehicles.loadSummary();
@@ -227,6 +274,12 @@ export class DashboardComponent {
         this.users.loadCounts();
       }
     });
+  }
+
+  /** Renovación silenciosa de los indicadores del Resumen que dependen de las cargas. */
+  private refresh(): void {
+    this.imports.load({ background: true });
+    if (this.canSeeFootprint()) this.footprints.reload({ background: true });
   }
 
   /** Tres personas al azar de la empresa (se sortean al llegar los datos y no cambian al redibujar). */

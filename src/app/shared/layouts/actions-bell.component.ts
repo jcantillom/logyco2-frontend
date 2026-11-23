@@ -3,7 +3,7 @@ import { NavigationEnd, Params, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { OrganizationContext } from '../../core/org/organization-context';
-import { NotificationItem } from '../../domain/models/notifications';
+import { NotificationItem, NotificationKind } from '../../domain/models/notifications';
 import { NotificationsFacade } from '../../features/notifications/notifications.facade';
 import { relativeTime } from '../../features/notifications/relative-time';
 
@@ -17,6 +17,19 @@ export interface BellAlert {
 
 /** Trazo del ícono de vehículo de un aviso (viewBox 24, sin relleno). */
 const VEHICLE_ICON = 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7.5 18.5a1 1 0 1 0 0 .01M17.5 18.5a1 1 0 1 0 0 .01';
+
+/** Trazo del ícono de un aviso de posibles duplicados: dos viajes superpuestos (viewBox 24, sin relleno). */
+const DUPLICATES_ICON = 'M8 8h11v11H8zM5 16V5h11';
+
+/** Trazo del ícono de un aviso de viajes compartidos: dos flechas en sentidos opuestos (viewBox 24, sin relleno). */
+const SHARED_ICON = 'M4 8h14l-3-3M20 16H6l3 3';
+
+/** Ruta de la bandeja de Calidad de datos, adonde lleva un aviso de posibles duplicados. */
+export const QUALITY_PATH = '/calidad';
+
+/** Parámetro y valor con los que un aviso de viajes compartidos abre la pestaña «Operaciones compartidas» de Calidad de datos. */
+export const QUALITY_TAB_PARAM = 'tab';
+export const SHARED_OPERATIONS_TAB = 'compartidas';
 
 /** Ruta y parámetro con los que un aviso de vehículos abre la revisión de su carga. */
 export const IMPORT_REVIEW_PATH = '/cargas';
@@ -114,7 +127,7 @@ type BellTab = 'notices' | 'pending';
                       @for (item of page.items.slice(0, maxVisible); track item.id) {
                         <li>
                           <button type="button" class="notif" [class.read]="item.readAt !== null" data-testid="notification" (click)="openNotification(item)">
-                            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="vehicleIcon" /></svg></span>
+                            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="iconFor(item.kind)" /></svg></span>
                             <span class="txt">
                               <strong>@if (item.readAt === null) { <i class="dot" data-testid="unread-dot" role="img" aria-label="Sin leer"></i> }{{ item.title }}</strong>
                               <span>{{ item.body }}</span>
@@ -191,7 +204,7 @@ export class ActionsBellComponent {
   readonly withNotifications = input(false);
   protected readonly open = signal(false);
   protected readonly tab = signal<BellTab>('notices');
-  protected readonly vehicleIcon = VEHICLE_ICON;
+  protected readonly iconFor = (kind: NotificationKind): string => (kind === 'POSSIBLE_DUPLICATES' ? DUPLICATES_ICON : kind === 'SHARED_OPERATIONS' ? SHARED_ICON : VEHICLE_ICON);
   protected readonly maxVisible = MAX_VISIBLE_NOTICES;
   protected readonly time = relativeTime;
 
@@ -258,11 +271,17 @@ export class ActionsBellComponent {
     this.facade.markAllRead().subscribe({ error: () => this.facade.loadList() });
   }
 
-  /** Marca como leído y abre la revisión de la carga; si marcarlo falla igual se navega, la lectura se reintenta al reabrir. */
+  /**
+   * Marca como leído y abre el lugar del aviso: la revisión de su carga (vehículos), la bandeja de Calidad de datos (posibles duplicados) o su pestaña «Operaciones compartidas» (viajes compartidos).
+   * Si marcarlo falla igual se navega, la lectura se reintenta al reabrir.
+   */
   protected openNotification(item: NotificationItem): void {
     const go = (): void => {
       this.open.set(false);
-      void this.router.navigate([IMPORT_REVIEW_PATH], { queryParams: { [IMPORT_QUERY_PARAM]: item.payload.importId } });
+
+      if (item.kind === 'POSSIBLE_DUPLICATES') void this.router.navigate([QUALITY_PATH]);
+      else if (item.kind === 'SHARED_OPERATIONS') void this.router.navigate([QUALITY_PATH], { queryParams: { [QUALITY_TAB_PARAM]: SHARED_OPERATIONS_TAB } });
+      else void this.router.navigate([IMPORT_REVIEW_PATH], { queryParams: { [IMPORT_QUERY_PARAM]: item.payload.importId } });
     };
 
     this.facade.markRead(item).subscribe({ next: go, error: go });

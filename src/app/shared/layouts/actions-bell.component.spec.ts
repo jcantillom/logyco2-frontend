@@ -259,6 +259,44 @@ describe('ActionsBellComponent: campana unificada con avisos', () => {
     expect(text('[data-testid="bell-count"]')).toBe('4');
   });
 
+  it('un aviso POSSIBLE_DUPLICATES muestra el texto del servidor con su ícono propio, lo marca leído y abre /calidad (no la revisión de la carga)', () => {
+    render();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    const body = 'Se encontraron 12 operaciones que podrían estar repetidas. Revísalas antes de incorporarlas al cálculo de emisiones. Archivo: «x».';
+
+    openPanel([notificationDto({ id: 'n-9', kind: 'POSSIBLE_DUPLICATES', title: 'Posibles operaciones repetidas por revisar', body, payload: { import_id: 'imp-7', new: 0, changed: 0, possible_duplicates: 12 } })], 1, 1);
+
+    expect(text('[data-testid="notification"] strong')).toBe('Posibles operaciones repetidas por revisar');
+    expect(text('[data-testid="notification"] .txt > span:not(.when)')).toBe(body);
+    expect(q('[data-testid="notification"] .ico path')!.getAttribute('d')).not.toBe(q('.bell path')!.getAttribute('d'));
+
+    q('[data-testid="notification"]')!.click();
+    http.expectOne({ method: 'POST', url: `${NOTIFICATIONS_URL}/n-9/read` }).flush({ data: {} });
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledOnceWith(['/calidad']);
+    expect(q('[data-testid="bell-panel"]')).toBeNull();
+  });
+
+  it('un aviso SHARED_OPERATIONS muestra el texto agrupado del servidor con su ícono propio, lo marca leído y abre /calidad en la pestaña de operaciones compartidas', () => {
+    render();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    const body = 'Se identificaron 12 posibles viajes compartidos con una empresa vinculada. Revísalos antes de incorporarlos a un consolidado.';
+
+    openPanel([notificationDto({ id: 'n-8', kind: 'SHARED_OPERATIONS', title: 'Posibles viajes compartidos por revisar', body, payload: { import_id: 'imp-7', possible_shared: 12 } })], 1, 1);
+
+    expect(text('[data-testid="notification"] strong')).toBe('Posibles viajes compartidos por revisar');
+    expect(text('[data-testid="notification"] .txt > span:not(.when)')).toBe(body);
+    expect(q('[data-testid="notification"] .ico path')!.getAttribute('d')).not.toBe(q('.bell path')!.getAttribute('d'));
+
+    q('[data-testid="notification"]')!.click();
+    http.expectOne({ method: 'POST', url: `${NOTIFICATIONS_URL}/n-8/read` }).flush({ data: {} });
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledOnceWith(['/calidad'], { queryParams: { tab: 'compartidas' } });
+    expect(q('[data-testid="bell-panel"]')).toBeNull();
+  });
+
   it('si marcar como leído falla igual navega a la revisión', () => {
     render();
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);

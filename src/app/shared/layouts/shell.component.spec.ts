@@ -150,13 +150,30 @@ describe('ShellComponent: navegación y visibilidad condicionada', () => {
     }
   });
 
+  it('«Calidad de datos» ya no es «Próximamente»: lleva a /calidad y solo la ven quienes pueden resolver duplicados (imports:create)', () => {
+    const link = (el: HTMLElement): Element | undefined => Array.from(el.querySelectorAll('nav a.nav-link')).find((a) => a.textContent!.includes('Calidad de datos'));
+    const admin = link(render(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN'])] })))!;
+
+    expect(admin.getAttribute('href')).toBe('/calidad');
+    expect(admin.classList.contains('soon-item')).toBeFalse();
+    expect(admin.querySelector('.pill')).toBeNull();
+    expect(admin.closest('.group')!.querySelector('h2')!.textContent!.trim()).toBe('Datos operativos');
+
+    for (const user of [buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_VIEWER'])] }), buildSuperAdmin()]) {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ imports: [ShellComponent], providers: provideTestApp() });
+
+      expect(link(render(user))).toBeUndefined();
+    }
+  });
+
   it('atenúa y rotula «Próximamente» lo que no tiene backend', () => {
     const el = render(buildUser());
-    const upload = (): Element => Array.from(el.querySelectorAll('nav a.nav-link')).find((a) => a.textContent!.includes('Calidad de datos'))!;
+    const upload = (): Element => Array.from(el.querySelectorAll('nav a.nav-link')).find((a) => a.textContent!.includes('Operaciones logísticas'))!;
     expect(upload().classList.contains('soon-item')).toBeTrue();
     expect(upload().getAttribute('title')).toBe('Próximamente');
     expect(el.querySelector('nav a.nav-link')!.classList.contains('soon-item')).toBeFalse(); // Resumen
-    expect(upload().getAttribute('aria-label')).toBe('Calidad de datos · Próximamente');
+    expect(upload().getAttribute('aria-label')).toBe('Operaciones logísticas · Próximamente');
     expect(upload().querySelector('.pill')!.textContent).toBe('Próximamente'); // etiqueta visible en el menú
     expect(el.querySelector('nav a.nav-link .pill')).not.toBeNull();
     expect(el.querySelector('nav a.nav-link')!.querySelector('.pill')).toBeNull(); // Resumen no la lleva

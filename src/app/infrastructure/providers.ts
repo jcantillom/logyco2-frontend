@@ -9,7 +9,10 @@ import {
   OrganizationsRepository,
   UsersRepository,
 } from '../domain/repositories/identity.repositories';
+import { DuplicatesRepository } from '../domain/repositories/duplicates.repositories';
+import { ReconciliationRepository } from '../domain/repositories/reconciliation.repositories';
 import { EmissionsRepository } from '../domain/repositories/emissions.repositories';
+import { FootprintRepository } from '../domain/repositories/footprint.repositories';
 import { ImportsRepository } from '../domain/repositories/imports.repositories';
 import { NotificationsRepository } from '../domain/repositories/notifications.repositories';
 import { PlatformVehiclesRepository, VehiclesRepository } from '../domain/repositories/vehicles.repositories';
@@ -27,7 +30,10 @@ import {
   HttpRbacRepository,
   HttpSuperAdminsRepository,
 } from './repositories/http-platform-admin.repositories';
+import { HttpDuplicatesRepository } from './repositories/http-duplicates.repositories';
+import { HttpReconciliationRepository } from './repositories/http-reconciliation.repositories';
 import { HttpEmissionsRepository } from './repositories/http-emissions.repositories';
+import { HttpFootprintRepository } from './repositories/http-footprint.repositories';
 import { HttpImportsRepository } from './repositories/http-imports.repositories';
 import { HttpNotificationsRepository } from './repositories/http-notifications.repositories';
 import { HttpPlatformVehiclesRepository, HttpVehiclesRepository } from './repositories/http-vehicles.repositories';
@@ -69,8 +75,14 @@ export function provideRepositories(): EnvironmentProviders {
     { provide: RbacRepository, useClass: HttpRbacRepository },
     // Guía de cálculo de emisiones (vehículos, factor del diésel B2 y simulación).
     { provide: EmissionsRepository, useClass: HttpEmissionsRepository },
+    // Huella de CO₂ de la empresa por periodo (totales, por mes y por combustible).
+    { provide: FootprintRepository, useClass: HttpFootprintRepository },
     // Cargas de la empresa: plantilla, subida y revisión del Excel.
     { provide: ImportsRepository, useClass: HttpImportsRepository },
+    // Posibles duplicados de viajes retenidos para revisión (Calidad de datos).
+    { provide: DuplicatesRepository, useClass: HttpDuplicatesRepository },
+    // Conciliación de viajes entre empresas vinculadas (autorizaciones y «Operaciones compartidas»).
+    { provide: ReconciliationRepository, useClass: HttpReconciliationRepository },
     // Avisos del usuario en la empresa (campana).
     { provide: NotificationsRepository, useClass: HttpNotificationsRepository },
     // Inventario de vehículos de la empresa.

@@ -1,3 +1,4 @@
+import { ImportFootprint } from './footprint';
 export type ImportStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type ImportFormat = 'LOGYCO2_TEMPLATE' | 'CARITRANS' | 'UNRECOGNIZED';
 export type ColumnRequirement = 'REQUIRED' | 'CONDITIONAL' | 'RECOMMENDED' | 'OPTIONAL';
@@ -70,6 +71,8 @@ export interface ImportSummary {
   readonly rowsTotal: number | null;
   readonly rowsProcessed: number;
   readonly createdAt: string;
+  /** Cuándo empezó a procesarse; `null` mientras está en cola. */
+  readonly startedAt: string | null;
   readonly finishedAt: string | null;
   readonly createdByName: string | null;
   readonly headline: ImportHeadline | null;
@@ -140,6 +143,8 @@ export interface ImportReview {
 
 export interface ImportDetail extends ImportSummary {
   readonly review: ImportReview | null;
+  /** Huella de CO₂ de esta carga; `null` si aún no se calculó (cargas anteriores al cálculo o sin viajes). */
+  readonly footprint: ImportFootprint | null;
 }
 
 export interface ImportCreated {
@@ -147,6 +152,9 @@ export interface ImportCreated {
   readonly status: ImportStatus;
   /** `true` si el mismo archivo ya se había cargado: se devuelve la carga existente. */
   readonly duplicate: boolean;
+  /** Solo con `duplicate`: nombre y fecha de la carga original, para decir qué archivo ya se había procesado. */
+  readonly fileName: string | null;
+  readonly createdAt: string | null;
 }
 
 /** La plantilla oficial descargada: el archivo y el nombre con el que se guarda. */

@@ -30,6 +30,7 @@ Pantalla única de la empresa activa: información general y de contacto (el adm
 - Búsqueda con retardo, `<app-pagination>` (página de 10), panel lateral de detalle (empresa, relación, historial) y diálogo «Vincular empresa» (empresa registrada o contraparte externa; edición de contrapartes externas).
 - Aceptar, rechazar, cancelar y finalizar piden confirmación con `ConfirmService`; quitar una contraparte externa también. Un conflicto del backend (p. ej. `COUNTERPART_REGISTERED`) se muestra en el diálogo.
 - Las acciones de gestión (vincular, responder, contrapartes) solo se ofrecen con el permiso `relationships:manage`.
+- En «Vinculadas», debajo de la tabla, `<app-reconciliation-consent />` (ver «Conciliación de viajes» más abajo).
 - Exporta `TYPE_LABELS`, `STATUS_LABELS` y `roleText` (textos de tipo de vínculo, estado y rol propio).
 
 ## 4. Facades y store [V]
@@ -56,3 +57,12 @@ Todos vía `ApiClient`, en `infrastructure/repositories/`:
 
 ## 9. Cómo extender
 Datos editables nuevos: añadir el campo a `OrganizationProfileChanges` (`domain/models/organization.ts`), a `updateProfile` en `HttpOrganizationsRepository` y al formulario del diálogo. Acciones de vínculo nuevas: puerto `LinksRepository` -> `HttpLinksRepository` -> `LinksFacade`.
+
+## Conciliación de viajes: permisos por vínculo [V]
+Origen: S5 y S12 de `logyco2-backend/docs/tasks/linked-reconciliation.md`; contratos en `logyco2-backend/docs/modules/reconciliation.md`. **Vincularse no comparte ningún dato**: la conciliación necesita un permiso aparte de cada empresa, revocable y auditado.
+- Componente `ReconciliationConsentComponent` (`reconciliation-consent.component.ts`, `app-reconciliation-consent`, dentro de la sub-pestaña «Vinculadas») y `ReconciliationLinksFacade` (`reconciliation-links.facade.ts`, root: `links` `ScopedResource`, `busyId`, `load`, `changeConsent`, `rescan`). Puerto `ReconciliationRepository` (`GET reconciliation/links`, `PUT reconciliation/links/{id}/consent`, `POST reconciliation/rescan`), enlazado en `providers.ts`.
+- Por cada vínculo vigente (y, de solo lectura, los finalizados con su historia): dos interruptores de la propia empresa, «Permitir buscar viajes compartidos con esta empresa» (`matching_enabled`) y «Compartir los resultados de mis viajes para conciliarlos» (`share_results`, desactivado con su motivo mientras no se permita buscar), cada uno con una línea de lo que concede y de lo que nunca concede; arriba, un aviso fijo: nada se comparte por estar vinculadas, la otra empresa nunca ve tu Excel, se puede revocar y el historial se conserva.
+- De la otra empresa solo se muestran los dos booleanos que da la API («La otra empresa ya lo permitió» / «Aún no lo permite») y el estado efectivo («La conciliación está activa» solo si `matching_active`).
+- Solo con `relationships:manage` se pueden cambiar; sin él se ven en solo lectura con el aviso. Revocar (apagar un interruptor) pide confirmación con la consecuencia; apagar la búsqueda también apaga compartir (el servidor lo exige: 422 `SHARE_REQUIRES_MATCHING`). Al **permitir buscar**, si la respuesta trae `rescan_recommended` se llama `POST …/rescan` y el aviso cuenta el resultado tal cual (cuántos posibles viajes se encontraron, o que no alcanzó a terminar); si la búsqueda falla, dice que el permiso quedó guardado pero la búsqueda no pudo iniciar (la búsqueda exige `imports:create`).
+- Errores en `core/errors/error-catalog.ts`: `LINK_NOT_ACTIVE`, `SHARE_REQUIRES_MATCHING`, `MATCHING_NOT_ACTIVE`, `CANDIDATE_*`, `OPERATION_*`, `PAIR_NOT_CONFIRMABLE`, `CONSENT_REQUIRED`.
+- Lista paginada de 5 (vigentes primero); sin scroll interno. Pruebas: `reconciliation-consent.component.spec.ts`, `reconciliation-links.facade.spec.ts` y un caso en `company-links.component.spec.ts`.

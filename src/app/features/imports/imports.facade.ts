@@ -94,6 +94,13 @@ export interface UploadEntry {
   readonly error: AppError | null;
 }
 
+/** La carga original de un archivo que ya se había procesado: permite decir cuál fue y abrir su resultado. */
+export interface DuplicateOriginal {
+  readonly id: string;
+  readonly fileName: string | null;
+  readonly createdAt: string | null;
+}
+
 /** Qué ofrecer al terminar el lote subido: la ventana de vehículos de un único archivo, o un aviso para varios. */
 export type BatchResult = { readonly kind: 'single'; readonly item: ImportSummary } | { readonly kind: 'group'; readonly count: number };
 
@@ -120,6 +127,8 @@ export class ImportsFacade implements OnDestroy {
   readonly uploads = signal<readonly UploadEntry[]>([]);
   /** Cuántos archivos de los últimos envíos ya estaban cargados (se avisa una sola vez). */
   readonly duplicates = signal(0);
+  /** Las cargas originales de esos archivos (una sola vez cada una), para consultar su resultado. */
+  readonly duplicateOriginals = signal<readonly DuplicateOriginal[]>([]);
   /** Aviso de vehículos al terminar el lote subido; `null` si no hay nada que ofrecer. */
   readonly batchResult = signal<BatchResult | null>(null);
   readonly downloading = signal(false);
@@ -155,6 +164,7 @@ export class ImportsFacade implements OnDestroy {
         this.filter.set('ALL');
         this.uploads.set([]);
         this.duplicates.set(0);
+        this.duplicateOriginals.set([]);
         this.batchResult.set(null);
         this.downloading.set(false);
         this.downloadError.set(null);
@@ -217,7 +227,7 @@ export class ImportsFacade implements OnDestroy {
   enqueue(files: readonly File[]): void {
     if (files.length === 0) return;
 
-    if (!this.uploads().some((entry) => entry.status !== 'failed')) this.duplicates.set(0);
+    if (!this.uploads().some((entry) => entry.status !== 'failed')) this.dismissDuplicates();
 
     // Lo que se acaba de subir se ve en la cola completa, no en una pestaña que podría ocultarlo.
     if (this.filter() !== 'ALL') {
@@ -242,6 +252,7 @@ export class ImportsFacade implements OnDestroy {
 
   dismissDuplicates(): void {
     this.duplicates.set(0);
+    this.duplicateOriginals.set([]);
   }
 
   dismissBatchResult(): void {
@@ -311,7 +322,10 @@ export class ImportsFacade implements OnDestroy {
           this.sending.delete(entry.id);
           this.uploads.update((all) => all.filter((item) => item.id !== entry.id));
 
-          if (created.duplicate) this.duplicates.update((count) => count + 1);
+          if (created.duplicate) {
+            this.duplicates.update((count) => count + 1);
+            this.duplicateOriginals.update((all) => (all.some((original) => original.id === created.id) ? all : [...all, { id: created.id, fileName: created.fileName, createdAt: created.createdAt }]));
+          }
           else this.batchIds.add(created.id);
 
           this.pump();

@@ -67,6 +67,20 @@ describe('CompanyLinksComponent: Empresas vinculadas', () => {
     expect(el().textContent).toContain('Gestiona las empresas con las que compartes operaciones logísticas o servicios de transporte.');
   });
 
+  it('en «Vinculadas» muestra la conciliación de viajes con sus permisos y no en «Solicitudes»', () => {
+    init([link('1')]);
+    http.expectOne(`${ORG}/reconciliation/links`).flush({ data: [{ relationship_id: 'r1', status: 'ACTIVE', relationship_type: 'TRANSPORT_SERVICE', our_role: 'CONTRACTOR', counterpart: { id: 'c-1', name: 'Cliente 1' }, my_consent: { matching_enabled: false, share_results: false, updated_at: null }, counterpart_consent: { matching_enabled: false, share_results: false }, matching_active: false, results_shared: false, can_scan: false }] });
+    fixture.detectChanges();
+
+    expect(q('[data-testid="recon-section"]')).not.toBeNull();
+    expect(q('[data-testid="switch-matching"]')).not.toBeNull();
+
+    click('[data-testid="sub-requests"]');
+    http.match((r) => r.url === `${ORG}/links`);
+
+    expect(q('[data-testid="recon-section"]')).toBeNull();
+  });
+
   it('lista las vinculadas con empresa, tipo, nuestra relación y estado', () => {
     init([link('1'), link('2', { our_role: 'CONTRACTOR', relationship_type: 'SUBCONTRACTING' })]);
 

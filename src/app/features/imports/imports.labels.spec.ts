@@ -4,6 +4,7 @@ describe('imports.labels', () => {
   it('traduce las fases de la revisión y usa un texto neutro para las que no conoce', () => {
     expect(phaseLabel('READING')).toBe('Leyendo el archivo');
     expect(phaseLabel('REVIEWING')).toBe('Revisando los datos');
+    expect(phaseLabel('CALCULATING')).toBe('Calculando emisiones');
     expect(phaseLabel('DONE')).toBe('Revisión terminada');
     expect(phaseLabel('OTRA')).toBe('Procesando');
     expect(phaseLabel(null)).toBe('En cola, esperando su turno');
@@ -52,6 +53,7 @@ describe('imports.labels', () => {
   });
 
   it('cada código de motivo conocido tiene una acción en lenguaje llano y uno desconocido no inventa ninguna', () => {
+    expect(pendingAction('VEHICLE_CONFLICT')).toBe('Los datos distintos de un vehículo ya no frenan el cálculo: este viaje se calcula al recalcular la carga, con los datos de su fila.');
     expect(pendingAction('MISSING_DISTANCE_WITH_ROUTE')).toBe('Revisa el municipio de origen y destino, o agrega la distancia en km del viaje.');
     expect(pendingAction('DISTANCE_WITHOUT_EFFICIENCY')).toBe('Agrega el rendimiento del vehículo (km por galón, litro o m³).');
     expect(pendingAction('MISSING_ENERGY_DATA')).toBe('Agrega el consumo de combustible, o la distancia y el rendimiento.');

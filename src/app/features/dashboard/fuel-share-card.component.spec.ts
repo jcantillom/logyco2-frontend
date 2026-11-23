@@ -3,9 +3,9 @@ import { FootprintByFuel } from '../../domain/models/footprint';
 import { FuelShareCardComponent } from './fuel-share-card.component';
 
 const FUELS: FootprintByFuel = [
-  { fuelCode: 'DIESEL_B2', name: 'Diésel B2', kgCo2e: 43_432 },
-  { fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', kgCo2e: 4_972 },
-  { fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2e: 2_341 },
+  { fuelCode: 'DIESEL_B2', name: 'Diésel B2', kgCo2: 43_432, consumption: [] },
+  { fuelCode: 'GASOLINE_MOTOR', name: 'Gasolina motor', kgCo2: 4_972, consumption: [] },
+  { fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2: 2_341, consumption: [] },
 ];
 
 describe('FuelShareCardComponent', () => {
@@ -50,7 +50,7 @@ describe('FuelShareCardComponent', () => {
 
   it('el total y las porciones son los del periodo recibido: al cambiar de periodo cambian', () => {
     render({ byFuel: FUELS });
-    fixture.componentRef.setInput('byFuel', [{ fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2e: 1_200 }]);
+    fixture.componentRef.setInput('byFuel', [{ fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2: 1_200, consumption: [] }]);
     fixture.detectChanges();
 
     expect(text('[data-testid="donut-total"]')).toBe('1.200');
@@ -58,14 +58,14 @@ describe('FuelShareCardComponent', () => {
   });
 
   it('con más de 4 combustibles agrupa «Otros»', () => {
-    render({ byFuel: [1, 2, 3, 4, 5, 6].map((n) => ({ fuelCode: `F${n}`, name: `Combustible ${n}`, kgCo2e: n * 100 })) });
+    render({ byFuel: [1, 2, 3, 4, 5, 6].map((n) => ({ fuelCode: `F${n}`, name: `Combustible ${n}`, kgCo2: n * 100 })) });
     const names = Array.from(el().querySelectorAll('[data-testid="donut-row"] .name')).map((n) => n.textContent);
 
     expect(names).toEqual(['Combustible 6', 'Combustible 5', 'Combustible 4', 'Combustible 3', 'Otros']);
   });
 
   it('con cálculo pero todos los combustibles en 0 dice «No hay cálculo para este periodo»', () => {
-    render({ byFuel: [{ fuelCode: 'A', name: 'A', kgCo2e: 0 }] });
+    render({ byFuel: [{ fuelCode: 'A', name: 'A', kgCo2: 0, consumption: [] }] });
 
     expect(text('[data-testid="chart-message"]')).toBe('No hay cálculo para este periodo');
     expect(q('app-share-donut')).toBeNull();
@@ -112,7 +112,7 @@ describe('FuelShareCardComponent', () => {
       expect(ring.getAttribute('aria-hidden')).toBe('true');
       expect(ring.getBoundingClientRect().width).toBe(150);
       expect(ring.querySelector('.track')!.getAttribute('r')).toBe('38');
-      expect(getComputedStyle(ring.querySelector('.track')!).strokeWidth).toBe('16px');
+      expect(getComputedStyle(ring.querySelector('.track')!).strokeWidth).toBe('18px');
       expect(getComputedStyle(ring.querySelector('.edge')!).strokeDasharray).not.toBe('none');
       expect(Array.from(ring.querySelectorAll('text')).map((t) => t.textContent)).toEqual(['—', 'Sin cálculo']);
     });
@@ -146,7 +146,7 @@ describe('FuelShareCardComponent', () => {
     });
 
     it('con cálculo pero sin combustibles en el periodo muestra el mismo marco con «No hay cálculo para este periodo»', () => {
-      render({ byFuel: [{ fuelCode: 'A', name: 'A', kgCo2e: 0 }] });
+      render({ byFuel: [{ fuelCode: 'A', name: 'A', kgCo2: 0, consumption: [] }] });
 
       expect(frame()).not.toBeNull();
       expect(text('[data-testid="chart-message"]')).toBe('No hay cálculo para este periodo');
@@ -175,6 +175,43 @@ describe('FuelShareCardComponent', () => {
       expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}(?![0-9a-zA-Z-])/);
       expect(css).not.toMatch(/rgb\(/);
       for (const m of css.matchAll(/color-mix\(in srgb, (?!currentColor)[^,]+ (\d+)%/g)) expect([14, 20, 40, 60, 80]).toContain(Number(m[1]));
+    });
+  });
+  describe('datos reales y resultado parcial', () => {
+    it('un resultado parcial lleva «Parcial» junto al periodo, con la aclaración de que el porcentaje es por viajes', () => {
+      render({ byFuel: FUELS, periodLabel: 'Ene 2026 a Mar 2026', partial: true, partialHint: 'Resultado parcial: 12 de 18 viajes calculados. El porcentaje es por cantidad de viajes.' });
+
+      expect(text('[data-testid="chart-partial"]')).toBe('Parcial');
+      expect(q('[data-testid="chart-partial"]')!.getAttribute('title')).toContain('12 de 18 viajes calculados');
+      expect(text('[data-testid="chart-partial-hint"]')).toContain('por cantidad de viajes');
+    });
+
+    it('un resultado completo no lleva «Parcial»', () => {
+      render({ byFuel: FUELS });
+
+      expect(q('[data-testid="chart-partial"]')).toBeNull();
+    });
+
+    it('con huella pero sin viajes calculados explica por qué en lugar del texto genérico', () => {
+      render({ byFuel: [], emptyText: 'Aún no hay emisiones calculadas: faltan datos en 3 viajes' });
+
+      expect(text('[data-testid="chart-message"]')).toBe('Aún no hay emisiones calculadas: faltan datos en 3 viajes');
+    });
+
+    it('con viajes retenidos y resultado completo la frase queda solo en texto accesible: sin marcador y a 256 px', () => {
+      render({ byFuel: FUELS, periodLabel: 'Ene 2026 a Mar 2026', partial: false, partialHint: '12 operaciones por revisar (posibles duplicados) no están sumadas.' });
+      el().style.width = '560px';
+
+      expect(q('[data-testid="chart-partial"]')).toBeNull();
+      expect(text('[data-testid="chart-partial-hint"]')).toBe('12 operaciones por revisar (posibles duplicados) no están sumadas.');
+      expect(q('.cc')!.getBoundingClientRect().height).toBe(256);
+    });
+
+    it('la altura de la tarjeta no cambia con el marcador «Parcial» (256 px)', () => {
+      render({ byFuel: FUELS, periodLabel: 'Ene 2026 a Mar 2026', partial: true, partialHint: 'x' });
+      el().style.width = '560px';
+
+      expect(q('.cc')!.getBoundingClientRect().height).toBe(256);
     });
   });
 });

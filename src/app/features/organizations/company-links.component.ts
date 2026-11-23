@@ -26,6 +26,7 @@ import { CloseOnBackdropDirective } from '../../shared/ui/close-on-backdrop.dire
 import { PaginationComponent } from '../../shared/ui/pagination.component';
 import { ResourceStateComponent } from '../../shared/ui/resource-state.component';
 import { LinksFacade } from './links.facade';
+import { ReconciliationConsentComponent } from './reconciliation-consent.component';
 
 type Sub = 'linked' | 'requests' | 'external';
 type Mode = 'registered' | 'external';
@@ -67,7 +68,7 @@ export function roleText(type: string, role: OurRole): string {
 /** Pestaña «Empresas vinculadas»: vínculos con empresas registradas (con aceptación de la otra) y contrapartes externas. */
 @Component({
   selector: 'app-company-links',
-  imports: [CloseOnBackdropDirective, DatePipe, NgTemplateOutlet, ReactiveFormsModule, PaginationComponent, ResourceStateComponent],
+  imports: [CloseOnBackdropDirective, DatePipe, NgTemplateOutlet, ReactiveFormsModule, PaginationComponent, ReconciliationConsentComponent, ResourceStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -183,6 +184,7 @@ export function roleText(type: string, role: OurRole): string {
         @case ('linked') {
           <div class="bar"><input class="input" type="search" placeholder="Buscar empresa vinculada" aria-label="Buscar empresa vinculada" data-testid="link-search" [value]="facade.search()" (input)="onSearch($event)" /></div>
           <ng-container [ngTemplateOutlet]="linksTable" />
+          <app-reconciliation-consent />
         }
         @case ('requests') {
           <div class="bar">

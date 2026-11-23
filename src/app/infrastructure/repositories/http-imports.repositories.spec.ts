@@ -56,7 +56,16 @@ describe('HttpImportsRepository', () => {
     expect(req.request.headers.has('Content-Type')).toBeFalse();
     req.flush({ data: { id: 'imp-1', status: 'QUEUED', duplicate: false } }, { status: 202, statusText: 'Accepted' });
 
-    expect(created).toEqual({ id: 'imp-1', status: 'QUEUED', duplicate: false });
+    expect(created).toEqual({ id: 'imp-1', status: 'QUEUED', duplicate: false, fileName: null, createdAt: null });
+  });
+
+  it('upload: un archivo ya cargado trae el nombre y la fecha de la carga original', () => {
+    let created: unknown = null;
+
+    repo.upload(ORG, new File(['x'], 'a.xlsx'), 'k').subscribe((r) => (created = r));
+    http.expectOne(IMPORTS_URL).flush({ data: { id: 'imp-0', status: 'COMPLETED', duplicate: true, file_name: 'original.xlsx', created_at: '2026-03-01T10:00:00Z' } }, { status: 200, statusText: 'OK' });
+
+    expect(created).toEqual({ id: 'imp-0', status: 'COMPLETED', duplicate: true, fileName: 'original.xlsx', createdAt: '2026-03-01T10:00:00Z' });
   });
 
   it('upload: un archivo ya cargado responde 200 con duplicate: true', () => {

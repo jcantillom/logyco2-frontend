@@ -10,8 +10,8 @@ const DROP = 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z';
 
 /**
  * Tarjeta «Emisiones por tipo de combustible» (dona con leyenda). Solo cuenta los combustibles del periodo elegido y el total del centro es el de ese
- * periodo. Presentacional: hoy `byFuel` es `null` (no existe el cálculo) y muestra el estado pendiente sin dibujar nada; con cálculo pero sin datos del
- * periodo dice «No hay cálculo para este periodo».
+ * periodo. Presentacional: `byFuel` es `null` si aún no se pidió la huella (estado pendiente, sin dibujar nada); con huella pero sin viajes calculados dice por qué
+ * (`emptyText`) o «No hay cálculo para este periodo». Un resultado parcial lleva el marcador «Parcial».
  */
 @Component({
   selector: 'app-fuel-share-card',
@@ -24,6 +24,8 @@ const DROP = 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z';
         <span class="ico chip" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="icon" /></svg></span>
         <div class="ht"><h2 id="fc-title">Emisiones por tipo de combustible</h2><p>Participación de cada combustible en el periodo elegido</p></div>
         @if (periodLabel(); as label) { <span class="pchip" data-testid="chart-period">{{ label }}</span> }
+        @if (partial()) { <span class="pchip partial" data-testid="chart-partial" [attr.title]="partialHint()">Parcial</span> }
+        @if (partialHint()) { <span class="sr-only" data-testid="chart-partial-hint">{{ partialHint() }}</span> }
       </header>
       <div class="body">
         @switch (status()) {
@@ -42,7 +44,7 @@ const DROP = 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z';
                 </svg>
                 <div class="legend-frame">
                   <div class="lines" aria-hidden="true" data-testid="legend-frame"><b style="width: 82%"></b><b style="width: 64%"></b><b style="width: 48%"></b></div>
-                  <p class="note" role="status" data-testid="chart-message">{{ byFuel() === null ? pendingText : noPeriodText }}</p>
+                  <p class="note" role="status" data-testid="chart-message">{{ byFuel() === null ? pendingText : (emptyText() ?? noPeriodText) }}</p>
                 </div>
               </div>
             }
@@ -54,9 +56,15 @@ const DROP = 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z';
   `,
 })
 export class FuelShareCardComponent {
-  /** Huella por combustible del periodo elegido; `null` mientras no exista el cálculo. */
+  /** Huella por combustible del periodo elegido; `null` mientras no se haya pedido. */
   readonly byFuel = input<FootprintByFuel | null>(null);
   readonly periodLabel = input<string | null>(null);
+  /** El resultado es parcial (hay viajes sin calcular): se marca junto al periodo. */
+  readonly partial = input(false);
+  /** Aclaración del resultado parcial (cobertura por viajes), para `title` y lectores de pantalla. */
+  readonly partialHint = input<string | null>(null);
+  /** Texto del estado vacío cuando hay huella pero ningún viaje calculado (explica por qué); `null` = el genérico. */
+  readonly emptyText = input<string | null>(null);
   readonly status = input<ResourceStatus>('ready');
   readonly retry = output();
 

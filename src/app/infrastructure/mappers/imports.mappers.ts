@@ -19,6 +19,7 @@ import {
   VehicleDecisionRequest,
   VehicleDecisionResult,
 } from '../../domain/models/imports';
+import { toImportFootprint } from './footprint.mappers';
 import {
   ImportColumnDto,
   ImportCountsDto,
@@ -62,6 +63,7 @@ export function toImportSummary(dto: ImportSummaryDto): ImportSummary {
     rowsTotal: dto.rows_total,
     rowsProcessed: dto.rows_processed,
     createdAt: dto.created_at,
+    startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at,
     createdByName: dto.created_by_name,
     headline: dto.headline
@@ -136,7 +138,7 @@ const toReview = (dto: ImportReviewDto): ImportReview => ({
   totals: { distanceFromRoutesKm: dto.totals?.distance_from_routes_km ?? 0 },
 });
 
-export const toImportDetail = (dto: ImportDetailDto): ImportDetail => ({ ...toImportSummary(dto), review: dto.review ? toReview(dto.review) : null });
+export const toImportDetail = (dto: ImportDetailDto): ImportDetail => ({ ...toImportSummary(dto), review: dto.review ? toReview(dto.review) : null, footprint: dto.footprint ? toImportFootprint(dto.footprint) : null });
 
 export const toImportPeriod = (dto: ImportPeriodDto): ImportPeriod => ({ from: dto.period_from, to: dto.period_to, imports: dto.imports ?? 0, rowsRead: dto.rows_read ?? 0 });
 
@@ -162,7 +164,7 @@ export const toImportCounts = (dto: ImportCountsDto): ImportCounts => ({
   distanceFromRoutesKm: dto.distance_from_routes_km ?? 0,
 });
 
-export const toImportCreated = (dto: ImportCreatedDto): ImportCreated => ({ id: dto.id, status: importStatus(dto.status), duplicate: dto.duplicate });
+export const toImportCreated = (dto: ImportCreatedDto): ImportCreated => ({ id: dto.id, status: importStatus(dto.status), duplicate: dto.duplicate, fileName: dto.file_name ?? null, createdAt: dto.created_at ?? null });
 
 /** Valor de un cambio: siempre texto o `null`, venga como venga del servidor. */
 const text = (value: unknown): string | null => (value === null || value === undefined || value === '' ? null : String(value));

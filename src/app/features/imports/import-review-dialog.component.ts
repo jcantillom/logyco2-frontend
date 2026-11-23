@@ -1,15 +1,18 @@
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AppError } from '../../core/errors/app-error';
 import { toAppError } from '../../core/errors/http-error-mapper';
 import { ImportColumn, ImportReview, ImportRoutes, ImportSummary, ReviewIssue } from '../../domain/models/imports';
-import { periodKind, periodRangeLabel } from '../../domain/models/period';
+import { monthLabel, periodKind, periodRangeLabel } from '../../domain/models/period';
+import { COVERAGE_CAVEAT, FOOTPRINT_UNIT, coverageHint, coverageLine, formatKgCo2, formatPct, measuredEstimatedHint, measuredEstimatedLine, noEmissionsReason, possibleDuplicatesLine } from '../../shared/ui/footprint.format';
 import { CloseOnBackdropDirective } from '../../shared/ui/close-on-backdrop.directive';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import { ExcelIconComponent } from '../../shared/ui/excel-icon.component';
 import { TruckProgressComponent } from '../../shared/ui/truck-progress.component';
 import { ImportsFacade } from './imports.facade';
-import { DIVIPOLA_URL, FORMAT_LABELS, MAX_EXAMPLES, OSM_COPYRIGHT_URL, exampleText, routesCount, REQUIREMENT_LABELS, SEVERITY_LABELS, formatCount, formatSize, isRunning, pendingAction, percent, phaseLabel, sampleRowsShort, share, tripsCount } from './imports.labels';
+import { DIVIPOLA_URL, FORMAT_LABELS, MAX_EXAMPLES, OSM_COPYRIGHT_URL, exampleText, routesCount, REQUIREMENT_LABELS, SEVERITY_LABELS, formatCount, formatSize, isRunning, pendingAction, phaseLabel, sampleRowsShort, share, tripsCount } from './imports.labels';
+import { overallPercent, processedIn, stepText } from './imports.progress';
 
 /** Trazos de los íconos (viewBox 24, sin relleno). */
 const ICONS = {
@@ -28,8 +31,11 @@ interface TodoItem {
   readonly examples: readonly string[];
 }
 
+/** Cuántos meses con su huella se ven de entrada; el resto va en «+N más» (con su detalle en el tooltip y el texto accesible). */
+const VISIBLE_MONTHS = 6;
+
 /** Cuántos motivos pendientes se ven de entrada; el resto va plegado. */
-const VISIBLE_REASONS = 3;
+const VISIBLE_REASONS = 2;
 
 /** Las columnas que el usuario debe traer para que los viajes se puedan calcular. */
 const NEEDED_REQUIREMENTS: ReadonlySet<string> = new Set(['REQUIRED', 'CONDITIONAL']);
@@ -40,12 +46,12 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
 /** Informe de una carga: qué tan lista está (veredicto), el desglose, qué hacer y, plegados, los avisos y las columnas. */
 @Component({
   selector: 'app-import-review-dialog',
-  imports: [DatePipe, NgTemplateOutlet, CloseOnBackdropDirective, StatusBadgeComponent, TruckProgressComponent, ExcelIconComponent],
+  imports: [DatePipe, NgTemplateOutlet, RouterLink, CloseOnBackdropDirective, StatusBadgeComponent, TruckProgressComponent, ExcelIconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
       :host { display: contents; }
-      dialog.review { width: min(720px, calc(100vw - var(--dlg-left, 0px) - 24px)); max-height: calc(100dvh - 24px); border-radius: 18px; overflow: hidden; }
+      dialog.review { width: min(800px, calc(100vw - var(--dlg-left, 0px) - 24px)); max-height: calc(100dvh - 24px); border-radius: 18px; overflow: hidden; }
       dialog.review[open] { display: flex; flex-direction: column; }
       .head { display: flex; align-items: center; gap: 12px; padding: 14px 18px 14px 22px; border-bottom: 1px solid var(--c-bd); background: radial-gradient(120% 140% at 0 0, var(--c-ok-soft), var(--c-sf) 70%); }
       .head .grow { flex: 1 1 auto; min-width: 0; }
@@ -55,7 +61,7 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       .x:hover { background: var(--c-ok-soft); }
       .x:focus-visible, summary:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
       .x svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-      .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 22px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 0.95rem; }
+      .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 22px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 0.95rem; }
       h3 { margin: 0 0 6px; font-size: 0.9rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-accent); }
       .verdict h3 { margin: 0; font-size: 1.6rem; line-height: 1.2; letter-spacing: 0; text-transform: none; color: var(--c-head); font-weight: 800; }
       .verdict .bar { display: flex; height: 10px; margin: 10px 0 6px; border-radius: 999px; overflow: hidden; background: var(--c-s2); }
@@ -63,11 +69,12 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       .verdict .warn { background: color-mix(in srgb, var(--c-primary) 60%, var(--c-sf)); }
       .verdict p.period { margin-top: 8px; font-size: 0.86rem; color: var(--c-mu); }
       .verdict p { margin: 0; color: var(--c-text2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-      .split { list-style: none; margin: 0; padding: 0; border: 1px solid var(--c-bd); border-radius: 12px; overflow: hidden; }
-      .split li { display: grid; grid-template-columns: 28px auto minmax(0, 1fr); align-items: center; gap: 4px 12px; padding: 5px 14px; border-bottom: 1px solid var(--c-bd); }
-      .split li:last-child { border-bottom: 0; }
+      .split { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--c-bd); border-radius: 12px; overflow: hidden; }
+      .split li { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 0 8px; padding: 6px 12px; border-left: 1px solid var(--c-bd); }
+      .split li:first-child { border-left: 0; }
+      .split li span { grid-column: 1 / -1; font-size: 0.86rem; line-height: 1.25; }
       .split svg { width: 22px; height: 22px; fill: none; stroke: var(--c-primary); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-      .split b { min-width: 7ch; font-size: 1.25rem; color: var(--c-head); font-variant-numeric: tabular-nums; }
+      .split b { font-size: 1.25rem; color: var(--c-head); font-variant-numeric: tabular-nums; }
       .split span { min-width: 0; color: var(--c-text2); }
       .split strong { color: var(--c-head); }
       ol.todo { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
@@ -80,7 +87,7 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       details { border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-sf); }
       details.more { border: 0; background: none; }
       details.more[open] > summary { margin-bottom: 8px; }
-      summary { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 14px; cursor: pointer; list-style: none; color: var(--c-head); font-weight: 700; border-radius: 12px; }
+      summary { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 14px; cursor: pointer; list-style: none; color: var(--c-head); font-weight: 700; border-radius: 12px; }
       details.more > summary { padding: 4px 2px; min-height: 32px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
       summary::-webkit-details-marker { display: none; }
       summary::before { content: ''; width: 8px; height: 8px; flex: none; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); }
@@ -104,6 +111,22 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       .verdict p.period.small { margin-top: 2px; font-size: 0.8rem; }
       .todo .ex { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 0.82rem; color: var(--c-mu); }
       ol.todo .ex li { padding: 0; border: 0; border-radius: 0; background: none; }
+      .fp { display: flex; flex-direction: column; gap: 2px; padding: 6px 14px; border: 1px solid color-mix(in srgb, var(--c-secondary) 40%, var(--c-sf)); border-radius: 12px; background: linear-gradient(160deg, color-mix(in srgb, var(--c-secondary) 14%, var(--c-sf)), var(--c-sf) 70%); }
+      .fp .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+      .fp h3 { margin: 0 4px 0 0; font-size: 0.74rem; align-self: center; }
+      .fp .top .meas { margin: 0 0 0 auto; color: var(--c-text2); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+      .fp .big { font-size: 1.45rem; font-weight: 800; line-height: 1.1; color: var(--c-head); font-variant-numeric: tabular-nums; }
+      .fp .big.none { color: var(--c-mute2); }
+      .fp .unit { font-weight: 700; color: var(--c-text2); }
+      .fp .tag { padding: 0 8px; border-radius: 999px; background: var(--c-sf); box-shadow: inset 0 0 0 1px var(--c-primary); color: var(--c-head); font-size: 0.74rem; font-weight: 800; }
+      .fp .line { margin: 0; color: var(--c-text2); font-size: 0.86rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+      .fp .line b { color: var(--c-head); }
+      .fp .dup { margin: 0; font-size: 0.86rem; color: var(--c-text2); }
+      .fp .dup a { color: var(--c-accent); font-weight: 700; text-underline-offset: 2px; }
+      .fp .dup a:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; border-radius: 4px; }
+      .fp .small { margin: 0; color: var(--c-mu); font-size: 0.78rem; }
+      .fp .months { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 0; list-style: none; }
+      .fp .months li { padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--c-secondary) 14%, var(--c-sf)); color: var(--c-head); font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
       .attrib { margin: 0; font-size: 0.78rem; color: var(--c-mu); }
       .attrib a { color: var(--c-accent); text-underline-offset: 2px; }
       .attrib a:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; border-radius: 4px; }
@@ -123,8 +146,9 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       @media (max-width: 520px) {
         .body { padding: 14px 16px 16px; }
         .verdict h3 { font-size: 1.35rem; }
-        .split li { grid-template-columns: 28px auto; }
-        .split span { grid-column: 1 / -1; }
+        .split { grid-template-columns: minmax(0, 1fr); }
+        .split li { border-left: 0; border-top: 1px solid var(--c-bd); }
+        .split li:first-child { border-top: 0; }
       }
     `,
   ],
@@ -134,7 +158,7 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
         <app-excel-icon [size]="40" />
         <div class="grow">
           <h2 id="review-title">{{ summary().fileName }}</h2>
-          <small data-testid="review-meta">{{ size(summary().fileSize) }} · {{ summary().createdAt | date: 'd MMM y, HH:mm' }}</small>
+          <small data-testid="review-meta">{{ size(summary().fileSize) }} · {{ summary().createdAt | date: 'd MMM y, HH:mm' }}@if (took(); as t) { · <span data-testid="review-took">{{ t }}</span> }</small>
         </div>
         @if (format(); as f) { <app-status-badge [label]="formatLabels[f]" data-testid="review-format" /> }
         <button type="button" class="x" data-testid="close-review" aria-label="Cerrar" (click)="dialog.close()"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.close" /></svg></button>
@@ -151,7 +175,7 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
             <div class="prog" data-testid="review-progress">
               <h3>Estamos revisando tu archivo</h3>
               <app-truck-progress [percent]="percentDone()" label="Avance de la revisión" />
-              <p class="muted">{{ phase(d.phase) }}@if (d.rowsProcessed > 0) { · {{ count(d.rowsProcessed) }}@if (d.rowsTotal !== null) { de {{ count(d.rowsTotal) }} } filas }</p>
+              <p class="muted">{{ step(d.phase) ?? phase(d.phase) }}@if (d.rowsProcessed > 0) { · {{ count(d.rowsProcessed) }}@if (d.rowsTotal !== null) { de {{ count(d.rowsTotal) }} } filas }</p>
             </div>
           } @else if (d.status === 'FAILED') {
             <div class="msg" role="alert" data-testid="review-failed">
@@ -184,6 +208,37 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
                   @if (routes.rowsByUniqueName > 0) { <p class="period small" data-testid="review-routes-unique">{{ tripsCount(routes.rowsByUniqueName) }} {{ routes.rowsByUniqueName === 1 ? 'se reconoció' : 'se reconocieron' }} por el nombre único del municipio</p> }
                 }
               </section>
+
+              @if (footprint(); as f) {
+                <section class="fp" aria-labelledby="fp-title" data-testid="review-footprint">
+                  @if (f.hasEmissions) {
+                    <div class="top">
+                      <h3 id="fp-title">Huella de esta carga</h3>
+                      <b class="big" data-testid="footprint-total">{{ f.value }}</b><span class="unit">{{ f.unit }}</span>
+                      @if (f.partial) { <span class="tag" data-testid="footprint-partial" [attr.title]="f.hint">Parcial</span> }
+                      <span class="meas" data-testid="footprint-method" [attr.title]="f.measuredHint">{{ f.measured }}<span class="sr-only">. {{ f.measuredHint }}</span></span>
+                    </div>
+                  } @else {
+                    <div class="top"><h3 id="fp-title">Huella de esta carga</h3><b class="big none" data-testid="footprint-total">—</b></div>
+                    <p class="line" data-testid="footprint-empty">{{ f.emptyText }}</p>
+                  }
+                  <p class="line" data-testid="footprint-trips"><b>{{ count(f.trips.calculated) }}</b> calculados · <b>{{ count(f.trips.pending) }}</b> pendientes · <b>{{ count(f.trips.blocked) }}</b> bloqueados · <b>{{ count(f.trips.duplicate) }}</b> {{ f.trips.duplicate === 1 ? 'duplicado' : 'duplicados' }}</p>
+                  @if (f.duplicatesLine; as line) {
+                    <p class="dup" data-testid="footprint-possible-duplicates">{{ line }}. <a routerLink="/calidad" [queryParams]="{ import_file_id: summary().id }" data-testid="review-duplicates-link">Revisar posibles duplicados</a></p>
+                  }
+                  @if (f.hasEmissions) {
+                    @if (f.months.length > 0) {
+                      <ul class="months" aria-label="Huella por mes" data-testid="footprint-months">
+                        @for (m of f.months; track m.label) { <li>{{ m.label }}: {{ m.kg }} kg</li> }
+                        @if (f.hiddenMonths; as more) { <li data-testid="footprint-more-months" [attr.title]="f.hiddenText">+{{ more }} más<span class="sr-only">: {{ f.hiddenText }}</span></li> }
+                      </ul>
+                    }
+                  }
+                  @if (f.coverage) { <p class="small" data-testid="footprint-coverage" [attr.title]="f.hint">{{ f.coverage }} · {{ shortCaveat }}<span class="sr-only">. {{ caveat }}</span></p> }
+                </section>
+              } @else {
+                <p class="note" data-testid="review-no-footprint">Esta carga todavía no tiene su huella calculada, por eso no mostramos cifras de CO₂.</p>
+              }
 
               <ul class="split" aria-label="Desglose de los viajes" data-testid="review-breakdown">
                 <li data-testid="breakdown-real"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.real" /></svg><b>{{ count(r.methods.realConsumption) }}</b><span><strong>Con consumo real.</strong> Usamos el combustible que reportaste</span></li>
@@ -256,7 +311,6 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
                 <p class="attrib" data-testid="review-attribution">Distancias por carretera © colaboradores de <a [href]="osmUrl" target="_blank" rel="noopener noreferrer">OpenStreetMap (ODbL)</a> · Municipios: <a [href]="divipolaUrl" target="_blank" rel="noopener noreferrer">DANE, DIVIPOLA (CC BY-SA 4.0)</a></p>
               }
               <p class="foot" data-testid="counters"><span>{{ plates(r.vehicles.distinctPlates) }}</span><span>·</span><span>{{ trips(r.trips.distinctTripIds) }}</span></p>
-              <p class="note" data-testid="honest-note">Esta revisión todavía no guarda viajes ni calcula emisiones.</p>
             }
           } @else {
             <p class="muted">Esta carga no tiene una revisión disponible.</p>
@@ -289,6 +343,7 @@ export class ImportReviewDialogComponent {
   protected readonly requirementLabels = REQUIREMENT_LABELS;
   protected readonly severityLabels = SEVERITY_LABELS;
   protected readonly phase = phaseLabel;
+  protected readonly step = stepText;
   protected readonly samples = sampleRowsShort;
   protected readonly count = formatCount;
   protected readonly size = formatSize;
@@ -300,6 +355,10 @@ export class ImportReviewDialogComponent {
   protected readonly osmUrl = OSM_COPYRIGHT_URL;
   protected readonly divipolaUrl = DIVIPOLA_URL;
   protected readonly retryError = signal<AppError | null>(null);
+
+  protected readonly caveat = COVERAGE_CAVEAT;
+  /** Versión corta y siempre visible de la aclaración (el texto completo va en `title` y en texto accesible). */
+  protected readonly shortCaveat = '% por cantidad de viajes, no por emisiones';
 
   protected readonly detail = computed(() => {
     const data = this.facade.detail.data();
@@ -315,7 +374,41 @@ export class ImportReviewDialogComponent {
   protected readonly percentDone = computed(() => {
     const d = this.detail();
 
-    return d ? percent(d.rowsProcessed, d.rowsTotal) : null;
+    return d ? overallPercent(d.phase, d.rowsProcessed, d.rowsTotal) : null;
+  });
+  /** «Procesada en 1 min 50 s» de la carga terminada (con los datos más frescos: el detalle o, mientras llega, la fila). */
+  protected readonly took = computed(() => {
+    const item = this.detail() ?? this.summary();
+
+    return item.status === 'COMPLETED' ? processedIn(item) : null;
+  });
+
+  /** Huella de esta carga lista para mostrar; `null` si el servidor no la trae (carga anterior al cálculo o sin viajes): sin cifras inventadas. */
+  protected readonly footprint = computed(() => {
+    const f = this.detail()?.footprint;
+
+    if (!f) return null;
+
+    const scope = f.trips.calculated + f.trips.pending + f.trips.blocked;
+    const months = f.byMonth.filter((m) => m.tripsCalculated > 0).map((m) => ({ label: monthLabel(m.month) ?? m.month, kg: formatKgCo2(m.kgCo2) }));
+    const hidden = months.slice(VISIBLE_MONTHS);
+
+    return {
+      hasEmissions: f.trips.calculated > 0,
+      value: formatKgCo2(f.kgCo2),
+      unit: FOOTPRINT_UNIT,
+      partial: f.partial,
+      hint: coverageHint(f.trips.calculated, scope, f.coverageTripsPct),
+      duplicatesLine: possibleDuplicatesLine(f.trips.possibleDuplicate),
+      coverage: f.partial ? `${coverageLine(f.trips.calculated, scope)}${f.coverageTripsPct === null ? '' : ` (${formatPct(f.coverageTripsPct)} % de los viajes)`}` : null,
+      emptyText: noEmissionsReason(f.trips.pending + f.trips.blocked),
+      trips: f.trips,
+      measured: measuredEstimatedLine(f),
+      measuredHint: measuredEstimatedHint(f),
+      months: months.slice(0, VISIBLE_MONTHS),
+      hiddenMonths: hidden.length,
+      hiddenText: hidden.map((m) => `${m.label}: ${m.kg} kg`).join(' · '),
+    };
   });
 
   /** Viajes con los datos necesarios: con consumo real más con consumo estimado. */

@@ -278,6 +278,87 @@ describe('ImportsComponent: Cargar información', () => {
     });
   });
 
+  describe('archivo ya procesado y conflictos de envío', () => {
+    const original = (id: string, fileName: string, createdAt = '2026-03-01T10:00:00Z') => ({ data: { id, status: 'COMPLETED', duplicate: true, file_name: fileName, created_at: createdAt } });
+
+    it('un archivo ya procesado no es un error ni suma otra fila a la cola: dice cuál fue y cuándo, y no queda en «Enviando»', () => {
+      open();
+      pick(xlsx('copia.xlsx'));
+      postRequests()[0].flush(original('imp-0', 'operaciones-marzo.xlsx'), { status: 200, statusText: 'OK' });
+      fixture.detectChanges();
+
+      expect(text('[data-testid="duplicate"] span')).toBe('Este archivo ya fue procesado el 1 de marzo de 2026: «operaciones-marzo.xlsx». No se volvió a sumar a tus emisiones.');
+      expect(q('[data-testid="upload-error"]')).toBeNull();
+      expect(q('[data-testid="upload-item-error"]')).toBeNull();
+      expect(qa('[data-testid="upload-item"]').length).toBe(0);
+      http.match((r) => r.url === IMPORTS_URL && r.method === 'GET');
+    });
+
+    it('«Ver resultado original» abre la revisión de la carga original, sin volver a subir el archivo', () => {
+      open();
+      pick(xlsx('copia.xlsx'));
+      postRequests()[0].flush(original('imp-0', 'operaciones-marzo.xlsx'), { status: 200, statusText: 'OK' });
+      fixture.detectChanges();
+      http.match((r) => r.url === IMPORTS_URL && r.method === 'GET');
+
+      click('[data-testid="open-original"]');
+      http.expectOne({ method: 'GET', url: `${IMPORTS_URL}/imp-0` }).flush({ data: importDetailDto({ id: 'imp-0', file_name: 'operaciones-marzo.xlsx' }) });
+      fixture.detectChanges();
+
+      expect(q('dialog[data-testid="import-review"]')).not.toBeNull();
+      expect(text('dialog[data-testid="import-review"] h2')).toBe('operaciones-marzo.xlsx');
+      expect(postRequests().length).toBe(0);
+    });
+
+    it('con varios archivos ya procesados lista cada original con su fecha y su propio enlace al resultado', () => {
+      open();
+      pick(xlsx('a.xlsx'), xlsx('b.xlsx'));
+      const [first, second] = postRequests();
+
+      first.flush(original('imp-1', 'uno.xlsx'), { status: 200, statusText: 'OK' });
+      second.flush(original('imp-2', 'dos.xlsx', '2026-04-02T10:00:00Z'), { status: 200, statusText: 'OK' });
+      fixture.detectChanges();
+      http.match((r) => r.url === IMPORTS_URL && r.method === 'GET');
+
+      expect(text('[data-testid="duplicate"] span')).toBe('2 archivos ya estaban cargados');
+      expect(qa('[data-testid="duplicate-original"]').map((li) => li.querySelector('span')!.textContent)).toEqual(['«uno.xlsx» · procesado el 1 de marzo de 2026', '«dos.xlsx» · procesado el 2 de abril de 2026']);
+      expect(qa('[data-testid="duplicate-original"] [data-testid="open-original"]').length).toBe(2);
+    });
+
+    it('si el original no se puede abrir lo dice, sin romper la pantalla', () => {
+      open();
+      pick(xlsx('copia.xlsx'));
+      postRequests()[0].flush(original('imp-0', 'operaciones-marzo.xlsx'), { status: 200, statusText: 'OK' });
+      fixture.detectChanges();
+      http.match((r) => r.url === IMPORTS_URL && r.method === 'GET');
+
+      click('[data-testid="open-original"]');
+      http.expectOne({ method: 'GET', url: `${IMPORTS_URL}/imp-0` }).flush({ error: { code: 'IMPORT_NOT_FOUND' } }, { status: 404, statusText: 'Not Found' });
+      fixture.detectChanges();
+
+      expect(text('[data-testid="deep-link-error"]')).toContain('La carga no existe');
+    });
+
+    it('409 IDEMPOTENCY_KEY_REUSED se explica en lenguaje claro y permite reintentar', () => {
+      open();
+      pick(xlsx('a.xlsx'));
+      postRequests()[0].flush({ error: { code: 'IDEMPOTENCY_KEY_REUSED' } }, { status: 409, statusText: 'Conflict' });
+      fixture.detectChanges();
+
+      expect(text('[data-testid="upload-item-error"]')).toBe('Este envío se identificó igual que otro con un archivo distinto, por eso no se pudo completar. Vuelve a seleccionar el archivo e inténtalo de nuevo.');
+      expect(q('[data-testid="retry-upload"]')).not.toBeNull();
+    });
+
+    it('409 IMPORT_ALREADY_PROCESSED al reintentar una carga dice que el archivo ya fue procesado', () => {
+      open([importSummaryDto({ id: 'imp-9', status: 'FAILED', headline: null })], 1);
+      click('[data-testid="retry-import"]');
+      http.expectOne({ method: 'POST', url: `${IMPORTS_URL}/imp-9/retry` }).flush({ error: { code: 'IMPORT_ALREADY_PROCESSED' } }, { status: 409, statusText: 'Conflict' });
+      fixture.detectChanges();
+
+      expect(text('[data-testid="retry-error"]')).toBe('Este archivo ya fue procesado en otra carga de tu empresa. Consulta su resultado en la cola de cargas.');
+    });
+  });
+
   describe('cola de cargas', () => {
     const counts = importCountsDto({ total: 12, in_progress: 2, completed: 7, failed: 3, vehicles_pending: 4 });
 
@@ -377,6 +458,7 @@ describe('ImportsComponent: Cargar información', () => {
       expect(row).toContain('Lista');
       expect(text('[data-testid="row-pct"]')).toBe('85 %');
       expect(text('.rsub')).toBe('170 calculables · 30 por completar');
+      expect(text('[data-testid="row-took"]')).toBe('Procesada en 1 min 55 s');
       expect(q('[data-testid="row-result"] [role="img"]')!.getAttribute('aria-label')).toBe('85 % de los viajes se pueden calcular');
       expect(q('.vchip')).toBeNull();
     });
@@ -416,20 +498,73 @@ describe('ImportsComponent: Cargar información', () => {
       open([importSummaryDto({ status: 'RUNNING', phase: 'READING', rows_total: 3_400_000, rows_processed: 1_250_000, headline: null, finished_at: null })]);
 
       expect(q('[data-testid="row-progress"] app-truck-progress [role="progressbar"]')!.classList).toContain('sm');
-      expect(q('[data-testid="row-progress"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('37');
+      expect(q('[data-testid="row-progress"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('18');
       expect(q('[data-testid="row-progress"] [role="progressbar"]')!.getAttribute('aria-label')).toBe('Avance de operaciones-marzo.xlsx');
-      expect(text('[data-testid="row-rows"]')).toBe('1.250.000 de 3.400.000 filas · Leyendo el archivo');
-      expect(text('[data-testid="row-progress"] .pct')).toBe('37 %');
-      expect(text('[data-testid="phase"]')).toBe('Leyendo el archivo');
+      expect(text('[data-testid="row-rows"]')).toBe('1/2 · Leyendo filas · 1.250.000 de 3.400.000');
+      expect(q('[data-testid="row-rows"]')!.getAttribute('title')).toBe('Paso 1 de 2 · Leyendo filas · 1.250.000 de 3.400.000 filas · calculando…');
+      expect(text('[data-testid="row-progress"] .pct')).toBe('18 %');
+      expect(text('[data-testid="row-eta"]')).toBe('· calculando…');
       expect(text('[data-testid="history-row"]')).toContain('Revisando');
+    });
+
+    it('en la fase CALCULATING el avance es determinado y arranca en 50 % (paso 2 de 2): no retrocede al reiniciarse rows_processed', () => {
+      open([importSummaryDto({ status: 'RUNNING', phase: 'CALCULATING', rows_total: 3_400_000, rows_processed: 0, headline: null, finished_at: null })]);
+
+      expect(q('[data-testid="row-progress"] [role="progressbar"]')!.classList).not.toContain('loop');
+      expect(q('[data-testid="row-progress"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('50');
+      expect(text('[data-testid="row-progress"] .pct')).toBe('50 %');
+      expect(text('[data-testid="row-rows"]')).toBe('2/2 · Calculando emisiones · 0 de 3.400.000');
+      expect(text('[data-testid="row-step"]')).toBe('Paso 2 de 2 · Calculando emisiones');
+    });
+
+    it('el reloj de una carga en proceso cuenta desde started_at y tiene nombre accesible, sin aria-live', () => {
+      const started = new Date(Date.now() - 72_000).toISOString();
+
+      open([importSummaryDto({ status: 'RUNNING', phase: 'READING', rows_total: 500_000, rows_processed: 230_000, headline: null, finished_at: null, started_at: started })]);
+      const clock = q('[data-testid="row-clock"]')!;
+
+      expect(text('[data-testid="row-clock"]')).toMatch(/^01:1[2-4]$/);
+      expect(clock.getAttribute('aria-label')).toMatch(/^Tiempo transcurrido: 1 min 1[2-4] s$/);
+      expect(clock.closest('[aria-live]')).toBeNull();
+      expect(clock.hasAttribute('aria-live')).toBeFalse();
+    });
+
+    it('una carga recién tomada, sin started_at, cuenta desde su subida', () => {
+      const created = new Date(Date.now() - 30_000).toISOString();
+
+      open([importSummaryDto({ status: 'RUNNING', phase: 'READING', rows_total: 100, rows_processed: 1, headline: null, finished_at: null, started_at: null, created_at: created })]);
+
+      expect(text('[data-testid="row-clock"]')).toMatch(/^00:3[0-2]$/);
+    });
+
+    it('las filas de cada estado miden lo mismo (la cola, la lectura, el cálculo y la terminada no crecen ni descuadran la tabla)', () => {
+      open([
+        importSummaryDto({ id: 'a', status: 'QUEUED', phase: null, rows_total: null, rows_processed: 0, headline: null, started_at: null }),
+        importSummaryDto({ id: 'b', status: 'RUNNING', phase: 'READING', rows_total: 500_000, rows_processed: 230_000, headline: null, finished_at: null }),
+        importSummaryDto({ id: 'c', status: 'RUNNING', phase: 'CALCULATING', rows_total: 500_000, rows_processed: 350_000, headline: null, finished_at: null }),
+        importSummaryDto({ id: 'd' }),
+      ]);
+      const heights = qa('[data-testid="history-row"]').map((row) => Math.round(row.getBoundingClientRect().height));
+
+      expect(heights.length).toBe(4);
+      expect(new Set(heights).size).toBe(1);
+      expect(qa('[data-testid="history-row"]').every((row) => row.scrollWidth <= row.clientWidth + 1)).toBeTrue();
+    });
+
+    it('una carga terminada dice en qué tiempo se procesó y, sin started_at, no muestra nada', () => {
+      open([importSummaryDto({ id: 'a' }), importSummaryDto({ id: 'b', started_at: null })]);
+      const took = qa('[data-testid="row-took"]');
+
+      expect(took.length).toBe(1);
+      expect(took[0].textContent!.replace(/\s+/g, ' ').trim()).toBe('Procesada en 1 min 55 s');
     });
 
     it('sin total de filas el avance es indeterminado y solo cuenta las filas procesadas', () => {
       open([importSummaryDto({ status: 'RUNNING', phase: 'REVIEWING', rows_total: null, rows_processed: 4200, headline: null })]);
 
       expect(q('[data-testid="row-progress"] [role="progressbar"]')!.classList).toContain('loop');
-      expect(text('[data-testid="row-rows"]')).toBe('4.200 filas · Revisando los datos');
-      expect(text('[data-testid="phase"]')).toBe('Revisando los datos');
+      expect(text('[data-testid="row-rows"]')).toBe('Revisando los datos');
+      expect(q('[data-testid="row-eta"]')).toBeNull();
     });
 
     it('una carga en cola dice «En cola» sin avance', () => {
@@ -437,7 +572,7 @@ describe('ImportsComponent: Cargar información', () => {
 
       expect(text('[data-testid="row-state"]')).toBe('En cola');
       expect(text('.pct')).toBe('En cola');
-      expect(text('[data-testid="queued"]')).toBe('Esperando su turno');
+      expect(text('[data-testid="queued"]')).toMatch(/^En cola · esperando \d+:\d{2}(:\d{2})?$/);
       expect(q('[data-testid="history-row"] [role="progressbar"]')).toBeNull();
     });
 
