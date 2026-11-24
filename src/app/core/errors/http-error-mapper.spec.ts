@@ -83,4 +83,37 @@ describe('toAppError', () => {
     expect(toAppError(httpError(422, { error: { code: 'SELECTION_TOO_LARGE' } })).message).toContain('demasiados vehículos');
     expect(toAppError(httpError(503, { error: { code: 'STORAGE_UNAVAILABLE' } })).message).toContain('almacenamiento de archivos no está disponible');
   });
+
+  it('traduce en español corto todos los códigos de completar viajes', () => {
+    const codes = [
+      'TRIP_VERSION_CONFLICT', 'TRIP_ALREADY_CALCULATED', 'TRIP_NOT_EDITABLE', 'TRIP_HAS_CONFIRMED_MATCH', 'TRIP_NOT_COMPLETABLE', 'FIELD_NOT_EDITABLE', 'INVALID_FIELD_VALUE',
+      'COMPLETION_TOO_LARGE', 'COMPLETION_TOKEN_INVALID', 'COMPLETION_TOKEN_EXPIRED', 'COMPLETION_PREVIEW_STALE', 'IMPORT_HAS_CORRECTIONS', 'COMPANY_BUSY',
+    ];
+
+    for (const code of codes) {
+      const message = toAppError(httpError(409, { error: { code, message: 'texto del servidor' } })).message;
+
+      expect(message).withContext(code).not.toBe(GENERIC_ERROR_MESSAGE);
+      expect(message).withContext(code).not.toContain('servidor');
+      expect(message.length).withContext(code).toBeLessThan(140);
+    }
+
+    expect(toAppError(httpError(422, { error: { code: 'COMPLETION_TOO_LARGE' } })).message).toContain('5.000');
+  });
+
+  it('en INVALID_FIELD_VALUE y FIELD_NOT_EDITABLE conserva el mensaje de la regla por campo; en otros códigos sigue sin propagar texto del servidor', () => {
+    const details = [{ field: 'efficiency.value', message: 'Debe ser mayor que 0 y no superar 100', type: 'number' }];
+
+    expect(toAppError(httpError(422, { error: { code: 'INVALID_FIELD_VALUE', details } })).details).toEqual([{ field: 'efficiency.value', type: 'number', message: 'Debe ser mayor que 0 y no superar 100' }]);
+    expect(toAppError(httpError(422, { error: { code: 'FIELD_NOT_EDITABLE', details } })).details[0].message).toContain('Debe ser');
+    expect(toAppError(httpError(422, { error: { code: 'OTRO', details } })).details).toEqual([{ field: 'efficiency.value', type: 'number' }]);
+  });
+
+  it('en TRIP_VERSION_CONFLICT conserva `data` (el estado vigente) y la versión; en otros errores `data` es null', () => {
+    const conflict = toAppError(httpError(409, { error: { code: 'TRIP_VERSION_CONFLICT', details: [{ field: 'version', message: '3', type: 'current_version' }] }, data: { version: 3 } }));
+
+    expect(conflict.data).toEqual({ version: 3 });
+    expect(conflict.details[0].message).toBe('3');
+    expect(toAppError(httpError(409, { error: { code: 'TRIP_NOT_EDITABLE' }, data: { x: 1 } })).data).toBeNull();
+  });
 });

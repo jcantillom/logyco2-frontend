@@ -35,11 +35,10 @@ Nueva página de error (p. ej. 500): añadir componente y ruta hija en `app.rout
 ## 8. Módulos «Próximamente» (sin backend) [V]
 `ComingSoonComponent` (`app-coming-soon`, `features/system/coming-soon.component.ts`, OnPush, sin servicios propios) es la pantalla de todo módulo cuyo backend no existe. Lee `title`, `description` (y `breadcrumb` como título de respaldo) de `ActivatedRoute.snapshot.data` y muestra: `h1` con el título, «Esta capacidad todavía no está habilitada.», la etiqueta «Próximamente», la sección `data-testid="coming-soon"` («Qué ofrecerá» + descripción, nota «Cuando esté lista se habilitará aquí, en este mismo lugar del menú.») y un enlace «Volver al resumen» (`/resumen`). No tiene datos, cifras, endpoints, facades ni puertos. Cada módulo se declara solo con una ruta y, si va en el menú de la empresa, un `NavItem` con `soon: true` (`shared/layouts/nav-items.ts`: texto atenuado y `aria-label` «<etiqueta> · Próximamente»); en la consola de plataforma el menú (`platform-nav.ts`) no los lista. Cuando el backend exista, se reemplaza la ruta por la pantalla real y se pone `soon: false`.
 
-Espacio de empresa (`app.routes.ts`; `permissionGuard` indicado):
+Espacio de empresa (`app.routes.ts`; `permissionGuard` indicado; `/operaciones` ya no es «Próximamente»: ver [operaciones-logisticas.md](operaciones-logisticas.md)):
 
 | Ruta | Permiso | Título que muestra |
 |---|---|---|
-| `/operaciones` (`/operaciones/:id` redirige a `/operaciones`) | `indicators:read` | Operaciones de transporte |
 | `/conciliacion` | `indicators:read` | Conciliación y calidad de datos |
 | `/analisis` | `indicators:read` | Análisis de emisiones |
 | `/ayuda` | — | Ayuda y soporte |

@@ -31,6 +31,8 @@ export class AppError extends Error {
     readonly requestId: string | null = null,
     readonly details: readonly FieldIssue[] = [],
     readonly retryAfterSeconds: number | null = null,
+    /** Datos que el servidor adjunta a unos pocos errores (p. ej. el estado vigente en `TRIP_VERSION_CONFLICT`); el repositorio que los espera los traduce a dominio. */
+    readonly data: unknown = null,
   ) {
     super(message);
     this.name = 'AppError';

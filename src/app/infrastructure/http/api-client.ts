@@ -63,8 +63,8 @@ export class ApiClient {
    * GET de un archivo con su nombre (`Content-Disposition`, si el servidor lo expone; si no, `null`). Si el servidor responde con un error,
    * su cuerpo llega como `Blob`: se lee como JSON para que el código de error estable llegue al catálogo de mensajes.
    */
-  getFile(path: string): Observable<{ readonly blob: Blob; readonly fileName: string | null }> {
-    return this.http.get(this.url(path), { responseType: 'blob', observe: 'response' }).pipe(
+  getFile(path: string, params?: QueryParams): Observable<{ readonly blob: Blob; readonly fileName: string | null }> {
+    return this.http.get(this.url(path), { params: this.toParams(params), responseType: 'blob', observe: 'response' }).pipe(
       map((response) => ({ blob: response.body as Blob, fileName: fileNameOf(response.headers.get('Content-Disposition')) })),
       catchError((error: unknown) => (error instanceof HttpErrorResponse && error.error instanceof Blob ? readErrorBody(error) : throwError(() => error))),
     );

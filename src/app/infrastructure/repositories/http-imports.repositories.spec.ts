@@ -196,9 +196,9 @@ describe('HttpImportsRepository', () => {
     const req = http.expectOne(`${IMPORTS_URL}/imp-1/vehicles/decisions`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ decision: 'ACCEPT', candidate_ids: ['cand-1', 'cand-2'] });
-    req.flush({ data: { accepted: 1, rejected: 0, skipped: 1, skipped_reasons: [{ code: 'ALREADY_DECIDED', rows: 1 }] } });
+    req.flush({ data: { accepted: 1, rejected: 0, skipped: 1, skipped_reasons: [{ code: 'ALREADY_DECIDED', rows: 1 }], remaining: 4 } });
 
-    expect(result).toEqual({ accepted: 1, rejected: 0, skipped: 1, skippedReasons: [{ code: 'ALREADY_DECIDED', rows: 1 }] });
+    expect(result).toEqual({ accepted: 1, rejected: 0, skipped: 1, skippedReasons: [{ code: 'ALREADY_DECIDED', rows: 1 }], remaining: 4 });
   });
 
   it('decideVehicles: por tipo envía kind y SIN candidate_ids', () => {

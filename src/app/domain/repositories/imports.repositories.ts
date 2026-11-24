@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../models/imports';
+import { ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportNotCalculable, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../models/imports';
 import { Page, PageRequest } from '../models/pagination';
 import { PeriodRange } from '../models/period';
 
@@ -18,6 +18,8 @@ export abstract class ImportsRepository {
   abstract get(organizationId: string, importId: string): Observable<ImportDetail>;
   /** Reintenta una carga fallida (409 si no se puede). */
   abstract retry(organizationId: string, importId: string): Observable<ImportCreated>;
+  /** Confirma conservar una carga sin viajes calculables; idempotente (409 `IMPORT_CALCULABLE` si sí tiene viajes calculables). */
+  abstract acknowledgeNotCalculable(organizationId: string, importId: string): Observable<ImportNotCalculable>;
   /** Vehículos que propone una carga terminada, de un tipo y por página. */
   abstract vehicleCandidates(organizationId: string, importId: string, kind: VehicleCandidateKind, request: PageRequest): Observable<Page<VehicleCandidate>>;
   /** Registra, actualiza u omite candidatos (409 `IMPORT_NOT_REVIEWED` si la carga no terminó; máximo 500 por petición). */

@@ -20,8 +20,14 @@ function parseRetryAfter(value: string | null): number | null {
   return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : null;
 }
 
-/** Campos de `details` que llevan un identificador (UUID) y no un texto: los únicos cuyo valor se conserva. */
-const REFERENCE_FIELDS: ReadonlySet<string> = new Set(['link_id', 'organization_id']);
+/** Campos de `details` que llevan un identificador (UUID) o un número del servidor (`sync_max_rows`: tope de la descarga directa) y no un texto: los únicos cuyo valor se conserva. */
+const REFERENCE_FIELDS: ReadonlySet<string> = new Set(['link_id', 'organization_id', 'sync_max_rows', 'version', 'cap']);
+
+/** Errores de validación por campo al completar viajes: su `details[].message` es el texto de la regla (en español, por dato) y es lo que se muestra en línea. */
+const FIELD_MESSAGE_CODES: ReadonlySet<string> = new Set(['INVALID_FIELD_VALUE', 'FIELD_NOT_EDITABLE']);
+
+/** Errores que traen datos útiles para la pantalla en `data` (el estado vigente del viaje). */
+const DATA_CODES: ReadonlySet<string> = new Set(['TRIP_VERSION_CONFLICT']);
 
 /**
  * Traduce cualquier error de transporte al `AppError` de la aplicación.
@@ -40,7 +46,7 @@ export function toAppError(error: unknown): AppError {
         const issue: FieldIssue = { field: detail.field as string, type: detail.type ?? null };
 
         // Nunca se propaga el texto del servidor: solo el identificador que permite navegar a algo que ya existe (p. ej. el vínculo duplicado).
-        return REFERENCE_FIELDS.has(issue.field) && detail.message ? { ...issue, message: detail.message } : issue;
+        return (REFERENCE_FIELDS.has(issue.field) || (code !== null && FIELD_MESSAGE_CODES.has(code))) && detail.message ? { ...issue, message: detail.message } : issue;
       });
 
     return new AppError(
@@ -51,6 +57,7 @@ export function toAppError(error: unknown): AppError {
       known?.request_id ?? null,
       details,
       parseRetryAfter(error.headers?.get('Retry-After') ?? null),
+      code !== null && DATA_CODES.has(code) ? ((body as ErrorResponseDto).data ?? null) : null,
     );
   }
 

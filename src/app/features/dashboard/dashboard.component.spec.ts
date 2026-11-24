@@ -818,23 +818,23 @@ describe('DashboardComponent', () => {
         expect(el().textContent).not.toMatch(/Acciones pendientes|Todo en orden|Próximamente|Factores de emisión/);
       });
 
-      it('el orden de la página: bienvenida, periodo, indicadores, factor y resultado, y usuarios con precios', () => {
+      it('el orden de la página: bienvenida, periodo, indicadores, resultado y factor, y usuarios con precios', () => {
         open();
         answer();
-        const order = ['app-page-hero', '[data-testid="period"]', '[data-testid="kpi-row"]', '[data-testid="kpi-emission-factor"]', '[data-testid="period-result"]', '[data-testid="monthly-chart"]', '[data-testid="fuel-chart"]', '[data-testid="team-card"]', '[data-testid="fuel-prices"]'].map((sel) => q(sel)!);
+        const order = ['app-page-hero', '[data-testid="period"]', '[data-testid="kpi-row"]', '[data-testid="period-result"]', '[data-testid="kpi-emission-factor"]', '[data-testid="monthly-chart"]', '[data-testid="fuel-chart"]', '[data-testid="team-card"]', '[data-testid="fuel-prices"]'].map((sel) => q(sel)!);
 
         for (let i = 1; i < order.length; i++) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).withContext(String(i)).toBeTruthy();
       });
 
-      it('la fila 2 es «Factor de emisión» y «Resultado del periodo» al 50 % cada una, estiradas a la misma altura, y se apilan bajo 1100 px', () => {
+      it('la fila 2 es «Resultado del periodo» y «Factor de emisión» (en ese orden) al 50 % cada una, estiradas a la misma altura, y se apilan bajo 1100 px', () => {
         open();
         answer();
         const row = q('[data-testid="emission-factor"]')!.parentElement!;
         const css = Array.from(document.querySelectorAll('style')).map((st) => (st.textContent ?? '').replace(/\[_ng(?:content|host)-[^\]]+\]/g, '').replace(/\s+/g, ' ')).filter((c) => c.includes('.row.b')).join('\n');
 
         expect(row.classList).toContain('row');
-        expect(row.children[0].tagName.toLowerCase()).toBe('app-factor-rotator-card');
-        expect(row.children[1].tagName.toLowerCase()).toBe('app-period-result-card');
+        expect(row.children[0].tagName.toLowerCase()).toBe('app-period-result-card');
+        expect(row.children[1].tagName.toLowerCase()).toBe('app-factor-rotator-card');
         expect(getComputedStyle(row).alignItems).toBe('stretch');
         expect(css).toContain('.row.b { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }');
         expect(css).toMatch(/@media \(max-width: 1100px\) \{ \.row\.b, \.row\.c, \.row\.c\.single \{ grid-template-columns: minmax\(0, 1fr\); \}/);

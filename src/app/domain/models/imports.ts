@@ -12,6 +12,12 @@ export interface ImportHeadline {
   readonly pending: number;
 }
 
+/** Estado de la confirmación de una carga sin viajes calculables; solo existe en esas cargas (el servidor decide cuáles). */
+export interface ImportNotCalculable {
+  /** `null` mientras nadie confirmó conservar el archivo. */
+  readonly acknowledgedAt: string | null;
+}
+
 /** Conteos de los vehículos que propone la carga, contra el inventario vigente. */
 export interface VehiclesDetected {
   readonly new: number;
@@ -78,6 +84,8 @@ export interface ImportSummary {
   readonly headline: ImportHeadline | null;
   /** Ausente mientras la carga no termina (el servidor lo entrega `null`). */
   readonly vehiclesDetected?: VehiclesDetected;
+  /** Presente solo si la revisión no dejó ningún viaje calculable (hallazgo `NO_CALCULABLE_TRIPS` del servidor); Angular no recalcula este criterio. */
+  readonly notCalculable?: ImportNotCalculable;
   /** Motivo de un fallo, en español, tal como lo entrega el servidor. */
   readonly error: string | null;
 }
@@ -217,4 +225,6 @@ export interface VehicleDecisionResult {
   readonly rejected: number;
   readonly skipped: number;
   readonly skippedReasons: readonly { readonly code: string; readonly rows: number }[];
+  /** Nuevos y con cambios que siguen sin decidir en la carga tras la solicitud. */
+  readonly remaining: number;
 }

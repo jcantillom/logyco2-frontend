@@ -45,6 +45,16 @@ export class ScopedResource<T> implements Resettable {
     });
   }
 
+  /** Reemplaza el dato con uno ya conocido (p. ej. la respuesta de un guardado): invalida cualquier petición en vuelo para que no lo pise. */
+  replace(value: T): void {
+    this.generation++;
+    this.subscription?.unsubscribe();
+    this.subscription = null;
+    this.data.set(value);
+    this.error.set(null);
+    this.status.set('ready');
+  }
+
   reset(): void {
     this.generation++;
     this.subscription?.unsubscribe();

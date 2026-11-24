@@ -7,6 +7,7 @@ import { pagedBody } from '../../../testing/vehicles';
 import { SessionStore } from '../../core/auth/session.store';
 import { OrganizationContext } from '../../core/org/organization-context';
 import { ImportSummaryDto } from '../../infrastructure/dto/imports.dto';
+import { toImportSummary } from '../../infrastructure/mappers/imports.mappers';
 import { HISTORY_REFRESH_MS, ImportsFacade, MAX_CONCURRENT_UPLOADS, POLL_MAX_MS } from './imports.facade';
 
 const ONE = `${IMPORTS_URL}/imp-1`;
@@ -207,6 +208,41 @@ describe('ImportsFacade', () => {
       flushLists([importSummaryDto({ id: 'imp-1' }), importSummaryDto({ id: 'imp-2' }), importSummaryDto({ id: 'imp-3' })]);
 
       expect(facade.batchResult()).toBeNull();
+    });
+
+    it('una carga del lote sin viajes calculables queda esperando confirmación; con viajes calculables o ya confirmada, no', () => {
+      const notCalculable = (id: string, acknowledged: string | null): ImportSummaryDto => importSummaryDto({ id, not_calculable: { acknowledged_at: acknowledged } });
+
+      facade.enqueue([file('a.xlsx'), file('b.xlsx'), file('c.xlsx')]);
+      const sent = posts();
+
+      sent[0].flush(created('imp-1'), { status: 202, statusText: 'Accepted' });
+      http.match((r) => r.method === 'GET');
+      sent[1].flush(created('imp-2'), { status: 202, statusText: 'Accepted' });
+      http.match((r) => r.method === 'GET');
+      posts()[0].flush(created('imp-3'), { status: 202, statusText: 'Accepted' });
+      flushLists([notCalculable('imp-1', null), notCalculable('imp-2', '2026-03-01T10:05:00Z'), importSummaryDto({ id: 'imp-3' })]);
+
+      expect(facade.unconfirmed().map((item) => item.id)).toEqual(['imp-1']);
+    });
+
+    it('confirmar envía la confirmación, saca la carga de la cola y renueva el historial; cancelar solo la saca de la cola', () => {
+      facade.enqueue([file('a.xlsx')]);
+      posts()[0].flush(created('imp-1'), { status: 202, statusText: 'Accepted' });
+      flushLists([importSummaryDto({ id: 'imp-1', not_calculable: { acknowledged_at: null } })]);
+      expect(facade.unconfirmed().length).toBe(1);
+
+      facade.acknowledgeNotCalculable('imp-1').subscribe();
+      const request = http.expectOne({ method: 'POST', url: `${IMPORTS_URL}/imp-1/acknowledge-not-calculable` });
+
+      request.flush({ data: { acknowledged_at: '2026-03-01T10:05:00Z' } });
+      expect(facade.unconfirmed()).toEqual([]);
+      flushLists([importSummaryDto({ id: 'imp-1', not_calculable: { acknowledged_at: '2026-03-01T10:05:00Z' } })]);
+
+      facade.unconfirmed.set([toImportSummary(importSummaryDto({ id: 'imp-2', not_calculable: { acknowledged_at: null } }))]);
+      facade.dismissUnconfirmed('imp-2');
+      http.expectNone((r) => r.method === 'POST');
+      expect(facade.unconfirmed()).toEqual([]);
     });
 
     it('si la carga ya no está en la página visible la consulta una vez', () => {

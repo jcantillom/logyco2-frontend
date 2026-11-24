@@ -38,4 +38,5 @@ export interface ErrorResponseDto {
     readonly details?: readonly ErrorDetailDto[] | null;
     readonly request_id?: string | null;
   };
+  readonly data?: unknown;
 }

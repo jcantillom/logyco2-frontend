@@ -6,7 +6,7 @@ import { toAppError } from '../../core/errors/http-error-mapper';
 import { ContextResetRegistry } from '../../core/org/context-reset';
 import { OrganizationContext } from '../../core/org/organization-context';
 import { ScopedResource } from '../../core/org/scoped-resource';
-import { ImportCounts, ImportCreated, ImportDetail, ImportFilter, ImportSummary } from '../../domain/models/imports';
+import { ImportCounts, ImportCreated, ImportDetail, ImportFilter, ImportNotCalculable, ImportSummary } from '../../domain/models/imports';
 import { Page } from '../../domain/models/pagination';
 import { ImportsRepository } from '../../domain/repositories/imports.repositories';
 import { hasVehiclesToReview } from './imports.labels';
@@ -131,6 +131,8 @@ export class ImportsFacade implements OnDestroy {
   readonly duplicateOriginals = signal<readonly DuplicateOriginal[]>([]);
   /** Aviso de vehículos al terminar el lote subido; `null` si no hay nada que ofrecer. */
   readonly batchResult = signal<BatchResult | null>(null);
+  /** Cargas del lote subido que terminaron sin ningún viaje calculable y esperan la confirmación de la persona (la primera abre el diálogo bloqueante). */
+  readonly unconfirmed = signal<readonly ImportSummary[]>([]);
   readonly downloading = signal(false);
   readonly downloadError = signal<AppError | null>(null);
 
@@ -166,6 +168,7 @@ export class ImportsFacade implements OnDestroy {
         this.duplicates.set(0);
         this.duplicateOriginals.set([]);
         this.batchResult.set(null);
+        this.unconfirmed.set([]);
         this.downloading.set(false);
         this.downloadError.set(null);
       },
@@ -253,6 +256,21 @@ export class ImportsFacade implements OnDestroy {
   dismissDuplicates(): void {
     this.duplicates.set(0);
     this.duplicateOriginals.set([]);
+  }
+
+  /** Confirma conservar una carga sin viajes calculables (el servidor la guarda y la audita una vez); sale de la cola y el historial se renueva. */
+  acknowledgeNotCalculable(importId: string): Observable<ImportNotCalculable> {
+    return this.repository.acknowledgeNotCalculable(this.organizationId(), importId).pipe(
+      tap(() => {
+        this.dismissUnconfirmed(importId);
+        this.loadList();
+      }),
+    );
+  }
+
+  /** «Cancelar»: la carga queda sin confirmar (el historial la sigue marcando) y deja de abrirse sola en esta sesión. */
+  dismissUnconfirmed(importId: string): void {
+    this.unconfirmed.update((queue) => queue.filter((item) => item.id !== importId));
   }
 
   dismissBatchResult(): void {
@@ -362,6 +380,10 @@ export class ImportsFacade implements OnDestroy {
       if (all.length !== ids.length || all.some((item) => running(item.status)) || ids.some((id) => !this.batchIds.has(id))) return;
 
       ids.forEach((id) => this.batchIds.delete(id));
+      const blocking = all.filter((item) => item.status === 'COMPLETED' && !!item.notCalculable && !item.notCalculable.acknowledgedAt);
+
+      if (blocking.length > 0) this.unconfirmed.update((queue) => [...queue, ...blocking.filter((item) => !queue.some((queued) => queued.id === item.id))]);
+
       const withVehicles = all.filter((item) => item.status === 'COMPLETED' && hasVehiclesToReview(item.vehiclesDetected));
 
       if (all.length === 1 && withVehicles.length === 1) this.batchResult.set({ kind: 'single', item: withVehicles[0] });

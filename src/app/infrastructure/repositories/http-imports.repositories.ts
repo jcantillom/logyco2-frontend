@@ -1,13 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
-import { ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../../domain/models/imports';
+import { ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportNotCalculable, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../../domain/models/imports';
 import { Page, PageRequest } from '../../domain/models/pagination';
 import { PeriodRange } from '../../domain/models/period';
 import { ImportsRepository } from '../../domain/repositories/imports.repositories';
-import { ImportCountsDto, ImportPeriodDto, ImportCreatedDto, ImportDetailDto, ImportSummaryDto, VehicleCandidateDto, VehicleDecisionResultDto } from '../dto/imports.dto';
+import { ImportCountsDto, ImportPeriodDto, ImportCreatedDto, ImportDetailDto, ImportNotCalculableDto, ImportSummaryDto, VehicleCandidateDto, VehicleDecisionResultDto } from '../dto/imports.dto';
 import { ApiClient } from '../http/api-client';
 import { toPage } from '../mappers/identity.mappers';
-import { toDecisionBody, toDecisionResult, toImportCounts, toImportPeriod, toImportCreated, toImportDetail, toImportSummary, toVehicleCandidate } from '../mappers/imports.mappers';
+import { toDecisionBody, toDecisionResult, toImportCounts, toImportPeriod, toImportCreated, toImportDetail, toImportSummary, toNotCalculable, toVehicleCandidate } from '../mappers/imports.mappers';
 
 /** Nombre con el que se guarda la plantilla si el servidor no informa uno (el mismo que envía el backend). */
 export const DEFAULT_TEMPLATE_FILE_NAME = 'plantilla_cargas_logyco2.xlsx';
@@ -52,6 +52,10 @@ export class HttpImportsRepository extends ImportsRepository {
 
   retry(organizationId: string, importId: string): Observable<ImportCreated> {
     return this.api.post<ImportCreatedDto>(`${base(organizationId)}/${id(importId)}/retry`, {}).pipe(map(toImportCreated));
+  }
+
+  acknowledgeNotCalculable(organizationId: string, importId: string): Observable<ImportNotCalculable> {
+    return this.api.post<ImportNotCalculableDto>(`${base(organizationId)}/${id(importId)}/acknowledge-not-calculable`, {}).pipe(map(toNotCalculable));
   }
 
   vehicleCandidates(organizationId: string, importId: string, kind: VehicleCandidateKind, request: PageRequest): Observable<Page<VehicleCandidate>> {

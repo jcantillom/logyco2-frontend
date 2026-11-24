@@ -59,6 +59,7 @@ Clases abstractas; las facades las inyectan por token. Todos los métodos devuel
 | `footprint.repositories.ts` | `FootprintRepository`: `footprint(orgId, period?)` (huella de la empresa en un periodo; modelos en `domain/models/footprint.ts`: `Footprint`, `FootprintTotals`, `FootprintByFuel`, `FootprintMonthly`, `FootprintPeriod`, `ImportFootprint`; unidad kg CO₂, no CO₂e). |
 | `platform.repositories.ts` | `HealthRepository`: `check` | `HttpHealthRepository` (`http-health.repository.ts`) |
 | | `AdminMetricsRepository`: `get` | `HttpAdminMetricsRepository` (`http-admin-metrics.repository.ts`) |
+| `operations.repositories.ts` | `OperationsRepository`: `list(orgId, filter, {view, limit, cursor})` (página por cursor con total acotado), `summary(orgId, filter)` (conteos de pestañas), `detail(orgId, tripId)`; modelos en `domain/models/operations.ts` | `HttpOperationsRepository` (`http-operations.repositories.ts`; mapper `operations.mappers.ts`, DTO `operations.dto.ts`) |
 | `intelligence.repositories.ts` | `IntelligenceRepository`: `summary`, `history`, `areas`, `ictcGroups`, `sources`, `refreshSource` | `HttpIntelligenceRepository` (`http-intelligence.repository.ts`) |
 
 ## 3. `ApiClient`

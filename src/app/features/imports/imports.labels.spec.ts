@@ -53,7 +53,7 @@ describe('imports.labels', () => {
   });
 
   it('cada código de motivo conocido tiene una acción en lenguaje llano y uno desconocido no inventa ninguna', () => {
-    expect(pendingAction('VEHICLE_CONFLICT')).toBe('Los datos distintos de un vehículo ya no frenan el cálculo: este viaje se calcula al recalcular la carga, con los datos de su fila.');
+    expect(pendingAction('VEHICLE_CONFLICT')).toBe('El cálculo de este viaje depende de un dato del vehículo que está en conflicto: confirma el vehículo en Vehículos y el viaje se recalcula.');
     expect(pendingAction('MISSING_DISTANCE_WITH_ROUTE')).toBe('Revisa el municipio de origen y destino, o agrega la distancia en km del viaje.');
     expect(pendingAction('DISTANCE_WITHOUT_EFFICIENCY')).toBe('Agrega el rendimiento del vehículo (km por galón, litro o m³).');
     expect(pendingAction('MISSING_ENERGY_DATA')).toBe('Agrega el consumo de combustible, o la distancia y el rendimiento.');

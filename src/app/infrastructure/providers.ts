@@ -10,6 +10,7 @@ import {
   UsersRepository,
 } from '../domain/repositories/identity.repositories';
 import { DuplicatesRepository } from '../domain/repositories/duplicates.repositories';
+import { OperationsRepository } from '../domain/repositories/operations.repositories';
 import { ReconciliationRepository } from '../domain/repositories/reconciliation.repositories';
 import { EmissionsRepository } from '../domain/repositories/emissions.repositories';
 import { FootprintRepository } from '../domain/repositories/footprint.repositories';
@@ -31,6 +32,7 @@ import {
   HttpSuperAdminsRepository,
 } from './repositories/http-platform-admin.repositories';
 import { HttpDuplicatesRepository } from './repositories/http-duplicates.repositories';
+import { HttpOperationsRepository } from './repositories/http-operations.repositories';
 import { HttpReconciliationRepository } from './repositories/http-reconciliation.repositories';
 import { HttpEmissionsRepository } from './repositories/http-emissions.repositories';
 import { HttpFootprintRepository } from './repositories/http-footprint.repositories';
@@ -81,6 +83,7 @@ export function provideRepositories(): EnvironmentProviders {
     { provide: ImportsRepository, useClass: HttpImportsRepository },
     // Posibles duplicados de viajes retenidos para revisión (Calidad de datos).
     { provide: DuplicatesRepository, useClass: HttpDuplicatesRepository },
+    { provide: OperationsRepository, useClass: HttpOperationsRepository },
     // Conciliación de viajes entre empresas vinculadas (autorizaciones y «Operaciones compartidas»).
     { provide: ReconciliationRepository, useClass: HttpReconciliationRepository },
     // Avisos del usuario en la empresa (campana).

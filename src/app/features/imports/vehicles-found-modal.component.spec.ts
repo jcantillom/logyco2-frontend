@@ -41,7 +41,7 @@ describe('VehiclesFoundModalComponent: aviso de vehículos detectados', () => {
     fixture.detectChanges();
   }
 
-  const accepted = (count: number, extra: object = {}): object => ({ data: { accepted: count, rejected: 0, skipped: 0, skipped_reasons: [], ...extra } });
+  const accepted = (count: number, extra: object = {}): object => ({ data: { accepted: count, rejected: 0, skipped: 0, skipped_reasons: [], remaining: 0, ...extra } });
 
   afterEach(() => http?.match(() => true));
 
@@ -136,8 +136,10 @@ describe('VehiclesFoundModalComponent: aviso de vehículos detectados', () => {
     http.expectOne({ method: 'POST', url: DECISIONS }).flush({ error: { code: 'INTERNAL', message: 'Falló' } }, { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
 
-    expect(text('#vf-title')).toBe('No pudimos registrarlos');
-    expect(q('[data-testid="modal-error"]')).not.toBeNull();
+    flushRefresh();  // tras un error también se recarga la carga: los conteos no quedan viejos
+
+    expect(text('#vf-title')).toBe('No se completó el registro');
+    expect(text('[data-testid="modal-error"]')).toBe('Ocurrió un error inesperado. Inténtalo de nuevo. No se registró ninguno; reintenta cuando quieras.');
 
     click('[data-testid="modal-retry"]');
     http.expectOne({ method: 'POST', url: DECISIONS }).flush(accepted(2));
@@ -145,6 +147,35 @@ describe('VehiclesFoundModalComponent: aviso de vehículos detectados', () => {
 
     expect(text('#vf-title')).toBe('¡Listo! 2 vehículos registrados');
     flushRefresh();
+  });
+
+  it('con 1.926 nuevos lo dice y los registra en UNA sola petición por tipo', () => {
+    render({ counts: { new: 1926, changed: 0 } });
+
+    click('[data-testid="modal-register"]');
+
+    expect(text('[data-testid="modal-working"]')).toContain('Registrando 1.926 vehículos…');
+    const request = http.expectOne({ method: 'POST', url: DECISIONS });
+    expect(request.request.body).toEqual({ decision: 'ACCEPT', kind: 'NEW' });
+    http.expectNone((r) => r.method === 'GET' && r.url.endsWith('/vehicles'));  // sin recolectar ids
+    request.flush(accepted(1926));
+    fixture.detectChanges();
+
+    expect(text('#vf-title')).toBe('¡Listo! 1926 vehículos registrados');
+    flushRefresh();
+  });
+
+  it('si falla tras registrar parte, dice cuántos quedaron registrados y deja reintentar', () => {
+    render({ counts: { new: 1926, changed: 0 } });
+
+    click('[data-testid="modal-register"]');
+    http.expectOne({ method: 'POST', url: DECISIONS }).flush({ error: { code: 'INTERNAL', message: 'Falló' } }, { status: 500, statusText: 'Server Error' });
+    flushRefresh();
+    fixture.componentRef.setInput('summary', toImportSummary(importSummaryDto({ vehicles_detected: vehiclesDetectedDto({ new: 926, changed: 0 }) })));
+    fixture.detectChanges();
+
+    expect(text('[data-testid="modal-error"]')).toBe('Se registraron 1.000 de 1.926 vehículos; reintenta para completar el resto.');
+    expect(q('[data-testid="modal-retry"]')).not.toBeNull();
   });
 
   it('«Revisar uno por uno» pide abrir la revisión sin decidir nada', () => {

@@ -6,6 +6,7 @@ import {
   ImportCreated,
   ImportDetail,
   ImportFormat,
+  ImportNotCalculable,
   ImportPeriod,
   ImportReview,
   ImportRoutes,
@@ -27,6 +28,7 @@ import {
   ImportPeriodDto,
   ImportDetailDto,
   ImportReviewDto,
+  ImportNotCalculableDto,
   ImportRoutesDto,
   ImportSummaryDto,
   PendingReasonDto,
@@ -84,9 +86,12 @@ export function toImportSummary(dto: ImportSummaryDto): ImportSummary {
           },
         }
       : {}),
+    ...(dto.not_calculable ? { notCalculable: { acknowledgedAt: dto.not_calculable.acknowledged_at } } : {}),
     error: dto.error,
   };
 }
+
+export const toNotCalculable = (dto: ImportNotCalculableDto): ImportNotCalculable => ({ acknowledgedAt: dto.acknowledged_at });
 
 const toColumn = (dto: ImportColumnDto): ImportColumn => ({
   field: dto.field,
@@ -200,4 +205,5 @@ export const toDecisionResult = (dto: VehicleDecisionResultDto): VehicleDecision
   rejected: dto.rejected,
   skipped: dto.skipped,
   skippedReasons: dto.skipped_reasons.map((reason) => ({ code: reason.code, rows: reason.rows })),
+  remaining: dto.remaining,
 });

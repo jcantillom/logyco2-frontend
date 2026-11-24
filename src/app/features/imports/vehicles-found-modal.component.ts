@@ -4,9 +4,9 @@ import { AccessPolicy } from '../../core/auth/access-policy';
 import { ImportSummary, VehiclesDetected } from '../../domain/models/imports';
 import { TruckArtComponent } from '../../shared/ui/truck-art.component';
 import { TruckProgressComponent } from '../../shared/ui/truck-progress.component';
-import { ImportVehiclesFacade, MAX_DECISION_BATCH } from './import-vehicles.facade';
+import { ImportVehiclesFacade } from './import-vehicles.facade';
 import { ImportsFacade } from './imports.facade';
-import { skippedReasonLabel } from './imports.labels';
+import { formatCount, skippedReasonLabel } from './imports.labels';
 
 type Phase = 'ask' | 'working' | 'done' | 'error';
 
@@ -73,7 +73,7 @@ const ARRIVAL_MS = 1200;
         <h2 id="vf-title">{{ title() }}</h2>
         @switch (phase()) {
           @case ('working') {
-            <p id="vf-text">Estamos registrando tus vehículos…</p>
+            <p id="vf-text" data-testid="modal-working">Registrando {{ startedLabel() }}… Es una sola operación; no cierres esta ventana.</p>
             <div class="work"><app-truck-progress label="Registrando vehículos" /></div>
           }
           @case ('error') {
@@ -139,7 +139,17 @@ export class VehiclesFoundModalComponent {
   protected readonly arriving = signal(true);
   protected readonly canManage = computed(() => this.access.can('vehicles:manage'));
   protected readonly counts = computed<VehiclesDetected>(() => this.summary().vehiclesDetected ?? { new: 0, changed: 0, unchanged: 0, pendingDecision: 0 });
-  protected readonly errorMessage = computed(() => this.vehicles.decisionError()?.message ?? 'No se pudieron registrar los vehículos.');
+  /** Cuántos nuevos había al empezar a registrar: el total contra el que se cuenta lo que sí quedó registrado. */
+  private readonly started = signal(0);
+  protected readonly startedLabel = computed(() => `${formatCount(this.started())} ${this.started() === 1 ? 'vehículo' : 'vehículos'}`);
+  protected readonly errorMessage = computed(() => {
+    const registered = Math.max(0, this.started() - this.counts().new);  // los conteos se recargan tras el error: lo ya registrado no cuenta como pendiente
+    const detail = this.vehicles.decisionError()?.message ?? 'No se pudieron registrar los vehículos.';
+
+    return registered > 0
+      ? `Se registraron ${formatCount(registered)} de ${formatCount(this.started())} vehículos; reintenta para completar el resto.`
+      : `${detail} No se registró ninguno; reintenta cuando quieras.`;
+  });
   protected readonly reasons = computed(() => this.vehicles.result()?.skippedReasons.map((r) => `${skippedReasonLabel(r.code)}: ${r.rows}`) ?? []);
   protected readonly title = computed(() => {
     const { new: added, changed } = this.counts();
@@ -147,7 +157,7 @@ export class VehiclesFoundModalComponent {
 
     switch (this.phase()) {
       case 'working': return 'Registrando vehículos';
-      case 'error': return 'No pudimos registrarlos';
+      case 'error': return 'No se completó el registro';
       case 'done': return accepted > 0 ? `¡Listo! ${accepted} ${accepted === 1 ? 'vehículo registrado' : 'vehículos registrados'}` : 'No se registró ningún vehículo';
       default: return added > 0 ? `Encontramos ${added} ${added === 1 ? 'vehículo nuevo' : 'vehículos nuevos'}` : `${changed} ${changed === 1 ? 'vehículo cambió sus datos' : 'vehículos cambiaron sus datos'}`;
     }
@@ -170,21 +180,24 @@ export class VehiclesFoundModalComponent {
     });
   }
 
-  /** Registra los vehículos nuevos; con más de los que admite una petición se decide por ids en lotes. */
+  /** Registra todos los nuevos en UNA petición (el servidor los procesa en lotes). Con éxito o con error recarga la carga: los conteos nunca quedan viejos. */
   protected register(): void {
     if (this.phase() === 'working') return;
 
     const id = this.summary().id;
-    const added = this.counts().new;
-    const call$ = added > MAX_DECISION_BATCH ? this.vehicles.decideInBatches(id, 'NEW') : this.vehicles.decide(id, { decision: 'ACCEPT', kind: 'NEW' });
+
+    this.started.set(this.counts().new);  // en un reintento son los que faltan
 
     this.phase.set('working');
-    call$.subscribe({
+    this.vehicles.decide(id, { decision: 'ACCEPT', kind: 'NEW' }).subscribe({
       next: () => {
         this.phase.set('done');
         this.imports.reloadImport(id);
       },
-      error: () => this.phase.set('error'),
+      error: () => {
+        this.phase.set('error');
+        this.imports.reloadImport(id);
+      },
     });
   }
 

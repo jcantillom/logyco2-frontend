@@ -80,13 +80,9 @@ export const routes: Routes = [
       },
       {
         path: 'operaciones',
-        data: {
-          breadcrumb: 'Cargas y transportes',
-          title: 'Operaciones de transporte',
-          description: 'Mostrará las operaciones de transporte, cada una con su archivo y fila de origen y su identificador de servicio y etapa.',
-        },
+        data: { breadcrumb: 'Operaciones logísticas', wide: true },
         canActivate: [permissionGuard('indicators:read')],
-        loadComponent: () => import('./features/system/coming-soon.component').then((m) => m.ComingSoonComponent),
+        loadComponent: () => import('./features/operations/operations.component').then((m) => m.OperationsComponent),
       },
       { path: 'operaciones/:id', pathMatch: 'full', redirectTo: 'operaciones' },
       {

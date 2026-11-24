@@ -112,8 +112,8 @@ const PENDING_ACTIONS: Readonly<Record<string, string>> = {
   ELECTRIC_NEEDS_KWH: 'Registra el consumo eléctrico en kWh.',
   NO_EMISSION_FACTOR: 'Este combustible aún no tiene factor de emisión verificado: no se puede calcular por ahora.',
   INVALID_VALUES: 'Corrige los valores que no son números o están fuera de rango.',
-  // Motivo de filas guardadas antes de que un conflicto de vehículo dejara de frenar el cálculo: se libera al recalcular la carga.
-  VEHICLE_CONFLICT: 'Los datos distintos de un vehículo ya no frenan el cálculo: este viaje se calcula al recalcular la carga, con los datos de su fila.',
+  // Hoy el vehículo no frena ningún cálculo; el motivo lo usa una metodología futura que dependa de un dato del vehículo en conflicto, y las filas guardadas antes.
+  VEHICLE_CONFLICT: 'El cálculo de este viaje depende de un dato del vehículo que está en conflicto: confirma el vehículo en Vehículos y el viaje se recalcula.',
   // Hallazgos (no motivos pendientes) del cálculo de distancias por ruta.
   PLACE_NOT_RECOGNIZED: 'Revisa el nombre del municipio y del departamento.',
   SAME_PLACE: 'Si el viaje fue dentro del municipio, agrega la distancia en km; si no, revisa el origen y el destino.',

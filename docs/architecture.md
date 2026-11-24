@@ -8,7 +8,7 @@
 - SPA Angular 20 (standalone components, signals, control flow `@if/@for/@switch`, sin NgModules) con TypeScript 5.9 estricto. [V]
 - Plataforma de huella de carbono de LOGYCA. Habla con un backend FastAPI (`/api/v1`) y expone dos contextos: **espacio de organización** (`/`) y **consola de plataforma** (`/plataforma`, solo rol global `SUPER_ADMIN`). [V]
 - Arquitectura por capas con inversión de dependencias estilo hexagonal: la UI usa **facades** (en `features/`) → **puertos** (clases abstractas en `domain/repositories`) → **adaptadores** (`infrastructure/repositories`, HTTP). El enlace puerto↔adaptador vive en un único archivo: `src/app/infrastructure/providers.ts`. [V]
-- Solo la identidad/organizaciones/usuarios/invitaciones/superadmins/RBAC/métricas/salud/Intelligence/guía de cálculo de emisiones (`emissions`: vehículos, factor del diésel B2 y simulación) y el inventario de vehículos de la empresa (`vehicles`) y las cargas de Excel (`imports`) tienen backend real, y solo eso tiene pantalla. Los módulos sin backend (operaciones, cargas, conciliación, evidencias, emisiones, reportes, reducción y varias secciones de la consola) **no tienen pantalla, facade, puerto ni datos**: su ruta renderiza `ComingSoonComponent` ("Próximamente") y su ítem de menú lleva `soon: true`. [V]
+- Solo la identidad/organizaciones/usuarios/invitaciones/superadmins/RBAC/métricas/salud/Intelligence/guía de cálculo de emisiones (`emissions`: vehículos, factor del diésel B2 y simulación) y el inventario de vehículos de la empresa (`vehicles`) las cargas de Excel (`imports`) y Operaciones logísticas (`operations`: listado por cursor, resumen y detalle) tienen backend real, y solo eso tiene pantalla. Los módulos sin backend (conciliación, evidencias, emisiones, reportes, reducción y varias secciones de la consola) **no tienen pantalla, facade, puerto ni datos**: su ruta renderiza `ComingSoonComponent` ("Próximamente") y su ítem de menú lleva `soon: true`. [V]
 - Estado: señales (`signal`, `computed`, `effect`) en servicios `providedIn: 'root'`; nada de NgRx. El recurso asíncrono estándar es `ScopedResource<T>`. Todo estado dependiente de la organización se registra en `ContextResetRegistry` para descartarlo al cambiar de organización o cerrar sesión. [V]
 - Autenticación: Bearer token en memoria (`SessionStore`); persistencia opcional en `sessionStorage` solo en desarrollo (`sessionPersistence: 'tab'`). RBAC en cliente (`AccessPolicy`) es solo para mostrar/ocultar; el backend autoriza. [V]
 - Errores: un único punto (`errorInterceptor` + `toAppError`) convierte todo en `AppError` con mensaje del catálogo en español; nunca se muestra el texto crudo del servidor. [V]
@@ -169,11 +169,11 @@ Todo `loadComponent` es lazy; solo `ShellComponent`, `PLATFORM_ROUTES` y los gua
 | `mi-empresa` | `organizations:read` | Datos de mi empresa | `CompanyProfileComponent` |
 | `organizaciones`, `organizaciones/:id` | — | — | `redirectTo: 'mi-empresa'` (enlaces anteriores) |
 | `usuarios` | `users:read` ó `memberships:manage` | Usuarios y accesos | `UsersComponent` |
-| `operaciones` | `indicators:read` | Cargas y transportes | `ComingSoonComponent` («Operaciones de transporte»); `operaciones/:id` redirige a `operaciones` |
+| `operaciones` | `indicators:read` | Operaciones logísticas | `OperationsComponent` (feature `operations`; `wide`; filtros en la URL); `operaciones/:id` redirige a `operaciones` |
 | `vehiculos` | `vehicles:read` | Mis vehículos | `VehiclesComponent` (feature `vehicles`; `wide`) |
 | `cargas` | `imports:create` | Cargar información | `ImportsComponent` (feature `imports`; `wide`) |
 | `conciliacion` | `indicators:read` | Conciliación | `ComingSoonComponent` («Conciliación y calidad de datos») |
-| `calidad` | `indicators:read` | Calidad de datos | `ComingSoonComponent` («Calidad de datos») |
+| `calidad` | `imports:create` | Calidad de datos | `QualityComponent` (feature `quality`; `wide`) |
 | `analisis` | `indicators:read` | Análisis de emisiones | `ComingSoonComponent` («Análisis de emisiones») |
 | `ayuda` | — | Ayuda y soporte | `ComingSoonComponent` («Ayuda y soporte») |
 | `evidencias` | `indicators:read` | Evidencias | `ComingSoonComponent` («Evidencias y trazabilidad») |

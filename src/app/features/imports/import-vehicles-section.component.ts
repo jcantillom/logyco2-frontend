@@ -5,9 +5,9 @@ import { VehicleCandidate, VehicleDecisionRequest, VehiclesDetected } from '../.
 import { PaginationComponent } from '../../shared/ui/pagination.component';
 import { ResourceStateComponent } from '../../shared/ui/resource-state.component';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
-import { DetectedTab, ImportVehiclesFacade, MAX_DECISION_BATCH } from './import-vehicles.facade';
+import { DetectedTab, ImportVehiclesFacade } from './import-vehicles.facade';
 import { ImportsFacade } from './imports.facade';
-import { DECISION_LABELS, skippedReasonLabel } from './imports.labels';
+import { DECISION_LABELS, formatCount, skippedReasonLabel } from './imports.labels';
 
 const TABS: readonly DetectedTab[] = ['NEW', 'CHANGED'];
 
@@ -72,13 +72,13 @@ const TABS: readonly DetectedTab[] = ['NEW', 'CHANGED'];
             </div>
           </div>
         }
-        @if (facade.decisionError(); as e) { <div class="alert alert-danger result" role="alert" data-testid="decision-error"><strong>{{ e.message }}</strong></div> }
+        @if (facade.decisionError(); as e) { <div class="alert alert-danger result" role="alert" data-testid="decision-error"><strong>{{ e.message }}</strong> Reintenta para completar lo que falte: lo ya decidido no se repite.</div> }
       </div>
 
       <div role="tabpanel" id="veh-panel" [attr.aria-labelledby]="'veh-tab-' + facade.tab()" tabindex="0">
         @if (canManage() && tabCount() > 0) {
           <div class="bar">
-            <button type="button" class="btn btn-primary btn-sm" data-testid="decide-all" [disabled]="facade.deciding()" (click)="decideAll()">{{ facade.tab() === 'NEW' ? 'Registrar todos los nuevos' : 'Actualizar todos' }}</button>
+            <button type="button" class="btn btn-primary btn-sm" data-testid="decide-all" [disabled]="facade.deciding()" [attr.aria-busy]="facade.deciding()" (click)="decideAll()">{{ allLabel() }}</button>
           </div>
         }
         <app-resource-state [status]="facade.list.status()" [error]="facade.list.error()" (retry)="facade.reload()">
@@ -147,6 +147,15 @@ export class ImportVehiclesSectionComponent {
   /** Cuántos vehículos hay en la pestaña abierta, según los conteos de la carga. */
   protected readonly tabCount = computed(() => (this.facade.tab() === 'NEW' ? this.counts().new : this.counts().changed));
 
+  /** Rótulo del botón masivo: mientras se decide cuenta lo que se está procesando (el botón conserva su sitio: sin saltos de diseño). */
+  protected readonly allLabel = computed(() => {
+    const total = formatCount(this.tabCount());
+
+    if (this.facade.deciding()) return this.facade.tab() === 'NEW' ? `Registrando ${total}…` : `Actualizando ${total}…`;
+
+    return this.facade.tab() === 'NEW' ? 'Registrar todos los nuevos' : 'Actualizar todos';
+  });
+
   constructor() {
     effect(() => {
       const id = this.importId();
@@ -189,22 +198,18 @@ export class ImportVehiclesSectionComponent {
       : { title: 'Actualizar vehículos', message: `Se actualizarán ${total} ${total === 1 ? 'vehículo' : 'vehículos'} con los datos del archivo. ¿Continuar?`, confirmLabel: 'Actualizar todos' };
 
     void this.confirm.confirm(request).then((accepted) => {
-      if (accepted) this.run({ decision: 'ACCEPT', kind }, total);
+      if (accepted) this.run({ decision: 'ACCEPT', kind });
     });
   }
 
-  /** Con más pendientes que el máximo por petición se decide por ids, en lotes, y se muestra un solo resultado. */
-  private run(request: VehicleDecisionRequest, total = 0): void {
+  /** Una sola petición (por ids o por tipo). Con éxito o con error se vuelve a pedir la lista (primera página) y la carga: los conteos nunca quedan viejos. */
+  private run(request: VehicleDecisionRequest): void {
     const id = this.importId();
-    const call$ = 'kind' in request && total > MAX_DECISION_BATCH ? this.facade.decideInBatches(id, request.kind) : this.facade.decide(id, request);
+    const refresh = (): void => {
+      this.facade.refreshList();
+      this.imports.reloadImport(id);
+    };
 
-    call$.subscribe({
-      // Tras decidir se vuelve a pedir la lista (desde la primera página) y la carga, para refrescar `vehicles_detected`.
-      next: () => {
-        this.facade.load(id, this.facade.tab(), 1);
-        this.imports.reloadImport(id);
-      },
-      error: () => undefined,
-    });
+    this.facade.decide(id, request).subscribe({ next: refresh, error: refresh });
   }
 }

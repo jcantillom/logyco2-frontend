@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { EMPTY, Observable, concatMap, defer, expand, from, reduce, switchMap, tap } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { AppError } from '../../core/errors/app-error';
 import { toAppError } from '../../core/errors/http-error-mapper';
 import { ContextResetRegistry } from '../../core/org/context-reset';
@@ -10,9 +10,6 @@ import { Page } from '../../domain/models/pagination';
 import { ImportsRepository } from '../../domain/repositories/imports.repositories';
 
 export const VEHICLES_PAGE_SIZE = 10;
-/** Máximo de candidatos por petición de decisión (el servidor responde 422 `SELECTION_TOO_LARGE` si se pasa). */
-export const MAX_DECISION_BATCH = 500;
-const COLLECT_PAGE_SIZE = 100;
 
 /** Pestañas de la sección: las que se pueden decidir. «Sin cambios» solo se cuenta. */
 export type DetectedTab = Extract<VehicleCandidateKind, 'NEW' | 'CHANGED'>;
@@ -58,31 +55,28 @@ export class ImportVehiclesFacade {
     this.list.load(this.repository.vehicleCandidates(organizationId, importId, tab, { page, pageSize: VEHICLES_PAGE_SIZE }), { keepData: sameView });
   }
 
+  /** Vuelve a pedir la primera página de la pestaña abierta sin tocar el resultado ni el error de la última decisión (tras decidir, con éxito o con error). */
+  refreshList(): void {
+    const organizationId = this.context.activeOrganizationId();
+
+    if (!organizationId || !this.importId) return;
+
+    this.page.set(1);
+    this.list.load(this.repository.vehicleCandidates(organizationId, this.importId, this.tab(), { page: 1, pageSize: VEHICLES_PAGE_SIZE }), { keepData: true });
+  }
+
   reload(): void {
     if (this.importId) this.load(this.importId, this.tab(), this.page());
   }
 
-  /** Decide sobre candidatos (los ids dados o todos los de un tipo) y deja el resultado; quien llama recarga lo que dependa de él. */
+  /**
+ * Decide sobre candidatos y deja el resultado; quien llama recarga lo que dependa de él. Por tipo (`kind`) es UNA sola petición sin importar cuántos
+ * sean (el servidor los procesa en lotes); por ids, hasta 500 (acciones por fila o selección).
+ */
   decide(importId: string, request: VehicleDecisionRequest): Observable<VehicleDecisionResult> {
     const organizationId = this.requireOrganization();
 
     return this.track(this.repository.decideVehicles(organizationId, importId, request));
-  }
-
-  /** Acepta todos los pendientes de un tipo cuando son más de los que admite una petición: reúne sus ids y decide en lotes secuenciales. */
-  decideInBatches(importId: string, kind: DetectedTab): Observable<VehicleDecisionResult> {
-    const organizationId = this.requireOrganization();
-    const collect$ = this.repository.vehicleCandidates(organizationId, importId, kind, { page: 1, pageSize: COLLECT_PAGE_SIZE }).pipe(
-      expand((page) => (page.hasNext ? this.repository.vehicleCandidates(organizationId, importId, kind, { page: page.page + 1, pageSize: COLLECT_PAGE_SIZE }) : EMPTY)),
-      reduce((ids, page) => [...ids, ...page.items.filter((c) => c.decision === 'PENDING').map((c) => c.id)], [] as string[]),
-    );
-    const batches$ = collect$.pipe(
-      switchMap((ids) => from(chunk(ids, MAX_DECISION_BATCH))),
-      concatMap((candidateIds) => this.repository.decideVehicles(organizationId, importId, { decision: 'ACCEPT', candidateIds })),
-      reduce(mergeResults, EMPTY_RESULT),
-    );
-
-    return this.track(defer(() => batches$));
   }
 
   private track(call$: Observable<VehicleDecisionResult>): Observable<VehicleDecisionResult> {
@@ -120,22 +114,4 @@ export class ImportVehiclesFacade {
     this.decisionError.set(null);
     this.result.set(null);
   }
-}
-
-const EMPTY_RESULT: VehicleDecisionResult = { accepted: 0, rejected: 0, skipped: 0, skippedReasons: [] };
-
-const chunk = <T>(items: readonly T[], size: number): T[][] => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
-
-/** Un solo resultado acumulado: suma los conteos y junta los motivos por código. */
-function mergeResults(total: VehicleDecisionResult, next: VehicleDecisionResult): VehicleDecisionResult {
-  const reasons = new Map(total.skippedReasons.map((r) => [r.code, r.rows]));
-
-  next.skippedReasons.forEach((r) => reasons.set(r.code, (reasons.get(r.code) ?? 0) + r.rows));
-
-  return {
-    accepted: total.accepted + next.accepted,
-    rejected: total.rejected + next.rejected,
-    skipped: total.skipped + next.skipped,
-    skippedReasons: Array.from(reasons, ([code, rows]) => ({ code, rows })),
-  };
 }

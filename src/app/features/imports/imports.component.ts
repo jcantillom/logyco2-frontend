@@ -16,6 +16,7 @@ import { TruckProgressComponent } from '../../shared/ui/truck-progress.component
 import { ImportReviewDialogComponent } from './import-review-dialog.component';
 import { DuplicateOriginal, ImportsFacade, UploadEntry } from './imports.facade';
 import { VehiclesDetectedDialogComponent } from './vehicles-detected-dialog.component';
+import { NotCalculableDialogComponent } from './not-calculable-dialog.component';
 import { VehiclesFoundModalComponent } from './vehicles-found-modal.component';
 import { STATUS_LABELS, formatCount, longDate, formatSize, hasVehiclesToReview, isRunning, phaseLabel, share, vehiclesSummary } from './imports.labels';
 import { StepMeter, liveRow, overallPercent, processedIn, queuedText } from './imports.progress';
@@ -64,7 +65,7 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
 
 @Component({
   selector: 'app-imports',
-  imports: [DatePipe, PageHeroComponent, PaginationComponent, ResourceStateComponent, TruckProgressComponent, ExcelIconComponent, ImportReviewDialogComponent, VehiclesDetectedDialogComponent, VehiclesFoundModalComponent],
+  imports: [DatePipe, PageHeroComponent, PaginationComponent, ResourceStateComponent, TruckProgressComponent, ExcelIconComponent, ImportReviewDialogComponent, VehiclesDetectedDialogComponent, VehiclesFoundModalComponent, NotCalculableDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -134,6 +135,7 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
       .tbl .row-actions { flex-wrap: nowrap; justify-content: flex-end; gap: 8px; }
       .linkbtn { all: unset; box-sizing: border-box; cursor: pointer; color: var(--c-text2); text-decoration: underline; text-underline-offset: 3px; font-size: 0.86rem; }
       .linkbtn:hover { color: var(--c-head); }
+      .warn-link { color: var(--c-danger); font-weight: 600; }
       .linkbtn:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; border-radius: 4px; }
       .notice .linkbtn { color: inherit; font-weight: 700; }
 
@@ -240,7 +242,7 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
             <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path [attr.d]="icons.download" /></svg></span>
             <h2 id="step-template-title">1. Descarga la plantilla</h2>
           </header>
-          <p>Incluye instrucciones, listas desplegables y diccionario. Llénala y súbela en el paso 2.</p>
+          <p>Incluye instrucciones, listas desplegables y diccionario. El ID del viaje es obligatorio: debe ser estable (el mismo viaje lleva el mismo ID en cada carga) y único por viaje. Llénala y súbela en el paso 2.</p>
           <button type="button" class="btn btn-primary" data-testid="download-template" [disabled]="facade.downloading()" (click)="facade.downloadTemplate()">
             <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.download" /></svg>{{ facade.downloading() ? 'Descargando…' : 'Descargar plantilla (.xlsx)' }}
           </button>
@@ -372,7 +374,7 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
                             } @else if (i.headline; as h) {
                               <div class="res" data-testid="row-result">
                                 <div class="rtop"><span class="pct" data-testid="row-pct">{{ share(calculable(h), h.rowsRead) }} %</span><div class="bar" role="img" [attr.aria-label]="share(calculable(h), h.rowsRead) + ' % de los viajes se pueden calcular'"><span class="ok" [style.flex-grow]="calculable(h)"></span><span class="warn" [style.flex-grow]="h.pending"></span></div>@if (took(i); as t) { <span class="rt" data-testid="row-took">{{ t }}</span> }</div>
-                                <span class="rsub">{{ fmt(calculable(h)) }} calculables@if (h.pending > 0) { · <button type="button" class="linkbtn" data-testid="see-missing" [attr.aria-label]="'Ver qué falta en ' + i.fileName" (click)="open($event, i)">{{ fmt(h.pending) }} por completar</button> }</span>
+                                <span class="rsub">{{ fmt(calculable(h)) }} calculables@if (h.pending > 0) { · <button type="button" class="linkbtn" data-testid="see-missing" [attr.aria-label]="'Ver qué falta en ' + i.fileName" (click)="open($event, i)">{{ fmt(h.pending) }} por completar</button> }@if (unconfirmed(i)) { · <button type="button" class="linkbtn warn-link" data-testid="confirm-keep" [attr.aria-label]="'Confirmar que se conserva ' + i.fileName" (click)="openConfirm($event, i)">Sin confirmar</button> }</span>
                               </div>
                             } @else { <span class="none">—</span> }
                           </td>
@@ -404,6 +406,10 @@ const EMPTY: Readonly<Record<ImportFilter, { readonly title: string; readonly hi
 
     @if (deepLinkError(); as e) {
       <div class="alert alert-danger" role="alert" data-testid="deep-link-error"><strong>{{ e.message }}</strong></div>
+    }
+
+    @if (confirmItem(); as item) {
+      <app-not-calculable-dialog [summary]="item" (closed)="dismissConfirm(item)" />
     }
 
     @if (foundItem(); as item) {
@@ -475,9 +481,17 @@ export class ImportsComponent {
   protected readonly foundItem = computed<ImportSummary | null>(() => {
     const result = this.facade.batchResult();
 
-    if (result?.kind !== 'single' || this.selected() || this.vehiclesTarget()) return null;
+    if (result?.kind !== 'single' || this.selected() || this.vehiclesTarget() || this.confirmItem()) return null;
 
     return this.facade.list.data()?.items.some((item) => item.id === result.item.id && item.status === 'COMPLETED') ? result.item : null;
+  });
+  /** Carga manual (desde «Sin confirmar» en su fila) que abre el diálogo sin viajes calculables. */
+  private readonly confirmTarget = signal<ImportSummary | null>(null);
+  /** La carga sin viajes calculables que espera confirmación: la que se pidió en su fila o la primera del lote subido; solo con ninguna otra ventana abierta. */
+  protected readonly confirmItem = computed<ImportSummary | null>(() => {
+    if (this.selected() || this.vehiclesTarget()) return null;
+
+    return this.confirmTarget() ?? this.facade.unconfirmed()[0] ?? null;
   });
   /** Cuántas cargas del lote terminaron con vehículos por revisar (aviso agrupado, no modal). */
   protected readonly groupCount = computed(() => {
@@ -664,6 +678,21 @@ export class ImportsComponent {
   protected retry(id: string): void {
     this.retryError.set(null);
     this.facade.retry(id).subscribe({ error: (e: unknown) => this.retryError.set(toAppError(e)) });
+  }
+
+  protected unconfirmed(item: ImportSummary): boolean {
+    return item.status === 'COMPLETED' && !!item.notCalculable && !item.notCalculable.acknowledgedAt;
+  }
+
+  protected openConfirm(event: Event, item: ImportSummary): void {
+    this.opener = event.currentTarget as HTMLElement;
+    this.confirmTarget.set(item);
+  }
+
+  /** «Cancelar» o confirmar: se cierra el diálogo; la carga sin confirmar sigue marcada en su fila. */
+  protected dismissConfirm(item: ImportSummary): void {
+    this.confirmTarget.set(null);
+    this.facade.dismissUnconfirmed(item.id);
   }
 
   protected dismissFound(): void {

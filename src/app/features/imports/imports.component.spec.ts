@@ -85,7 +85,7 @@ describe('ImportsComponent: Cargar información', () => {
       expect(text('app-page-hero p')).toBe('Sube tus operaciones y calcula tu huella de CO₂.');
       expect(text('#step-template-title')).toBe('1. Descarga la plantilla');
       expect(text('#step-upload-title')).toBe('2. Sube tus archivos');
-      expect(text('[data-testid="step-template"] p')).toBe('Incluye instrucciones, listas desplegables y diccionario. Llénala y súbela en el paso 2.');
+      expect(text('[data-testid="step-template"] p')).toBe('Incluye instrucciones, listas desplegables y diccionario. El ID del viaje es obligatorio: debe ser estable (el mismo viaje lleva el mismo ID en cada carga) y único por viaje. Llénala y súbela en el paso 2.');
       expect(q('[data-testid="step-template"]')!.getAttribute('aria-labelledby')).toBe('step-template-title');
       expect(qa('.ico').every((i) => i.getAttribute('aria-hidden') === 'true')).toBeTrue();
     });
@@ -761,6 +761,50 @@ describe('ImportsComponent: Cargar información', () => {
 
         expect(TestBed.inject(Router).url).withContext(name).toBe(allowed ? '/cargas' : '/acceso-denegado');
       }
+    });
+  });
+
+  describe('carga sin ningún viaje calculable', () => {
+    const dialog = (): HTMLDialogElement | null => q<HTMLDialogElement>('[data-testid="not-calculable-dialog"]');
+    const pendingAck = { not_calculable: { acknowledged_at: null }, headline: { rows_read: 40, real_consumption: 0, estimated_consumption: 0, pending: 40 } };
+    const flushDetail = (id = 'imp-1'): void => {
+      http.expectOne({ method: 'GET', url: `${IMPORTS_URL}/${id}` }).flush({ data: importDetailDto({ id, ...pendingAck }) });
+      fixture.detectChanges();
+    };
+
+    it('un archivo subido que termina sin viajes calculables abre el diálogo bloqueante, antes que el aviso de vehículos', () => {
+      open();
+      uploadOne({ ...pendingAck, vehicles_detected: vehiclesDetectedDto() });
+      flushDetail();
+
+      expect(dialog()!.open).toBeTrue();
+      expect(q('[data-testid="vehicles-modal"]')).toBeNull();
+      expect(text('[data-testid="nc-confirm"]')).toBe('Entiendo, conservar el archivo');
+    });
+
+    it('un archivo calculable en parte no muestra el diálogo ni la marca «Sin confirmar»', () => {
+      open();
+      uploadOne({ not_calculable: undefined });
+
+      expect(dialog()).toBeNull();
+      expect(q('[data-testid="confirm-keep"]')).toBeNull();
+    });
+
+    it('una carga anterior sin confirmar no abre nada sola, pero su fila lo ofrece y confirmar la saca de la marca', () => {
+      open([importSummaryDto({ id: 'imp-1', ...pendingAck }), importSummaryDto({ id: 'imp-2', not_calculable: { acknowledged_at: '2026-03-01T10:05:00Z' } })]);
+
+      expect(dialog()).toBeNull();
+      expect(qa('[data-testid="confirm-keep"]').length).toBe(1);
+
+      click('[data-testid="confirm-keep"]');
+      flushDetail();
+      expect(dialog()!.open).toBeTrue();
+
+      click('[data-testid="nc-confirm"]');
+      http.expectOne({ method: 'POST', url: `${IMPORTS_URL}/imp-1/acknowledge-not-calculable` }).flush({ data: { acknowledged_at: '2026-03-01T11:00:00Z' } });
+      flushQueue([importSummaryDto({ id: 'imp-1', not_calculable: { acknowledged_at: '2026-03-01T11:00:00Z' } })]);
+
+      expect(q('[data-testid="confirm-keep"]')).toBeNull();
     });
   });
 

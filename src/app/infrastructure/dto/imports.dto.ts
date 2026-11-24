@@ -14,6 +14,10 @@ export interface VehiclesDetectedDto {
   readonly pending_decision: number;
 }
 
+export interface ImportNotCalculableDto {
+  readonly acknowledged_at: string | null;
+}
+
 export interface ImportSummaryDto {
   readonly id: string;
   readonly file_name: string;
@@ -29,6 +33,7 @@ export interface ImportSummaryDto {
   readonly created_by_name: string | null;
   readonly headline: ImportHeadlineDto | null;
   readonly vehicles_detected?: VehiclesDetectedDto | null;
+  readonly not_calculable?: ImportNotCalculableDto | null;
   readonly error: string | null;
 }
 
@@ -159,4 +164,5 @@ export interface VehicleDecisionResultDto {
   readonly rejected: number;
   readonly skipped: number;
   readonly skipped_reasons: readonly { readonly code: string; readonly rows: number }[];
+  readonly remaining: number;
 }

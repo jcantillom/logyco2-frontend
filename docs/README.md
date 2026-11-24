@@ -20,7 +20,7 @@
 | Historial de cambios del desarrollo | [CHANGELOG-dev.md](CHANGELOG-dev.md) |
 | Bitácora de tareas de cambios grandes (specs, tareas, log) | `docs/tasks/` (un archivo por cambio grande) |
 
-Features documentadas: auth (incluye `onboarding`), calidad-de-datos, dashboard, emissions, imports, intelligence, organizations, platform, settings, system, users, vehicles.
+Features documentadas: auth (incluye `onboarding`), calidad-de-datos, dashboard, emissions, imports, intelligence, operaciones-logisticas, organizations, platform, settings, system, users, vehicles.
 
 ## Resumen de arquitectura
 

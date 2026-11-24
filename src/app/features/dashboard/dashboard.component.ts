@@ -94,8 +94,8 @@ const REFRESH_MS = 5000;
             </section>
           }
           <div class="row b">
-            <app-factor-rotator-card appearance="tile" data-testid="emission-factor" />
             <app-period-result-card data-testid="period-result-card" [footprint]="footprint()" [footprintStatus]="footprintStatus()" (retryFootprint)="reloadFootprint()" [counts]="canSeeImports() ? counts() ?? null : null" [periodLabel]="resultPeriodLabel()" [status]="canSeeImports() ? imports.counts.status() : 'ready'" (retry)="imports.reloadCounts()" />
+            <app-factor-rotator-card appearance="tile" data-testid="emission-factor" />
           </div>
 
           <div class="row b" data-testid="charts-row">

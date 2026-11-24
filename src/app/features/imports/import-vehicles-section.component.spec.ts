@@ -258,44 +258,43 @@ describe('ImportVehiclesSectionComponent: vehículos detectados', () => {
     expect(next.request.params.get('page_size')).toBe('10');
   });
 
-  it('con más de 500 pendientes reúne los ids por páginas y decide por lotes de 500, con un solo resultado acumulado', async () => {
-    render({ counts: { new: 1200, changed: 0 } });
+  it('con más de 500 pendientes decide por kind en UNA sola petición, sin reunir ids, y muestra el avance en el botón', async () => {
+    render({ counts: { new: 1926, changed: 0 } });
     spyOn(TestBed.inject(ConfirmService), 'confirm').and.resolveTo(true);
-    const ids = Array.from({ length: 1200 }, (_, i) => `c-${i}`);
-    const pageOf = (from: number, page: number) => pagedBody(ids.slice(from, from + 600).map((id) => candidateDto({ id })), 1200, 600, page);
 
     q<HTMLButtonElement>('[data-testid="decide-all"]')!.click();
     await fixture.whenStable();
-
-    expect(http.match((r) => r.url === DECISIONS).length).toBe(0);
-    const first = http.expectOne((r) => r.url === VEHICLES && r.params.get('page') === '1' && r.params.get('page_size') === '100');
-    first.flush({ ...pageOf(0, 1), meta: { pagination: { page: 1, page_size: 100, total: 1200, total_pages: 2, has_next: true, has_previous: false } } });
-    http.expectOne((r) => r.url === VEHICLES && r.params.get('page') === '2').flush({ ...pageOf(600, 2), meta: { pagination: { page: 2, page_size: 100, total: 1200, total_pages: 2, has_next: false, has_previous: true } } });
-
-    const one = http.expectOne({ method: 'POST', url: DECISIONS });
-    expect(one.request.body.candidate_ids.length).toBe(500);
-    expect(one.request.body.kind).toBeUndefined();
-    one.flush({ data: { accepted: 500, rejected: 0, skipped: 0, skipped_reasons: [] } });
-    const two = http.expectOne({ method: 'POST', url: DECISIONS });
-    expect(two.request.body.candidate_ids.length).toBe(500);
-    two.flush({ data: { accepted: 498, rejected: 0, skipped: 2, skipped_reasons: [{ code: 'ALREADY_REGISTERED', rows: 2 }] } });
-    const three = http.expectOne({ method: 'POST', url: DECISIONS });
-    expect(three.request.body.candidate_ids.length).toBe(200);
-    three.flush({ data: { accepted: 200, rejected: 0, skipped: 1, skipped_reasons: [{ code: 'ALREADY_REGISTERED', rows: 1 }] } });
     fixture.detectChanges();
 
-    expect(text('[data-testid="decision-result"]')).toContain('1198 aprobados · 0 omitidos · 3 sin aplicar');
-    expect(qa('[data-testid="skipped-reasons"] li').map((li) => li.textContent!.trim())).toEqual(['La placa ya estaba registrada: 3']);
+    expect(text('[data-testid="decide-all"]')).toBe('Registrando 1.926…');
+    expect(q<HTMLButtonElement>('[data-testid="decide-all"]')!.disabled).toBeTrue();
+    http.expectNone((r) => r.url === VEHICLES);
+    const one = http.expectOne({ method: 'POST', url: DECISIONS });
+    expect(one.request.body).toEqual({ decision: 'ACCEPT', kind: 'NEW' });
+    one.flush({ data: { accepted: 1924, rejected: 0, skipped: 2, skipped_reasons: [{ code: 'ALREADY_REGISTERED', rows: 2 }], remaining: 0 } });
+    fixture.detectChanges();
+
+    expect(text('[data-testid="decision-result"]')).toContain('1924 aprobados · 0 omitidos · 2 sin aplicar');
+    flushRefresh();
   });
 
-  it('con 500 o menos pendientes decide por kind en una sola petición', async () => {
-    render({ counts: { new: 500, changed: 0 } });
+  it('si falla la decisión masiva recarga la lista y la carga, y dice que se puede reintentar sin repetir lo hecho', async () => {
+    render({ counts: { new: 1926, changed: 0 } });
     spyOn(TestBed.inject(ConfirmService), 'confirm').and.resolveTo(true);
 
     q<HTMLButtonElement>('[data-testid="decide-all"]')!.click();
     await fixture.whenStable();
+    http.expectOne({ method: 'POST', url: DECISIONS }).flush({ error: { code: 'INTERNAL', message: 'Falló' } }, { status: 500, statusText: 'Server Error' });
+    flushRefresh();
 
-    expect(http.expectOne({ method: 'POST', url: DECISIONS }).request.body).toEqual({ decision: 'ACCEPT', kind: 'NEW' });
+    expect(text('[data-testid="decision-error"]')).toContain('Reintenta para completar lo que falte');
+    expect(q<HTMLButtonElement>('[data-testid="decide-all"]')!.disabled).toBeFalse();
+  });
+
+  it('la lista siempre se pide de 10 en 10: nunca hay miles de filas en el DOM', () => {
+    render({ counts: { new: 1926, changed: 0 }, flush: false });
+
+    expect(kindRequest('NEW').request.params.get('page_size')).toBe('10');
   });
 
   it('el motivo NO_CHANGES se rotula en español', () => {
