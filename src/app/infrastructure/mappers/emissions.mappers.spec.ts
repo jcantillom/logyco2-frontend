@@ -20,10 +20,15 @@ describe('mapeadores de la guía de emisiones', () => {
 
   it('el factor deja el valor como texto decimal y mapea el estado', () => {
     expect(toEmissionFactor(factorDto())).toEqual({
-      fuelCode: 'DIESEL_B2', name: 'Diésel B2', value: '10.1000', unit: 'kg_CO2/gal', volumeUnit: 'gal', efficiencyUnit: 'km/gal', gas: 'CO2', sourceName: 'Fuente de prueba', sourceDocument: 'Documento de prueba',
+      fuelCode: 'DIESEL_B2', name: 'Diésel B2', value: '10.1000', unit: 'kg_CO2/gal', unitLabel: null, volumeUnit: 'gal', efficiencyUnit: 'km/gal', gas: 'CO2', sourceName: 'Fuente de prueba', sourceDocument: 'Documento de prueba',
       sourceUrl: 'https://example.test/fuente', referenceYear: 2023, status: 'VERIFIED', usableForCalculation: true,
     });
     expect(toEmissionFactor(factorDto({ value: null, verification_status: 'NOT_CONFIGURED', usable_for_calculation: false })).value).toBeNull();
+  });
+
+  it('la etiqueta de unidad del servidor se conserva y, si falta, queda `null`', () => {
+    expect(toEmissionFactor(factorDto({ unit_label: 'kg CO₂/gal' })).unitLabel).toBe('kg CO₂/gal');
+    expect(toEmissionFactor(factorDto()).unitLabel).toBeNull();
   });
 
   it('el gas natural conserva sus unidades de volumen y rendimiento', () => {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, untracked, inject, input, output, signal, viewChild } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap } from 'rxjs';
 import { AppError } from '../../core/errors/app-error';
@@ -37,6 +37,7 @@ const COLUMN_ISSUES: readonly string[] = ['EMPTY_COLUMN', 'MISSING_COLUMN'];
     `,
   ],
   template: `
+    @if (verdict() === 'show') {
     <dialog #dialog class="nc" role="alertdialog" aria-labelledby="nc-title" aria-describedby="nc-text" (cancel)="onCancel($event)" (close)="closed.emit()" data-testid="not-calculable-dialog">
       <div class="body">
         <div class="head">
@@ -65,16 +66,31 @@ const COLUMN_ISSUES: readonly string[] = ['EMPTY_COLUMN', 'MISSING_COLUMN'];
         </div>
       </div>
     </dialog>
+    }
   `,
 })
 export class NotCalculableDialogComponent {
   private readonly facade = inject(ImportsFacade);
-  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
-  private readonly cancelButton = viewChild.required<ElementRef<HTMLButtonElement>>('cancelButton');
+  private readonly dialog = viewChild<ElementRef<HTMLDialogElement>>('dialog');
+  private readonly cancelButton = viewChild<ElementRef<HTMLButtonElement>>('cancelButton');
   private readonly opener = typeof document === 'undefined' ? null : (document.activeElement as HTMLElement | null);
 
   readonly summary = input.required<ImportSummary>();
-  private readonly detail = toSignal<ImportDetail | null>(toObservable(this.summary).pipe(switchMap((item) => this.facade.fetch(item.id).pipe(catchError(() => of(null))))), { initialValue: null });
+  /** `undefined` mientras el detalle carga; `null` si no se pudo consultar. El detalle es la fuente de verdad: el listado conserva el aviso guardado y NO decide nada. */
+  private readonly loaded = toSignal<ImportDetail | null | undefined>(toObservable(this.summary).pipe(switchMap((item) => this.facade.fetch(item.id).pipe(catchError(() => of(null))))), { initialValue: undefined });
+  private readonly detail = computed(() => this.loaded() ?? null);
+  /**
+   * Hasta que llega el detalle no se dibuja nada (ni parpadea el diálogo). Se muestra solo si el servidor dice que NO se puede calcular ni estimando
+   * (`not_calculable` presente y `calculable_with_estimation` nulo; un campo ausente cuenta como nulo); si no se pudo consultar, se muestra por prudencia.
+   */
+  protected readonly verdict = computed<'pending' | 'show' | 'skip'>(() => {
+    const detail = this.loaded();
+
+    if (detail === undefined) return 'pending';
+    if (detail === null) return 'show';
+
+    return detail.notCalculable && !detail.calculableWithEstimation ? 'show' : 'skip';
+  });
   /** Se cerró (con «Cancelar», Escape o tras confirmar). */
   readonly closed = output();
 
@@ -96,12 +112,17 @@ export class NotCalculableDialogComponent {
   protected readonly hidden = computed(() => Math.max(0, this.lines().length - MAX_LISTED));
 
   constructor() {
-    afterNextRender(() => {
-      const element = this.dialog().nativeElement;
+    effect(() => {
+      if (this.verdict() === 'skip') untracked(() => this.closed.emit());
+    });
+    effect(() => {
+      const element = this.dialog()?.nativeElement;
+
+      if (!element) return;
 
       if (!element.open) element.showModal();
 
-      this.cancelButton().nativeElement.focus(); // la opción segura (no confirmar) tiene el foco inicial
+      this.cancelButton()?.nativeElement.focus(); // la opción segura (no confirmar) tiene el foco inicial
     });
   }
 
@@ -124,7 +145,9 @@ export class NotCalculableDialogComponent {
   }
 
   protected close(): void {
-    const element = this.dialog().nativeElement;
+    const element = this.dialog()?.nativeElement;
+
+    if (!element) return this.closed.emit();
 
     if (element.open) element.close();
     else this.closed.emit();

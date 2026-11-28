@@ -59,6 +59,15 @@ describe('VehicleDetailComponent: detalle de un vehículo', () => {
     expect(text('dl.facts')).not.toContain('archivos');
   });
 
+  it('la tecnología muestra la forma canónica y, si difiere, «Como llegó» con el texto original (informativo)', () => {
+    open(vehicleDetailDto({ technology: 'Euro V', technology_original: 'EURO 5' }));
+    expect(text('[data-testid="vehicle-technology"]')).toBe('Euro V Como llegó: EURO 5');
+
+    TestBed.resetTestingModule();
+    open(vehicleDetailDto({ technology: 'Euro V', technology_original: 'Euro V' }));
+    expect(text('[data-testid="vehicle-technology"]')).toBe('Euro V');
+  });
+
   it('una propiedad declarada se traduce', () => {
     open(vehicleDetailDto({ ownership: 'CONTRACTED' }));
 

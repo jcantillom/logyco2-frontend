@@ -24,10 +24,10 @@ function parseRetryAfter(value: string | null): number | null {
 const REFERENCE_FIELDS: ReadonlySet<string> = new Set(['link_id', 'organization_id', 'sync_max_rows', 'version', 'cap']);
 
 /** Errores de validación por campo al completar viajes: su `details[].message` es el texto de la regla (en español, por dato) y es lo que se muestra en línea. */
-const FIELD_MESSAGE_CODES: ReadonlySet<string> = new Set(['INVALID_FIELD_VALUE', 'FIELD_NOT_EDITABLE']);
+const FIELD_MESSAGE_CODES: ReadonlySet<string> = new Set(['INVALID_FIELD_VALUE', 'FIELD_NOT_EDITABLE', 'UNIT_INCOMPATIBLE', 'MEASURED_PROTECTED']);
 
-/** Errores que traen datos útiles para la pantalla en `data` (el estado vigente del viaje). */
-const DATA_CODES: ReadonlySet<string> = new Set(['TRIP_VERSION_CONFLICT']);
+/** Errores que traen datos útiles para la pantalla en `data` (el estado vigente del viaje; los viajes repetidos al registrar a mano). */
+const DATA_CODES: ReadonlySet<string> = new Set(['TRIP_VERSION_CONFLICT', 'MANUAL_TRIP_REPEATED']);
 
 /**
  * Traduce cualquier error de transporte al `AppError` de la aplicación.

@@ -22,6 +22,7 @@ const VEHICLE_ICON = 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7.5 18.5a1 1 0 1 0 0 .01M17
 const DUPLICATES_ICON = 'M8 8h11v11H8zM5 16V5h11';
 
 /** Trazo del ícono de un aviso de viajes compartidos: dos flechas en sentidos opuestos (viewBox 24, sin relleno). */
+const EFFICIENCY_ICON = 'M4 20V4M4 20h16M8 15l3-4 3 2 5-6';
 const SHARED_ICON = 'M4 8h14l-3-3M20 16H6l3 3';
 
 /** Ruta de la bandeja de Calidad de datos, adonde lleva un aviso de posibles duplicados. */
@@ -204,7 +205,7 @@ export class ActionsBellComponent {
   readonly withNotifications = input(false);
   protected readonly open = signal(false);
   protected readonly tab = signal<BellTab>('notices');
-  protected readonly iconFor = (kind: NotificationKind): string => (kind === 'POSSIBLE_DUPLICATES' ? DUPLICATES_ICON : kind === 'SHARED_OPERATIONS' ? SHARED_ICON : VEHICLE_ICON);
+  protected readonly iconFor = (kind: NotificationKind): string => (kind === 'POSSIBLE_DUPLICATES' ? DUPLICATES_ICON : kind === 'SHARED_OPERATIONS' ? SHARED_ICON : kind === 'EFFICIENCY_ESTIMATED' ? EFFICIENCY_ICON : VEHICLE_ICON);
   protected readonly maxVisible = MAX_VISIBLE_NOTICES;
   protected readonly time = relativeTime;
 
@@ -279,7 +280,8 @@ export class ActionsBellComponent {
     const go = (): void => {
       this.open.set(false);
 
-      if (item.kind === 'POSSIBLE_DUPLICATES') void this.router.navigate([QUALITY_PATH]);
+      // Un aviso de un viaje registrado a mano nunca apunta a una carga: «Registros manuales» no existe en «Cargas».
+      if (item.kind === 'POSSIBLE_DUPLICATES' || item.payload.importKind === 'MANUAL') void this.router.navigate([QUALITY_PATH]);
       else if (item.kind === 'SHARED_OPERATIONS') void this.router.navigate([QUALITY_PATH], { queryParams: { [QUALITY_TAB_PARAM]: SHARED_OPERATIONS_TAB } });
       else void this.router.navigate([IMPORT_REVIEW_PATH], { queryParams: { [IMPORT_QUERY_PARAM]: item.payload.importId } });
     };

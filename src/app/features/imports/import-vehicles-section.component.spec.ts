@@ -306,4 +306,14 @@ describe('ImportVehiclesSectionComponent: vehículos detectados', () => {
 
     expect(text('[data-testid="skipped-reasons"]')).toBe('No tenían cambios: 1');
   });
+
+  it('muestra la tecnología y la capacidad que propone el archivo solo cuando vienen (informativas)', () => {
+    render({ items: [candidateDto({ proposed: { configuration_code: 'C3', model_year: 2019, fuel_type: 'DIESEL', vehicle_type: null, technology: 'Euro V', capacity_tons: 35 } }), candidateDto({ id: 'cand-3', plate: 'XYZ789' })] });
+    const rows = qa('[data-testid="candidate"]');
+
+    expect(rows[0].querySelector('[data-testid="cand-technology"]')!.textContent).toBe('Euro V');
+    expect(rows[0].querySelector('[data-testid="cand-capacity"]')!.textContent).toContain('35 t');
+    expect(rows[1].querySelector('[data-testid="cand-technology"]')).toBeNull();
+    expect(rows[1].querySelector('[data-testid="cand-capacity"]')).toBeNull();
+  });
 });

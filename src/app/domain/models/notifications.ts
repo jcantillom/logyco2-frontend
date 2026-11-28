@@ -1,8 +1,10 @@
-export type NotificationKind = 'VEHICLES_NEW' | 'VEHICLES_CHANGED' | 'POSSIBLE_DUPLICATES' | 'SHARED_OPERATIONS';
+export type NotificationKind = 'VEHICLES_NEW' | 'VEHICLES_CHANGED' | 'POSSIBLE_DUPLICATES' | 'SHARED_OPERATIONS' | 'EFFICIENCY_ESTIMATED';
 
 /** A qué carga apuntan todos los avisos. */
 interface PayloadBase {
   readonly importId: string;
+  /** `MANUAL`: el aviso viene de un viaje registrado a mano, que no es una carga de archivo (no tiene revisión en «Cargas»): el aviso lleva a «Calidad de datos». */
+  readonly importKind: 'MANUAL' | null;
 }
 
 /** Avisos de vehículos y de posibles duplicados (el texto del servidor ya incluye la cantidad de duplicados). */
@@ -16,7 +18,13 @@ export interface SharedOperationsPayload extends PayloadBase {
   readonly possibleShared: number;
 }
 
-export type NotificationPayload = VehiclesPayload | SharedOperationsPayload;
+/** Aviso de que una carga quedó con viajes calculados con rendimiento estimado (teórico): cuántos y cuántos siguen pendientes. */
+export interface EfficiencyEstimatedPayload extends PayloadBase {
+  readonly estimatedTrips: number;
+  readonly pendingTrips: number;
+}
+
+export type NotificationPayload = VehiclesPayload | SharedOperationsPayload | EfficiencyEstimatedPayload;
 
 interface NotificationBase {
   readonly id: string;
@@ -30,4 +38,5 @@ interface NotificationBase {
 /** Aviso de la campana: el título y el texto vienen del servidor, ya en español. El tipo decide la forma de su `payload`. */
 export type NotificationItem =
   | (NotificationBase & { readonly kind: 'VEHICLES_NEW' | 'VEHICLES_CHANGED' | 'POSSIBLE_DUPLICATES'; readonly payload: VehiclesPayload })
-  | (NotificationBase & { readonly kind: 'SHARED_OPERATIONS'; readonly payload: SharedOperationsPayload });
+  | (NotificationBase & { readonly kind: 'SHARED_OPERATIONS'; readonly payload: SharedOperationsPayload })
+  | (NotificationBase & { readonly kind: 'EFFICIENCY_ESTIMATED'; readonly payload: EfficiencyEstimatedPayload });

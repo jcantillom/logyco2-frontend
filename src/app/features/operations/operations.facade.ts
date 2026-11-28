@@ -8,6 +8,7 @@ import { AppError } from '../../core/errors/app-error';
 import { ContextResetRegistry } from '../../core/org/context-reset';
 import { OrganizationContext } from '../../core/org/organization-context';
 import { ScopedResource } from '../../core/org/scoped-resource';
+import { DEFAULT_GRANULARITY, GRANULARITIES, Granularity } from '../../domain/models/granularity';
 import { ImportPeriod, ImportSummary } from '../../domain/models/imports';
 import { DedupFilter, OperationsFilter, OperationsPage, OperationsView, TabCounts, TripDetail, TripStatus } from '../../domain/models/operations';
 import { ImportsRepository } from '../../domain/repositories/imports.repositories';
@@ -86,6 +87,14 @@ export class OperationsFacade {
 
   /** Se está generando el reporte Excel en el servidor. */
   readonly exporting = signal(false);
+  /** Granularidad de la hoja «Evolución de emisiones» del Excel (la elige el popover de «Exportar»; Mensual por defecto). */
+  readonly evolutionGranularity = signal<Granularity>(DEFAULT_GRANULARITY);
+  /** El popover de «Exportar» está abierto. */
+  readonly exportPanelOpen = signal(false);
+  /** La más fina que el servidor rechazó con `GRANULARITY_TOO_FINE` para el periodo y los filtros actuales; esa y las más finas se bloquean hasta que cambie un criterio. */
+  private readonly refusedGranularity = signal<Granularity | null>(null);
+  /** La granularidad elegida ya fue rechazada por demasiado fina: no se vuelve a pedir. */
+  readonly granularityRefused = computed(() => this.isGranularityRefused(this.evolutionGranularity()));
   readonly exportError = signal<AppError | null>(null);
   /** La descarga directa dijo «demasiado grande» (`EXPORT_TOO_LARGE` con el tope en `sync_max_rows`): se ofrece generarlo en segundo plano; `maxRows` es ese tope (o `null` si el servidor no lo dijo). */
   readonly exportOffer = signal<{ readonly maxRows: number | null } | null>(null);
@@ -300,17 +309,25 @@ export class OperationsFacade {
     this.exportError.set(null);
     this.exportOffer.set(null);
 
-    this.exportRequest = this.repository.exportReport(organizationId, this.filter(), this.view()).subscribe({
+    const granularity = this.evolutionGranularity();
+
+    this.exportRequest = this.repository.exportReport(organizationId, this.filter(), this.view(), granularity).subscribe({
       next: (file) => {
         saveFile(this.document, file.blob, file.fileName);
         this.exporting.set(false);
+        this.exportPanelOpen.set(false);
       },
       error: (error: unknown) => {
         const failure = toAppError(error);
 
         this.exporting.set(false);
 
+        if (failure.code === 'GRANULARITY_TOO_FINE') this.refusedGranularity.set(granularity);
+
+        // Los errores de la granularidad o del periodo quedan en el popover abierto, con la selección intacta.
         if (failure.code !== 'EXPORT_TOO_LARGE') return this.exportError.set(failure);
+
+        this.exportPanelOpen.set(false);
 
         const maxRows = Number(failure.details.find((detail) => detail.field === 'sync_max_rows')?.message);
 
@@ -321,11 +338,29 @@ export class OperationsFacade {
 
   /** Pide el mismo reporte (filtros y pestaña actuales) como trabajo en segundo plano; si el servidor lo rechaza (p. ej. demasiado grande aun así) el motivo queda en la alerta roja. */
   generateReport(): void {
-    this.exports.request(this.filter(), this.view(), (error) => {
+    this.exports.request(this.filter(), this.view(), this.evolutionGranularity(), (error) => {
       this.exportOffer.set(null);
 
       if (error) this.exportError.set(error);
     });
+  }
+
+  /** Elige la granularidad de la evolución; un error anterior de la granularidad deja de aplicar. */
+  setEvolutionGranularity(granularity: Granularity): void {
+    this.evolutionGranularity.set(granularity);
+    this.exportError.set(null);
+  }
+
+  /** Abre o cierra el popover de «Exportar». */
+  toggleExportPanel(): void {
+    this.exportPanelOpen.update((open) => !open);
+  }
+
+  /** La granularidad es la rechazada o una más fina. */
+  isGranularityRefused(granularity: Granularity): boolean {
+    const refused = this.refusedGranularity();
+
+    return refused !== null && GRANULARITIES.indexOf(granularity) <= GRANULARITIES.indexOf(refused);
   }
 
   /** Cancela la descarga directa en curso (al salir de la pantalla: el archivo no debe guardarse en silencio después). */
@@ -333,6 +368,7 @@ export class OperationsFacade {
     this.exportRequest?.unsubscribe();
     this.exportRequest = null;
     this.exporting.set(false);
+    this.exportPanelOpen.set(false);
   }
 
   /** Abre el detalle de un viaje: se pide solo ahora, y cada apertura cancela la anterior. */
@@ -415,6 +451,7 @@ export class OperationsFacade {
     this.total.set(null);
     this.exportError.set(null);
     this.exportOffer.set(null);
+    this.refusedGranularity.set(null);
     this.loadList();
 
     if (summary) this.loadSummary();
@@ -492,5 +529,7 @@ export class OperationsFacade {
     this.exporting.set(false);
     this.exportError.set(null);
     this.exportOffer.set(null);
+    this.exportPanelOpen.set(false);
+    this.refusedGranularity.set(null);
   }
 }

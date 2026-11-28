@@ -39,10 +39,10 @@ describe('LogoComponent y LogycaLogoComponent', () => {
     expect(logo(el).querySelector('text')).toBeNull();
   });
 
-  it('el isotipo vectorizado tiene fondo transparente (sin rectángulo de fondo) y está dividido en piezas', () => {
+  it('el isotipo tiene fondo transparente (sin rectángulo) y está dividido en piezas: anillo, tramos y hojas', () => {
     const el = render({ variant: 'mark', size: 64 });
     expect(logo(el).querySelector('rect')).toBeNull();
-    expect(pieces(64)).toEqual(['swooshW', 'swooshG', 'truck', 'cloud', 'leaf', 'bar1', 'bar2', 'bar3', 'streak1', 'streak2', 'streak3']);
+    expect(pieces(64)).toEqual(['track', 'track', 'seg1', 'seg2', 'leaf', 'leaf', 'leaf', 'leaf']);
   });
 
   it('horizontal incluye wordmark y lema (más trazados que la compacta y el isotipo)', () => {
@@ -57,35 +57,30 @@ describe('LogoComponent y LogycaLogoComponent', () => {
     expect(vb('mark').split(' ')[3]).toBe('64');
   });
 
-  it('el detalle del isotipo depende del tamaño: con nube ≥ 56 px, sin nube ≥ 36 px, sin barras por debajo', () => {
-    expect(pieces(64)).toContain('cloud');
-    expect(pieces(128)).toContain('cloud');
-    expect(pieces(48)).not.toContain('cloud');
-    expect(pieces(48)).toContain('bar1');
-    expect(pieces(24)).not.toContain('bar1');
-    expect(pieces(24)).toContain('leaf');
-    expect(pieces(24)).toContain('truck');
-    expect(totalLength(64)).toBeGreaterThan(totalLength(48));
-    expect(totalLength(48)).toBeGreaterThan(totalLength(24));
-    expect(totalLength(36)).toBe(totalLength(48));
+  it('el detalle del isotipo depende del tamaño: completo ≥ 36 px; por debajo, versión robusta sin aro interior ni nervaduras', () => {
+    expect(pieces(64)).toContain('seg2');
+    expect(pieces(36)).toEqual(pieces(128));
+    expect(pieces(24)).toEqual(['track', 'seg1', 'seg2', 'leaf', 'leaf']);
+    expect(totalLength(64)).toBeGreaterThan(totalLength(24));
   });
 
-  it('el CO₂ va en el verde aguamarina con fondo oscuro y claro; el isotipo, blanco u oscuro según el fondo', () => {
+  it('el CO₂ va en el verde aguamarina con fondo oscuro y claro; el texto, claro u oscuro según el fondo', () => {
     const dark = colors(render({ theme: 'dark' }));
-    expect(dark).toContain('#FFFFFF');
+    expect(dark).toContain('#F6F6F5');
     expect(dark).toContain('#00B398');
     const light = colors(render({ theme: 'light' }));
-    expect(light).toContain('#0B2638');
+    expect(light).toContain('#51534A');
     expect(light).toContain('#00B398');
   });
 
-  it('hoja, barras de la carga, curva y «CO₂» van en el verde aguamarina autorizado (fondo claro y oscuro)', () => {
-    for (const theme of ['light', 'dark'] as const) {
+  it('el anillo usa teal y naranja de marca y las hojas verdes (fondo claro y oscuro)', () => {
+    const fills = (theme: 'light' | 'dark'): Record<string, string | null> => {
       const el = render({ variant: 'mark', size: 64, theme });
       const fill = (piece: string): string | null => logo(el).querySelector(`path.${piece}`)!.getAttribute('fill');
-
-      for (const piece of ['leaf', 'bar1', 'bar2', 'bar3', 'swooshG']) expect(fill(piece)).toBe('#00B398');
-    }
+      return { seg1: fill('seg1'), seg2: fill('seg2') };
+    };
+    expect(fills('light')).toEqual({ seg1: '#00B398', seg2: '#FC4C02' });
+    expect(fills('dark')).toEqual({ seg1: '#00B398', seg2: '#FD7035' });
     expect(colors(render({ variant: 'horizontal', theme: 'dark' }))).toContain('#00B398');
   });
 
@@ -96,8 +91,8 @@ describe('LogoComponent y LogycaLogoComponent', () => {
   it('es accesible: role img y nombre', () => {
     const svg = logo(render());
     expect(svg.getAttribute('role')).toBe('img');
-    expect(svg.getAttribute('aria-label')).toContain('LoGyCO2');
-    expect(svg.querySelector('title')?.textContent).toContain('LoGyCO2');
+    expect(svg.getAttribute('aria-label')).toContain('LoGyCO₂');
+    expect(svg.querySelector('title')?.textContent).toContain('LoGyCO₂');
   });
 
   it('sin motion el logo es estático', () => {
@@ -116,16 +111,11 @@ describe('LogoComponent y LogycaLogoComponent', () => {
     expect(hover.classList.contains('in')).toBeFalse();
   });
 
-  it('con movimiento en vivo cada pieza tiene su propia animación (hoja, barras escalonadas, nube, camión)', () => {
+  it('con movimiento en vivo las hojas se mecen y el anillo se traza al entrar', () => {
     const el = render({ variant: 'mark', size: 64, motion: 'live' });
     const anim = (cls: string): string => getComputedStyle(el.querySelector(`app-logo path.${cls}`)!).animationName;
     expect(anim('leaf')).toContain('lg-sway');
-    expect(anim('cloud')).toContain('lg-float');
-    expect(anim('truck')).toContain('lg-ride'); // vibración de marcha y cabeceo
-    expect(anim('streak1')).toContain('lg-streak'); // rayas de velocidad hacia atrás
-    expect(anim('bar1')).toContain('lg-eq');
-    const delays = ['bar1', 'bar2', 'bar3'].map((c) => getComputedStyle(el.querySelector(`app-logo path.${c}`)!).animationDelay);
-    expect(new Set(delays).size).toBe(3); // las barras se mueven en secuencia, no a la vez
+    expect(anim('seg1')).toContain('lg-ring');
   });
 
   it('LOGYCA sobre fondo oscuro: sin pastilla blanca; texto en blanco y cuadrado con su color original', () => {
@@ -144,16 +134,5 @@ describe('LogoComponent y LogycaLogoComponent', () => {
     const host = render({ logycaTheme: 'light' }).querySelector('app-logyca-logo')!;
     expect(host.querySelectorAll('img').length).toBe(1);
     expect(host.querySelector('img')!.alt).toBe('LOGYCA');
-  });
-
-  it('las rayas de velocidad permanecen invisibles cuando el logo está estático (fiel al original)', () => {
-    const el = render({ variant: 'mark', size: 64, motion: 'none' });
-    ['streak1', 'streak2', 'streak3'].forEach((c) => expect(getComputedStyle(el.querySelector(`app-logo path.${c}`)!).opacity).toBe('0'));
-  });
-
-  it('las rayas se escalonan para dar sensación de avance continuo', () => {
-    const el = render({ variant: 'mark', size: 64, motion: 'live' });
-    const delays = ['streak1', 'streak2', 'streak3'].map((c) => getComputedStyle(el.querySelector(`app-logo path.${c}`)!).animationDelay);
-    expect(new Set(delays).size).toBe(3);
   });
 });

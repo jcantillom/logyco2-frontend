@@ -1,4 +1,4 @@
-import { DuplicateDecision, DuplicateEvidence, DuplicateKeep, DuplicateKind, DuplicateResolutionResult, DuplicateTrip, PossibleDuplicate } from '../../domain/models/duplicates';
+import { DuplicateDecision, DuplicateEvidence, DuplicateKeep, DuplicateKind, DuplicateNote, DuplicateResolutionResult, DuplicateTrip, PossibleDuplicate } from '../../domain/models/duplicates';
 import { unitLabel } from '../../shared/ui/footprint.format';
 import { FUEL_LABELS } from '../vehicles/vehicles.labels';
 
@@ -139,6 +139,37 @@ export function ruleSentence(item: PossibleDuplicate): string {
 /** Frase de la diferencia de id entre las dos versiones (solo R4 a R6); `null` si no aplica. No afirma identidad: solo explica por qué se comparan por fecha, placa y ruta. */
 export const idMismatchLine = (evidence: DuplicateEvidence | null): string | null =>
   evidence?.idMismatch ? 'Una de las dos versiones trae el id del viaje y la otra no, por eso se comparan por fecha, placa y ruta.' : null;
+
+const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
+  tipo_combustible: 'Combustible',
+  configuracion_vehiculo: 'Configuración del vehículo',
+  modelo_vehiculo: 'Modelo del vehículo',
+  tipo_flota: 'Tipo de flota',
+  tecnologia_vehiculo: 'Tecnología del vehículo',
+  tipo_vehiculo: 'Tipo de vehículo',
+  capacidad_toneladas: 'Capacidad (toneladas)',
+};
+
+/** Una diferencia de atributo del vehículo lista para mostrar: nombre en español y los dos valores (sin dato = «—»). */
+export interface VehicleDifferenceView {
+  readonly label: string;
+  readonly anchor: string;
+  readonly repeated: string;
+}
+
+/** Atributos del vehículo que cambian entre el primer registro y el repetido; una clave desconocida se muestra legible, nunca cruda. */
+export const vehicleDifferenceViews = (evidence: DuplicateEvidence | null): VehicleDifferenceView[] =>
+  (evidence?.vehicleDiffers ?? []).map((item) => ({ label: ATTRIBUTE_LABELS[item.attribute] ?? sentence(item.attribute), anchor: item.anchor ?? NONE, repeated: item.repeated ?? NONE }));
+
+const NOTE_SENTENCES: Readonly<Record<DuplicateNote, string>> = {
+  FUEL_CONFLICT_ANCHOR_FUEL_USED: 'El combustible no coincide entre los dos registros del archivo. Para el cálculo se usó el combustible del primer registro; conviene revisar el dato en el archivo de origen.',
+};
+
+/** Notas de calidad en español llano; solo las que el cliente conoce. */
+export const qualityNoteLines = (evidence: DuplicateEvidence | null): string[] => (evidence?.notes ?? []).map((note) => NOTE_SENTENCES[note]);
+
+/** «Resuelto automáticamente» solo cuando el servidor lo marca; una persona nunca aparece así. */
+export const isAutoResolved = (evidence: DuplicateEvidence | null): boolean => evidence?.auto === true;
 
 const PCT = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 });
 

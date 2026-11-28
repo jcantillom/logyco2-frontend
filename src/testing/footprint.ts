@@ -1,5 +1,5 @@
-import { Footprint, FootprintTotals, ImportFootprint } from '../app/domain/models/footprint';
-import { FootprintDto, ImportFootprintDto } from '../app/infrastructure/dto/footprint.dto';
+import { Footprint, FootprintBucket, FootprintTotals, ImportFootprint } from '../app/domain/models/footprint';
+import { FootprintBucketDto, FootprintDto, ImportFootprintDto } from '../app/infrastructure/dto/footprint.dto';
 import { ORG_ENVIA } from './builders';
 
 /** URL de la huella de la empresa de pruebas (sin query). */
@@ -28,6 +28,11 @@ export const completeTotals = (overrides: Partial<FootprintTotals> = {}): Footpr
 /** Totales de una huella pedida sin ningún viaje calculado (hay viajes pendientes). */
 export const emptyTotals = (overrides: Partial<FootprintTotals> = {}): FootprintTotals => footprintTotals({ kgCo2: 0, tripsCalculated: 0, coverageTripsPct: 0, measuredKgCo2: 0, estimatedKgCo2: 0, measuredTrips: 0, estimatedTrips: 0, ...overrides });
 
+/** Cubeta de la serie (dominio): 14 de marzo, 1.520,25 kg, 12 viajes, completa. */
+export const buildBucket = (overrides: Partial<FootprintBucket> = {}): FootprintBucket => ({ key: '2026-03-14', label: '14 mar', start: '2026-03-14', end: '2026-03-14', kgCo2: 1520.25, tCo2: 1.52025, trips: 12, partial: false, ...overrides });
+
+export const bucketDto = (overrides: Partial<FootprintBucketDto> = {}): FootprintBucketDto => ({ key: '2026-03-14', label: '14 mar', start: '2026-03-14', end: '2026-03-14', kg_co2: 1520.25, t_co2: 1.52025, trips: 12, partial: false, ...overrides });
+
 export const buildFootprint = (overrides: Partial<Footprint> = {}): Footprint => ({
   period: { from: '2026-10-01', to: '2026-11-30' },
   totals: footprintTotals(),
@@ -40,6 +45,15 @@ export const buildFootprint = (overrides: Partial<Footprint> = {}): Footprint =>
     { fuelCode: 'NATURAL_GAS', name: 'Gas natural', kgCo2: 1388.3016, consumption: [{ unit: 'm3', quantity: 700 }] },
   ],
   periods: [],
+  granularity: 'month',
+  series: [
+    buildBucket({ key: '2026-10', label: 'oct 2026', start: '2026-10-01', end: '2026-10-31', kgCo2: 1825.6343, tCo2: 1.8256343, trips: 6 }),
+    buildBucket({ key: '2026-11', label: 'nov 2026', start: '2026-11-01', end: '2026-11-30', kgCo2: 3762.7673, tCo2: 3.7627673, trips: 6 }),
+  ],
+  seriesTotalKg: 5588.4016,
+  methodology: null,
+  dataOriginShare: null,
+  inventoryCoverage: null,
   ...overrides,
 });
 
@@ -71,6 +85,12 @@ export const footprintDto = (overrides: Partial<FootprintDto> = {}): FootprintDt
     { start: '2026-08-01', end: '2026-09-30', kg_co2: 4000 },
     { start: '2026-10-01', end: '2026-11-30', kg_co2: 5588.4016 },
   ],
+  granularity: 'month',
+  series: [
+    bucketDto({ key: '2026-10', label: 'oct 2026', start: '2026-10-01', end: '2026-10-31', kg_co2: 1825.6343, t_co2: 1.8256343, trips: 6 }),
+    bucketDto({ key: '2026-11', label: 'nov 2026', start: '2026-11-01', end: '2026-11-30', kg_co2: 3762.7673, t_co2: 3.7627673, trips: 6 }),
+  ],
+  series_total_kg: 5588.4016,
   ...overrides,
 });
 

@@ -1,6 +1,6 @@
 import { toPossibleDuplicate } from '../../infrastructure/mappers/duplicates.mappers';
 import { duplicateTripDto, originalTripDto, possibleDuplicateDto } from '../../../testing/duplicates';
-import { comparisonFields, groupLine, idMismatchLine, hasResult, differingLabels, fuelText, lineageLine, placeText, resolutionMessage, ruleSentence, tripDateText } from './duplicates.view';
+import { comparisonFields, groupLine, idMismatchLine, hasResult, differingLabels, fuelText, isAutoResolved, lineageLine, placeText, qualityNoteLines, vehicleDifferenceViews, resolutionMessage, ruleSentence, tripDateText } from './duplicates.view';
 
 const pair = (overrides = {}) => toPossibleDuplicate(possibleDuplicateDto(overrides));
 const field = (item: ReturnType<typeof pair>, key: string) => comparisonFields(item).find((f) => f.key === key)!;
@@ -142,5 +142,35 @@ describe('duplicates.view', () => {
     expect(ruleSentence(withMismatch)).toContain('Está retenido y no suma hasta que decidas.');
     expect(idMismatchLine(rulePair('R5', 'correction').evidence)).toBeNull();
     expect(idMismatchLine(null)).toBeNull();
+  });
+
+  describe('resolución automática (R3a)', () => {
+    const auto = pair({
+      rule: 'R3a',
+      evidence: { identical: false, matches: [], differs: [], classification: 'SAME_PHYSICAL_TRIP', auto: true, resolved_by: 'SYSTEM', decided_by_rule: 'R3a', anchor_trip_id: 'trip-b1', vehicle_differs: { tipo_flota: { anchor: 'Propia', this: 'Tercero' }, campo_nuevo: { anchor: null, this: 'x' } }, notes: ['FUEL_CONFLICT_ANCHOR_FUEL_USED', 'OTRA_NOTA'] },
+    }).evidence;
+
+    it('mapea los campos opcionales y los omitidos quedan en su valor neutro', () => {
+      expect(auto!.auto).toBeTrue();
+      expect(auto!.notes).toEqual(['FUEL_CONFLICT_ANCHOR_FUEL_USED']);
+      expect(auto!.vehicleDiffers.length).toBe(2);
+      expect(pair().evidence).toEqual(jasmine.objectContaining({ auto: false, vehicleDiffers: [], otherDiffers: [], notes: [] }));
+      expect(isAutoResolved(auto)).toBeTrue();
+      expect(isAutoResolved(pair().evidence)).toBeFalse();
+      expect(isAutoResolved(null)).toBeFalse();
+    });
+
+    it('traduce los atributos y una clave desconocida se muestra legible, nunca cruda', () => {
+      expect(vehicleDifferenceViews(auto)).toEqual([
+        { label: 'Tipo de flota', anchor: 'Propia', repeated: 'Tercero' },
+        { label: 'Campo nuevo', anchor: '—', repeated: 'x' },
+      ]);
+      expect(vehicleDifferenceViews(null)).toEqual([]);
+    });
+
+    it('la nota de combustible se explica en español y una nota desconocida no se muestra', () => {
+      expect(qualityNoteLines(auto)).toEqual(['El combustible no coincide entre los dos registros del archivo. Para el cálculo se usó el combustible del primer registro; conviene revisar el dato en el archivo de origen.']);
+      expect(qualityNoteLines(null)).toEqual([]);
+    });
   });
 });

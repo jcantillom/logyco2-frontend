@@ -22,6 +22,7 @@ export interface MeResponseDto {
   readonly is_active: boolean;
   readonly global_roles: readonly RoleReferenceDto[];
   readonly memberships: readonly MembershipContextDto[];
+  readonly session_expires_at?: string | null;
 }
 
 export interface LoginRequestDto {
@@ -30,7 +31,8 @@ export interface LoginRequestDto {
 }
 
 export interface LoginResponseDto {
-  readonly access_token: string;
+  /** Siempre `null` para el navegador: la sesión es la cookie HttpOnly. Solo los clientes de API lo piden (`X-Client-Type: api`). */
+  readonly access_token: string | null;
   readonly token_type: string;
   readonly expiration_time_utc_bogota: string | null;
 }

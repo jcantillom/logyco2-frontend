@@ -35,6 +35,13 @@ describe('FactorRotatorCardComponent: factor de emisión en el resumen', () => {
     expect(FACTOR_ROTATION_MS).toBe(3000);
   });
 
+  it('la unidad es la etiqueta que manda el servidor (nunca un texto propio)', fakeAsync(() => {
+    create([factorDto({ value: '10.149', unit_label: 'etiqueta del servidor' })]);
+
+    expect(text('factor-unit')).toBe('etiqueta del servidor');
+    discardPeriodicTasks();
+  }));
+
   it('muestra el primer combustible con su nombre, el valor tal como lo envía la API (coma), la unidad sin partirse y la insignia, sin 3D', fakeAsync(() => {
     create();
 

@@ -1,7 +1,7 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ORG_ENVIA } from '../../../testing/builders';
-import { FOOTPRINT_URL, footprintDto } from '../../../testing/footprint';
+import { FOOTPRINT_URL, bucketDto, footprintDto } from '../../../testing/footprint';
 import { provideTestApp } from '../../../testing/providers';
 import { Footprint } from '../../domain/models/footprint';
 import { FootprintRepository } from '../../domain/repositories/footprint.repositories';
@@ -35,6 +35,25 @@ describe('HttpFootprintRepository', () => {
 
     expect(request.request.params.has('from')).toBeFalse();
     expect(request.request.params.has('to')).toBeFalse();
+    request.flush({ data: footprintDto() });
+  });
+
+  it('con granularidad la envía como `granularity` junto al periodo y devuelve la serie', () => {
+    let result: Footprint | null = null;
+    repository.footprint(ORG_ENVIA.id, { from: '2026-01-01', to: '2026-12-31' }, 'week').subscribe((f) => (result = f));
+    const request = http.expectOne((r) => r.url === FOOTPRINT_URL);
+
+    expect(request.request.params.get('granularity')).toBe('week');
+    expect(request.request.params.get('from')).toBe('2026-01-01');
+    request.flush({ data: footprintDto({ granularity: 'week', series: [bucketDto()], series_total_kg: 1520.25 }) });
+    expect((result as Footprint | null)?.series.length).toBe(1);
+  });
+
+  it('sin granularidad no envía el parámetro (la petición es la de siempre)', () => {
+    repository.footprint(ORG_ENVIA.id, { from: '2026-01-01', to: '2026-12-31' }).subscribe();
+    const request = http.expectOne((r) => r.url === FOOTPRINT_URL);
+
+    expect(request.request.params.has('granularity')).toBeFalse();
     request.flush({ data: footprintDto() });
   });
 });

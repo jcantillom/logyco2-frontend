@@ -1,36 +1,33 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { AuthToken, CurrentUser } from '../../domain/models/identity';
+import { CurrentUser } from '../../domain/models/identity';
 
 /**
- * Estado de sesión SOLO EN MEMORIA.
+ * Estado de sesión en memoria. NO contiene el token.
  *
- * El backend entrega un Bearer token al JavaScript del navegador y no ofrece
- * refresh token ni cookie HttpOnly. Persistirlo en localStorage/sessionStorage
- * lo expondría a cualquier XSS, así que por defecto no se persiste: recargar la
- * pestaña exige iniciar sesión de nuevo. `SessionPersistence` (solo si el entorno
- * lo habilita, p. ej. desarrollo) la conserva en `sessionStorage`. Nunca se
- * registra en logs.
+ * La credencial vive en una cookie HttpOnly que el backend fija y el navegador envía solo: el
+ * JavaScript de la aplicación nunca la lee, así que un XSS no puede robarla y la sesión sobrevive a
+ * recargas y pestañas nuevas (se restaura al arrancar con `SessionBootstrap`). Aquí solo se guarda
+ * quién es la persona (`user`) y si hay una identidad corporativa válida, aunque todavía no tenga
+ * usuario local (flujo de invitación). Nada de esto se persiste en el navegador.
  */
 @Injectable({ providedIn: 'root' })
 export class SessionStore {
-  private readonly tokenState = signal<AuthToken | null>(null);
+  private readonly identityState = signal(false);
   private readonly userState = signal<CurrentUser | null>(null);
 
   readonly user = this.userState.asReadonly();
-  /** Solo para `SessionPersistence`; el resto de la app usa `authorizationHeader()`. */
-  readonly token = this.tokenState.asReadonly();
-  readonly hasToken = computed(() => this.tokenState() !== null);
-  readonly isAuthenticated = computed(() => this.tokenState() !== null && this.userState() !== null);
-  readonly expirationLabel = computed(() => this.tokenState()?.expirationLabel ?? null);
+  /** Hay una identidad corporativa válida (con o sin usuario local). */
+  readonly hasIdentity = computed(() => this.identityState() || this.userState() !== null);
+  readonly isAuthenticated = computed(() => this.userState() !== null);
+  /** Instante en que caduca la sesión (el `exp` del token), o `null` si no se conoce. */
+  readonly expiresAt = computed(() => {
+    const value = this.userState()?.sessionExpiresAt;
+    return value ? new Date(value) : null;
+  });
 
-  /** Valor del header `Authorization`, o `null` sin sesión. */
-  authorizationHeader(): string | null {
-    const token = this.tokenState();
-    return token ? `Bearer ${token.accessToken}` : null;
-  }
-
-  setToken(token: AuthToken): void {
-    this.tokenState.set(token);
+  /** El backend confirmó una identidad válida (login o restauración) aunque aún no haya usuario local. */
+  markIdentity(): void {
+    this.identityState.set(true);
   }
 
   setUser(user: CurrentUser): void {
@@ -38,7 +35,7 @@ export class SessionStore {
   }
 
   clear(): void {
-    this.tokenState.set(null);
+    this.identityState.set(false);
     this.userState.set(null);
   }
 }

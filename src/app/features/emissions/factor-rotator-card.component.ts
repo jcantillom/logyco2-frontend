@@ -195,7 +195,7 @@ export class FactorRotatorCardComponent {
 
     return fuel ? factorValue(fuel) : null;
   });
-  protected readonly unit = computed(() => unitLabel(this.current()?.unit ?? ''));
+  protected readonly unit = computed(() => this.current()?.unitLabel || unitLabel(this.current()?.unit ?? ''));
   protected readonly pill = computed(() => FACTOR_PILLS[this.current()?.status ?? 'NOT_CONFIGURED']);
 
   constructor() {

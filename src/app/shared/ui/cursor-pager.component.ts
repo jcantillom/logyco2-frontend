@@ -23,7 +23,7 @@ export const CURSOR_PAGE_SIZES: readonly number[] = [25, 50, 100];
       .nav button:disabled, .nav button[aria-disabled='true'] { opacity: 0.35; cursor: not-allowed; }
       .nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
       @media (max-width: 640px) { .size { margin-left: 0; } }
-      @container (max-width: 560px) { .size-l { display: none; } .pager { gap: 6px 12px; } }
+      @container (max-width: 720px) { .size-l { display: none; } .pager { gap: 6px 12px; } }
     `,
   ],
   template: `

@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { IMPORTS_URL, importDetailDto, importSummaryDto, vehiclesDetectedDto } from '../../../testing/imports';
 import { provideTestApp, signInAs } from '../../../testing/providers';
+import { SETTINGS_URL, settingsDto } from '../../../testing/vehicle-efficiency';
 import { pagedBody } from '../../../testing/vehicles';
 import { SessionStore } from '../../core/auth/session.store';
 import { toImportSummary } from '../../infrastructure/mappers/imports.mappers';
@@ -210,5 +211,62 @@ describe('VehiclesFoundModalComponent: aviso de vehículos detectados', () => {
     expect(text('[data-testid="modal-text"]')).toBe('Un administrador de tu empresa debe aprobar su registro.');
     expect(text('[data-testid="modal-view"]')).toBe('Ver vehículos');
     expect(text('[data-testid="modal-close"]')).toBe('Entendido');
+  });
+
+  describe('consentimiento de estimar el rendimiento (modo ASK)', () => {
+    const settings = (overrides: object = {}): void => {
+      http.expectOne(SETTINGS_URL).flush({ data: settingsDto(overrides) });
+      fixture.detectChanges();
+    };
+
+    it('en ASK un administrador ve el control, sin marcar, con el aviso de que es teórico', () => {
+      render({ counts: { new: 2, changed: 0 } });
+      settings();
+
+      expect(text('[data-testid="modal-consent"]')).toContain('Estimar con referencia técnica (teórico)');
+      expect(text('[data-testid="modal-consent"]')).toContain('no una medición de tu flota');
+      expect((q('[data-testid="modal-consent-input"]') as HTMLInputElement).checked).toBeFalse();
+    });
+
+    it('registrar sin marcar envía estimate_efficiency=false (un «no» explícito)', () => {
+      render({ counts: { new: 2, changed: 0 } });
+      settings();
+      click('[data-testid="modal-register"]');
+
+      expect(http.expectOne(DECISIONS).request.body).toEqual({ decision: 'ACCEPT', kind: 'NEW', estimate_efficiency: false });
+    });
+
+    it('marcado envía estimate_efficiency=true y muestra lo que estimó el servidor', () => {
+      render({ counts: { new: 2, changed: 0 } });
+      settings();
+      click('[data-testid="modal-consent-input"]');
+      click('[data-testid="modal-register"]');
+      const req = http.expectOne(DECISIONS);
+
+      expect(req.request.body).toEqual({ decision: 'ACCEPT', kind: 'NEW', estimate_efficiency: true });
+      req.flush(accepted(2, { vehicles_estimated: 2, trips_estimated: 30 }));
+      flushRefresh();
+
+      expect(text('[data-testid="modal-estimated"]')).toBe('Estimamos el rendimiento de 2 vehículos (teórico): 30 viajes quedaron calculados.');
+    });
+
+    it('en AUTO, en OFF o con la bandera global apagada no hay control y la decisión no lleva el campo', () => {
+      for (const overrides of [{ mode: 'AUTO' }, { mode: 'OFF' }, { platform_enabled: false }]) {
+        TestBed.resetTestingModule();
+        render({ counts: { new: 2, changed: 0 } });
+        settings(overrides);
+
+        expect(q('[data-testid="modal-consent"]')).toBeNull();
+        click('[data-testid="modal-register"]');
+        expect(http.expectOne(DECISIONS).request.body).toEqual({ decision: 'ACCEPT', kind: 'NEW' });
+      }
+    });
+
+    it('quien no administra vehículos no ve el control ni pide los ajustes', () => {
+      render({ roles: ['ORG_VIEWER'], counts: { new: 2, changed: 0 } });
+
+      expect(q('[data-testid="modal-consent"]')).toBeNull();
+      http.expectNone(SETTINGS_URL);
+    });
   });
 });

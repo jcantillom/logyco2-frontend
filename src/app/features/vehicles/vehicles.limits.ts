@@ -15,6 +15,8 @@ export const VEHICLE_LIMITS = {
   /** `capacity_tons`: mayor que 0, hasta 10 dígitos en total y 3 decimales. */
   capacityDigits: 10,
   capacityDecimals: 3,
+  /** `note` de la declaración de rendimiento (la ficha usa el mismo tope). */
+  efficiencyNoteMax: 200,
 } as const;
 
 const CAPACITY = /^(\d+)(?:\.(\d+))?$/;

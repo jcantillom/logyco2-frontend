@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { buildSuperAdmin, buildUser, FAKE_TOKEN, membership, ORG_ENVIA } from '../../../testing/builders';
+import { buildSuperAdmin, buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { PlatformAccess, hasSuperAdminRole } from './platform-access';
 import { SessionStore } from './session.store';
 
@@ -21,7 +21,7 @@ describe('hasSuperAdminRole / PlatformAccess', () => {
   it('PlatformAccess sigue a la sesión y no depende de la empresa activa', () => {
     const session = TestBed.inject(SessionStore);
     const access = TestBed.inject(PlatformAccess);
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(buildSuperAdmin());
     expect(access.isSuperAdmin()).toBeTrue();
     session.setUser(buildUser());

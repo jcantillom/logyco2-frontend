@@ -1,3 +1,5 @@
+import { VehicleEfficiency } from './vehicle-efficiency';
+
 export type VehicleStatus = 'ACTIVE' | 'INACTIVE';
 export type VehicleSource = 'MANUAL' | 'IMPORT';
 /** Propiedad declarada del vehículo; mientras nadie la declare es `UNKNOWN` (nunca se infiere de que la placa aparezca en un archivo). */
@@ -16,11 +18,15 @@ export interface Vehicle {
   readonly fuelType: string | null;
   readonly modelYear: number | null;
   readonly technology: string | null;
+  /** La tecnología tal como llegó (antes de normalizarla); `null` si no hubo texto original. Informativa. */
+  readonly technologyOriginal: string | null;
   readonly capacityTons: number | null;
   readonly ownership: VehicleOwnership;
   readonly status: VehicleStatus;
   readonly source: VehicleSource;
   readonly createdAt: string;
+  /** Rendimiento vigente declarado o medido; `null` si no tiene (la consola de plataforma no lo trae). */
+  readonly efficiency: VehicleEfficiency | null;
 }
 
 export interface VehicleChange {

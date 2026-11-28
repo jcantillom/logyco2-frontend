@@ -11,6 +11,7 @@ import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import { KPI_TILE_STYLES } from '../../shared/ui/kpi-tile.styles';
 import { TRUCK_ICON } from '../../shared/ui/icons';
 import { VehicleInventory } from './vehicle-inventory';
+import { ORIGIN_LABELS, efficiencyText } from './vehicle-efficiency.view';
 import { FUEL_OPTIONS, SOURCE_LABELS, STATUS_LABELS, fuelLabel } from './vehicles.labels';
 
 /** Trazos de los íconos (viewBox 24, sin relleno). */
@@ -21,6 +22,8 @@ const ICONS = {
   filter: 'M3 5h18l-7 8v6l-4-2v-4z',
   plus: 'M12 5v14M5 12h14',
   eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 .01 0',
+  gauge: 'M4 18a9 9 0 1 1 16 0M12 18l4-6M7 18h.01M17 18h.01M12 9v.01',
+  sheet: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6',
 } as const;
 
 interface Tile {
@@ -72,6 +75,8 @@ interface Tile {
       .tbl tbody tr:last-child th { border-bottom: 0; }
       .tbl small { display: block; color: var(--c-mu); font-size: 0.76rem; }
       .tbl .nw { white-space: nowrap; }
+      .tbl .eff { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px 8px; }
+      .tbl .acts { display: inline-flex; gap: 6px; }
       .ibtn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 10px; cursor: pointer; background: var(--c-sf); border: 1px solid color-mix(in srgb, var(--c-primary) 40%, var(--c-sf)); color: var(--c-head); }
       .ibtn:hover { background: var(--c-ok-soft); }
       .ibtn:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
@@ -134,6 +139,14 @@ interface Tile {
             <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.filter" /></svg>Más filtros@if (activeFilters() > 0) { <i>{{ activeFilters() }}</i> }
           </button>
           @if (canManage()) {
+            @if (canEstimate()) {
+              <button type="button" class="btn-f" data-testid="open-estimation" [disabled]="estimateOff()" [attr.title]="estimateOff() ? offNote : null" [attr.aria-label]="estimateOff() ? 'Estimar rendimiento de pendientes. ' + offNote : null" (click)="estimate.emit($event)">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.gauge" /></svg>Estimar rendimiento de pendientes
+              </button>
+            }
+            <button type="button" class="btn-f" data-testid="open-ficha" (click)="ficha.emit($event)">
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.sheet" /></svg>Ficha de rendimiento
+            </button>
             <button type="button" class="btn btn-primary add" data-testid="register-vehicle" (click)="register.emit($event)">
               <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.plus" /></svg>Registrar vehículo
             </button>
@@ -186,7 +199,7 @@ interface Tile {
                   <caption class="sr-only">Vehículos de la empresa</caption>
                   <thead>
                     <tr>
-                      <th scope="col">Placa</th><th scope="col">Configuración</th><th scope="col">Tipo</th><th scope="col">Combustible</th><th scope="col">Modelo</th>
+                      <th scope="col">Placa</th><th scope="col">Configuración</th><th scope="col">Tipo</th><th scope="col">Combustible</th>@if (!readOnly()) { <th scope="col">Rendimiento</th> }<th scope="col">Modelo</th>
                       <th scope="col">Estado</th><th scope="col">Fecha de registro</th><th scope="col"><span class="sr-only">Acciones</span></th>
                     </tr>
                   </thead>
@@ -197,10 +210,19 @@ interface Tile {
                         <td data-l="Configuración">{{ v.configurationCode ?? '—' }}@if (v.configurationCode && !v.configurationRecognized) { <small>No reconocida</small> }</td>
                         <td data-l="Tipo">{{ v.vehicleType ?? '—' }}</td>
                         <td data-l="Combustible">{{ fuelText(v.fuelType) }}</td>
+                        @if (!readOnly()) {
+                          <td data-l="Rendimiento" data-testid="efficiency-cell">
+                            @if (v.efficiency; as e) {
+                              <span class="eff"><span class="nw">{{ valueText(e.value, e.unit) }}</span><app-status-badge [label]="originLabels[e.origin]" /></span>
+                            } @else {
+                              <span class="muted nw" data-testid="efficiency-none">Sin rendimiento</span>
+                            }
+                          </td>
+                        }
                         <td data-l="Modelo">{{ v.modelYear ?? '—' }}</td>
                         <td data-l="Estado"><app-status-badge [label]="statusLabels[v.status]" /></td>
                         <td class="nw" data-l="Registro">{{ v.createdAt | date: 'd MMM y' }}</td>
-                        <td class="k-act"><button type="button" class="ibtn" data-testid="view-detail" title="Ver detalle" [attr.aria-label]="'Ver detalle de ' + v.plate" (click)="view.emit({ vehicle: v, event: $event })"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.eye" /></svg></button></td>
+                        <td class="k-act"><span class="acts">@if (!readOnly()) { <button type="button" class="ibtn" data-testid="open-efficiency" title="Rendimiento" [attr.aria-label]="'Rendimiento de ' + v.plate" (click)="efficiency.emit({ vehicle: v, event: $event })"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.gauge" /></svg></button> }<button type="button" class="ibtn" data-testid="view-detail" title="Ver detalle" [attr.aria-label]="'Ver detalle de ' + v.plate" (click)="view.emit({ vehicle: v, event: $event })"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.eye" /></svg></button></span></td>
                       </tr>
                     }
                   </tbody>
@@ -220,12 +242,22 @@ export class VehicleInventoryComponent {
   readonly readOnly = input(false);
   readonly view = output<{ readonly vehicle: Vehicle; readonly event: Event }>();
   readonly register = output<Event>();
+  readonly efficiency = output<{ readonly vehicle: Vehicle; readonly event: Event }>();
+  readonly ficha = output<Event>();
+  /** La estimación por referencia está disponible (la decide el servidor); sin ella no hay botón. */
+  readonly canEstimate = input(false);
+  /** La empresa apagó la estimación: la acción se ve deshabilitada con su nota. */
+  readonly estimateOff = input(false);
+  protected readonly offNote = 'La estimación está desactivada para tu empresa. Actívala en Configuración.';
+  readonly estimate = output<Event>();
 
   protected readonly icons = ICONS;
   protected readonly statusLabels = STATUS_LABELS;
   protected readonly sourceLabels = SOURCE_LABELS;
   protected readonly fuelOptions = FUEL_OPTIONS;
   protected readonly fuelText = fuelLabel;
+  protected readonly originLabels = ORIGIN_LABELS;
+  protected readonly valueText = efficiencyText;
   protected readonly search = new FormControl('', { nonNullable: true });
   protected readonly filtersOpen = signal(false);
   protected readonly canManage = computed(() => !this.readOnly() && this.access.can('vehicles:manage'));

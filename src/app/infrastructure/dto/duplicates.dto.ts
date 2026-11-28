@@ -20,6 +20,31 @@ export interface DuplicateTripDto {
   readonly row_number: number | null;
 }
 
+/** Evidencia de un par o de un viaje; las claves opcionales solo viajan cuando existen (R3a suma las del final). */
+export interface DuplicateEvidenceDto {
+  readonly identical: boolean;
+  readonly matches?: readonly string[];
+  readonly differs?: readonly string[];
+  /** Solo R4 a R6. */
+  readonly kind?: string | null;
+  readonly lineage?: { readonly established: boolean; readonly mutual: boolean; readonly rows: number; readonly new_pct: number; readonly previous_pct: number } | null;
+  readonly group?: { readonly existing: number; readonly new: number } | null;
+  /** Solo R4 a R6 y solo cuando es cierto. */
+  readonly id_mismatch?: boolean;
+  /** Solo R3a: lo resolvió el sistema como el mismo viaje físico. */
+  readonly classification?: string | null;
+  readonly auto?: boolean;
+  readonly resolved_by?: string | null;
+  readonly decided_by_rule?: string | null;
+  readonly anchor_trip_id?: string | null;
+  /** Atributos del vehículo que difieren en el archivo: `{campo: {anchor, this}}`. */
+  readonly vehicle_differs?: Readonly<Record<string, { readonly anchor?: string | null; readonly this?: string | null }>> | null;
+  /** Otros campos que difieren (impiden la resolución automática). */
+  readonly other_differs?: readonly string[] | null;
+  /** Notas de calidad, p. ej. `FUEL_CONFLICT_ANCHOR_FUEL_USED`. */
+  readonly notes?: readonly string[] | null;
+}
+
 export interface PossibleDuplicateDto {
   readonly id: string | number;
   readonly rule: string;
@@ -28,17 +53,7 @@ export interface PossibleDuplicateDto {
   readonly a: DuplicateTripDto;
   readonly b: DuplicateTripDto | null;
   readonly differences: readonly string[];
-  readonly evidence: {
-    readonly identical: boolean;
-    readonly matches: readonly string[];
-    readonly differs: readonly string[];
-    /** Solo R4 a R6. */
-    readonly kind?: string | null;
-    readonly lineage?: { readonly established: boolean; readonly mutual: boolean; readonly rows: number; readonly new_pct: number; readonly previous_pct: number } | null;
-    readonly group?: { readonly existing: number; readonly new: number } | null;
-    /** Solo R4 a R6 y solo cuando es cierto. */
-    readonly id_mismatch?: boolean;
-  } | null;
+  readonly evidence: DuplicateEvidenceDto | null;
 }
 
 export interface DuplicateResolutionBodyDto {

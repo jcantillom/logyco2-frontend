@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, of, throwError } from 'rxjs';
-import { AuthToken, CurrentUser, LoginCredentials } from '../../domain/models/identity';
+import { CurrentUser, LoginCredentials } from '../../domain/models/identity';
 import {
   CommercialRelationship,
   OrganizationProfileChanges,
@@ -49,7 +49,6 @@ import {
 import { ApiClient } from '../http/api-client';
 import {
   toAcceptedInvitation,
-  toAuthToken,
   toCreatedInvitation,
   toCurrentUser,
   toInvitation,
@@ -69,9 +68,14 @@ function pageParams(request: PageRequest): { page: number; page_size: number } {
 export class HttpAuthRepository extends AuthRepository {
   private readonly api = inject(ApiClient);
 
-  login(credentials: LoginCredentials): Observable<AuthToken> {
+  login(credentials: LoginCredentials): Observable<void> {
     const body: LoginRequestDto = { email: credentials.email, password: credentials.password };
-    return this.api.post<LoginResponseDto>('/auth/login', body).pipe(map(toAuthToken));
+    // El cuerpo trae `access_token: null` (solo un cliente de API lo recibe, con `X-Client-Type: api`); la SPA nunca lo pide: la sesión es la cookie HttpOnly.
+    return this.api.post<LoginResponseDto>('/auth/login', body).pipe(map(() => undefined));
+  }
+
+  logout(): Observable<void> {
+    return this.api.postEmpty('/auth/logout');
   }
 
   getCurrentUser(): Observable<CurrentUser> {

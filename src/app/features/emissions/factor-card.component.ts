@@ -104,7 +104,7 @@ export class FactorCardComponent {
 
     return factor ? factorValue(factor) : null;
   });
-  protected readonly unit = computed(() => unitLabel(this.facade.factor()?.unit ?? ''));
+  protected readonly unit = computed(() => this.facade.factor()?.unitLabel || unitLabel(this.facade.factor()?.unit ?? ''));
   protected readonly count = computed(() => this.facade.fuels.data()?.length ?? 1);
   protected readonly index = computed(() => Math.max(0, (this.facade.fuels.data() ?? []).findIndex((f) => f.fuelCode === this.facade.factor()?.fuelCode)));
   protected readonly hasSource = computed(() => {

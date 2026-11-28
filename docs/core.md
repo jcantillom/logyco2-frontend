@@ -5,7 +5,7 @@
 
 ## Resumen
 
-`core/` contiene todo lo transversal que no es UI ni acceso a datos concreto: configuración (`APP_CONFIG`), sesión en memoria (`SessionStore`) y su persistencia opcional, la fachada de autenticación (`AuthFacade`), la política de permisos de interfaz (`AccessPolicy`), la política de aterrizaje (`LandingPolicy`), la organización activa (`OrganizationContext`), el registro de estado reiniciable (`ContextResetRegistry` + `ScopedResource`), el modelo de errores (`AppError`, catálogo, mapper), los guards y los dos interceptors HTTP, las notificaciones (`ToastService`, `ConfirmService`, `ActionFeedbackService`) y las preferencias de apariencia (`ThemeService`). La idea central: **el cliente nunca autoriza**; solo oculta/ordena la UI, y todo error se normaliza a `AppError` con mensajes del catálogo. La sesión vive en memoria; el único almacenamiento del navegador relacionado con la sesión es `sessionStorage` (token, solo en dev).
+`core/` contiene todo lo transversal que no es UI ni acceso a datos concreto: configuración (`APP_CONFIG`), estado de sesión en memoria sin token (`SessionStore`), su restauración al arrancar (`SessionBootstrap`) y la sincronización entre pestañas (`CrossTabSession`), la fachada de autenticación (`AuthFacade`), la política de permisos de interfaz (`AccessPolicy`), la política de aterrizaje (`LandingPolicy`), la organización activa (`OrganizationContext`), el registro de estado reiniciable (`ContextResetRegistry` + `ScopedResource`), el modelo de errores (`AppError`, catálogo, mapper), los guards y los dos interceptors HTTP, las notificaciones (`ToastService`, `ConfirmService`, `ActionFeedbackService`) y las preferencias de apariencia (`ThemeService`). La idea central: **el cliente nunca autoriza**; solo oculta/ordena la UI, y todo error se normaliza a `AppError` con mensajes del catálogo. La sesión vive en memoria; el único almacenamiento del navegador relacionado con la sesión es `sessionStorage` (token, solo en dev).
 
 ## Tabla de contenidos
 
@@ -28,41 +28,40 @@
 
 | Símbolo | Firma / forma | Notas |
 |---|---|---|
-| `AppConfig` | `{ production: boolean; apiBaseUrl: string; apiPrefix: string; sessionPersistence?: 'memory' \| 'tab' }` | todos `readonly`. `apiBaseUrl` sin barra final ni versión; `apiPrefix` p. ej. `/api/v1` |
+| `AppConfig` | `{ production: boolean; apiBaseUrl: string; apiPrefix: string}` | todos `readonly`. `apiBaseUrl` sin barra final ni versión; `apiPrefix` p. ej. `/api/v1` |
 | `APP_CONFIG` | `InjectionToken<AppConfig>('APP_CONFIG')` | provisto en `app.config.ts` con el objeto `environment` |
 
-Configuración por entorno: `.env` (ignorado por Git; plantilla en `.env.example`) o variables del proceso en el pipeline, con `APP_ENV`, `API_BASE_URL`, `API_PREFIX` y `SESSION_PERSISTENCE`. `scripts/generate-env.mjs` las valida y genera `src/environments/environment.ts` (ignorado por Git) antes de `start`, `build`, `build:prod`, `watch`, `test`, `test:ci` y `lint` (hooks `pre*` de npm). Claves del objeto `environment` (`AppConfig`): `apiBaseUrl`, `apiPrefix`, `sessionPersistence` [V]. Usado por: `authInterceptor`, `SessionPersistence`, `ApiClient`.
+Configuración por entorno: `.env` (ignorado por Git; plantilla en `.env.example`) o variables del proceso en el pipeline, con `APP_ENV`, `API_BASE_URL` y `API_PREFIX`. `scripts/generate-env.mjs` las valida y genera `src/environments/environment.ts` (ignorado por Git) antes de `start`, `build`, `build:prod`, `watch`, `test`, `test:ci` y `lint` (hooks `pre*` de npm). Claves del objeto `environment` (`AppConfig`): `apiBaseUrl`, `apiPrefix`, `sessionPersistence` [V]. Usado por: `authInterceptor`, `SessionPersistence`, `ApiClient`.
 
 ## 2. `auth/`
 
 ### `session.store.ts` — `SessionStore`
-Estado de sesión **solo en memoria** (signals privadas `tokenState`, `userState`).
+Estado de sesión **solo en memoria y SIN token** (signals privadas `identityState`, `userState`). La credencial es una cookie HttpOnly que el navegador envía sola; la aplicación nunca la lee.
 
 | Miembro | Firma | Descripción |
 |---|---|---|
 | `user` | `Signal<CurrentUser \| null>` | readonly |
-| `token` | `Signal<AuthToken \| null>` | "solo para SessionPersistence" |
-| `hasToken` | `Signal<boolean>` | hay token (aunque no usuario) |
-| `isAuthenticated` | `Signal<boolean>` | token **y** usuario |
-| `expirationLabel` | `Signal<string \| null>` | texto informativo de expiración |
-| `authorizationHeader()` | `string \| null` | `Bearer <accessToken>` o `null` |
-| `setToken(t)`, `setUser(u)`, `clear()` | `void` | |
+| `hasIdentity` | `Signal<boolean>` | identidad corporativa válida (aunque no haya usuario local) |
+| `isAuthenticated` | `Signal<boolean>` | hay usuario local cargado |
+| `expiresAt` | `Signal<Date \| null>` | caducidad de la sesión (`user.sessionExpiresAt`, el `exp` del token) |
+| `markIdentity()`, `setUser(u)`, `clear()` | `void` | |
 
-Usado por: `AuthFacade`, `AccessPolicy`, `PlatformAccess`, `OrganizationContext`, guards, `authInterceptor`, `SessionExpiryHandler`, `SessionPersistence`, `settings`, `login`, `platform-shell`, `dashboard`, `UserMenuComponent`.
+Usado por: `AuthFacade`, `AccessPolicy`, `PlatformAccess`, `OrganizationContext`, guards, `SessionExpiryHandler`, `SessionBootstrap`, `settings`, `login`, `platform-shell`, `dashboard`, `UserMenuComponent`.
 
 ### `auth.facade.ts` — `AuthFacade`
-Inyecta: `AuthRepository` (puerto), `SessionStore`, `OrganizationContext`, `Router`.
+Inyecta: `AuthRepository` (puerto), `SessionStore`, `OrganizationContext`, `Router`, `CrossTabSession`.
 
 | Miembro | Firma | Comportamiento |
 |---|---|---|
 | `loading` | `WritableSignal<boolean>` | true durante `login` |
 | `pendingRegistration` | `WritableSignal<boolean>` | identidad válida sin usuario local (`USER_NOT_REGISTERED`) |
-| `login(credentials)` | `Observable<CurrentUser>` | `repository.login` → `tap`: `session.clear()`, `context.clear()`, `setToken` → `switchMap(loadUser)`; `finalize` apaga `loading` |
-| `refreshUser()` | `Observable<CurrentUser>` | vuelve a `GET /auth/me` (tras aceptar invitación, en `platformGuard`, en `SessionPersistence.restore`) |
-| `logout()` | `void` | `session.clear()`, `context.clear()`, `pendingRegistration=false`, navega a `/login`. **No revoca** el token en el servidor |
-| `loadUser()` (privado) | | `getCurrentUser` → `setUser`; en error: `toAppError`; si `code==='USER_NOT_REGISTERED'` → `pendingRegistration=true`; si no y no autenticado → `session.clear()`; relanza `AppError` |
+| `login(credentials)` | `Observable<CurrentUser>` | `repository.login` (el backend fija la cookie) → `tap`: `session.clear()`, `context.clear()`, `markIdentity` → `switchMap(loadUser)` → avisa `login` a las demás pestañas; `finalize` apaga `loading` |
+| `refreshUser()` | `Observable<CurrentUser>` | vuelve a `GET /auth/me` (tras aceptar invitación, en `platformGuard`, en `SessionBootstrap.restore`) |
+| `logout()` | `void` | `POST /auth/logout` (borra la cookie); en `finalize` (también si falla): limpia sesión y contexto, `pendingRegistration=false`, navega a `/login` y avisa `logout` a las demás pestañas. **No revoca** el token en el proveedor |
+| `applyRemoteLogout()` | `void` | otra pestaña cerró sesión: limpia y navega a `/login` sin llamar al backend |
+| `loadUser()` (privado) | | `getCurrentUser` → `setUser`; en error: `toAppError`; si `code==='USER_NOT_REGISTERED'` → `markIdentity()` + `pendingRegistration=true`; si no y no autenticado → `session.clear()`; relanza `AppError` |
 
-Endpoints (vía el puerto): `POST /auth/login`, `GET /auth/me`. Usado por: `login`, `accept-invitation`, `platform-super-admins`, `platform-super-admin-detail`, `platformGuard`, `SessionPersistence`, `UserMenuComponent`.
+Endpoints (vía el puerto): `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`. Usado por: `login`, `accept-invitation`, `platform-super-admins`, `platform-super-admin-detail`, `platformGuard`, `SessionBootstrap`, `UserMenuComponent`.
 
 ### `access-policy.ts` — `AccessPolicy`
 Constantes privadas `GLOBAL_ROLE_PERMISSIONS` (`SUPER_ADMIN`: `organizations:read|manage`, `memberships:read|manage`, `users:read`, `catalogs:manage`, `sector_reports:read`) y `ORGANIZATION_ROLE_PERMISSIONS` (`ORG_ADMIN` —incluye `relationships:manage`—, `ORG_ANALYST`, `ORG_VIEWER`, `GUILD_VIEWER`) que **espejan** el seed RBAC del backend. Comentario de contrato: NO es autorización.
@@ -87,18 +86,16 @@ Nota: `SUPER_ADMIN` global no incluye `indicators:read`/`reports:read`/`imports:
 
 Usado por: `guestGuard`, `homeGuard`, `workspaceGuard` y `LoginComponent`.
 
-### `session-persistence.ts` — `SessionPersistence`
-Constantes: `STORAGE_KEY='logyco2.session'`, `MAX_TOKEN_LENGTH=8192`, `export const RESTORE_TIMEOUT_MS = 5000`.
-Inyecta: `APP_CONFIG` (optional), `SessionStore`, `AuthFacade`.
+### `session-bootstrap.ts` — `SessionBootstrap`
+`export const RESTORE_TIMEOUT_MS = 5000`. Inyecta: `AuthFacade`, `SessionStore`, `CrossTabSession`, `Router`, `LandingPolicy`.
 
 | Miembro | Descripción |
 |---|---|
-| `enabled: boolean` | `config?.sessionPersistence === 'tab'` |
-| constructor | si `enabled`: `effect` que sincroniza `session.token()` con `sessionStorage` (set/remove, `try/catch`) |
-| `restore(): Promise<void>` | si `enabled` y hay token válido guardado: `setToken` + `firstValueFrom(auth.refreshUser().pipe(timeout(5000)))`; ante error: si `!auth.pendingRegistration()` → `session.clear()`. **Nunca lanza.** Se ejecuta en `provideAppInitializer` |
-| `read()` (privado) | parsea JSON, valida con `isStoredToken` (string no vacío ≤ 8192, `tokenType` string, `expirationLabel` opcional); si es inválido lo borra |
+| `restore(): Promise<void>` | registra el oyente entre pestañas y consulta `GET /auth/me` (`refreshUser` con `timeout(5000)`); 401, error o tiempo agotado = sin sesión; `USER_NOT_REGISTERED` conserva la identidad. **Nunca lanza.** Se ejecuta en `provideAppInitializer`: las rutas no se evalúan hasta que termina (sin destello de login) |
+| oyente entre pestañas | `logout` remoto → `AuthFacade.applyRemoteLogout()` (solo si había identidad); `login` remoto sin sesión local → `refreshUser()` y, si la pestaña está en `/login`, navega a `LandingPolicy.home()` |
 
-Solo guarda el token (no usuario ni contraseña); `sessionStorage`, nunca `localStorage`. Riesgo asumido y documentado (XSS).
+### `cross-tab-session.ts` — `CrossTabSession`
+`publish('login'\|'logout')` y `listen(handler)`. `BroadcastChannel('logyco2.session')`; sin él, el evento `storage` sobre la clave de señalización `logyco2.session.signal` (valor `<señal>:<epoch>`). Solo viaja la palabra; nunca datos ni credenciales. El emisor no recibe su propio aviso.
 
 ### `session-expiry.handler.ts` — `SessionExpiryHandler`
 `handle(): void` — si `!session.isAuthenticated()` no hace nada (p. ej. 401 durante el login); si no: guarda `router.url`, `session.clear()`, `context.clear()` y navega a `/login?reason=expired&returnUrl=<url>`. Llamado solo desde `errorInterceptor`.
@@ -169,9 +166,9 @@ Lee páginas secuencialmente con `expand` + `reduce`, hasta `maxPages`; `truncat
 
 | Guard | Tipo | Firma | Resultado |
 |---|---|---|---|
-| `authGuard` | `CanActivateFn` | `(_route, state)` | `isAuthenticated` → `true`; `hasToken` → `/aceptar-invitacion`; si no → `/login?returnUrl=<state.url>` |
+| `authGuard` | `CanActivateFn` | `(_route, state)` | `isAuthenticated` → `true`; `hasIdentity` → `/aceptar-invitacion`; si no → `/login?returnUrl=<state.url>` |
 | `guestGuard` | `CanActivateFn` | | autenticado → `LandingPolicy.home()`; si no `true` |
-| `tokenGuard` | `CanActivateFn` | | `hasToken` → `true`; si no `/login` |
+| `tokenGuard` | `CanActivateFn` | | `hasIdentity` → `true`; si no `/login` |
 | `permissionGuard(...codes)` | fábrica → `CanActivateFn` | `(...codes: PermissionCode[])` | `AccessPolicy.canAny(codes)` → `true`; si no `/acceso-denegado` |
 | `platformMatch` | `CanMatchFn` | | sin sesión → `true` (deja que `authGuard` redirija); con sesión: `PlatformAccess.isSuperAdmin()` ? `true` : `/acceso-denegado` |
 | `platformGuard` | `CanActivateFn` | | `AuthFacade.refreshUser()` → `hasSuperAdminRole(user) ? true : /acceso-denegado`; `catchError` → denegado (fallo = denegado) |
@@ -189,7 +186,7 @@ Archivos: `guards/auth.guards.ts`, `guards/platform.guards.ts`, `guards/landing.
 
 | Interceptor | Archivo | Comportamiento |
 |---|---|---|
-| `authInterceptor` | `auth.interceptor.ts` | `apiRoot = apiBaseUrl + apiPrefix`; si `request.url` **no** empieza por `apiRoot` → pasa sin tocar; si hay `authorizationHeader()` → clona con `Authorization` |
+| `authInterceptor` | `auth.interceptor.ts` | `apiRoot = apiBaseUrl + apiPrefix` (con `apiBaseUrl` vacío es `/api/v1`, mismo origen); si `request.url` **no** es `apiRoot` ni continúa con `/`, `?` o `#` → pasa sin tocar; si no, clona con `withCredentials: true` y, en métodos distintos de GET/HEAD/OPTIONS, la cabecera `X-Requested-With: LoGyCO2` (CSRF). Nunca adjunta token ni toca peticiones a otros orígenes |
 | `errorInterceptor` | `error.interceptor.ts` | `catchError` → `toAppError`; `status===401` → `SessionExpiryHandler.handle()`; `403` con código ∈ {`ORGANIZATION_ACCESS_DENIED`,`ORGANIZATION_INACTIVE`} y URL con `/organizations/<uuid36>` → `markAccessLost(uuid)`; relanza `AppError`. `inject()` se resuelve de forma síncrona antes del callback |
 
 Orden en `provideHttpClient(withInterceptors([authInterceptor, errorInterceptor]))`. Endpoints sin prefijo de API (p. ej. `/health` vía `ApiClient.getRoot`) **no** llevan token. [V]
@@ -236,9 +233,9 @@ Aplica los atributos `data-theme`, `data-palette` y `data-motion="reduced"` al e
 | ID | Sev. | Archivo | Hallazgo | Sugerencia |
 |---|---|---|---|---|
 | H-C1 | Media | `core/interceptors/auth.interceptor.ts` | `request.url.startsWith(apiRoot)` sin separador: `http://host/api/v1evil` también coincide; improbable (origen fijado por config) pero frágil. | Comparar con `apiRoot + '/'` o con `new URL()` y origen exacto |
-| H-C2 | Media | `core/auth/auth.facade.ts` | `logout()` limpia localmente pero el token sigue válido en el servidor hasta expirar (no existe endpoint). Documentado en README. | Cuando exista `POST /auth/logout`, llamarlo antes de limpiar |
+| H-C2 | Baja | `core/auth/auth.facade.ts` | `logout()` llama `POST /auth/logout` (borra la cookie) pero el proveedor corporativo no revoca: un token copiado antes sigue válido hasta su `exp`. | Revocación en servidor si LOGYCA la exige (tabla de sesiones en el backend) |
 | H-C3 | Media | `core/auth/access-policy.ts` | Duplicación de la matriz RBAC del backend; deriva silenciosa posible (solo UX). | `/auth/me` con permisos efectivos |
-| H-C4 | Baja | `core/auth/session-expiry.handler.ts` | Con token pero sin usuario (flujo de invitación) un 401 no limpia el token (`isAuthenticated()` es false). | Limpiar también si `hasToken()` |
+| H-C4 | Baja | `core/auth/session-expiry.handler.ts` | Con identidad pero sin usuario (flujo de invitación) un 401 no limpia la identidad (`isAuthenticated()` es false). | Limpiar también si `hasIdentity()` |
 | H-C5 | Baja | `core/org/context-reset.ts` | `ContextResetRegistry` nunca desregistra; fuga potencial si se registrara estado de componentes transitorios (hoy solo facades y stores root, p. ej. `OrganizationLogoStore`). | Devolver un `unregister` o ligar a `DestroyRef` |
 | H-C6 | Baja | `core/org/scoped-resource.ts` | `load()` mantiene `data` previo en estado `loading`; si la UI no distingue `status`, muestra datos obsoletos (de otro filtro/página) sin indicador. `ResourceStateComponent` muestra skeleton en `loading`, por lo que en la práctica no se ve. | Documentar el contrato (la opción `keepData` ya cubre la recarga silenciosa) |
 | H-C7 | Baja | `core/http/fetch-all-pages.ts` | `reduce` con `[...acc.items, ...page.items]` es O(n²) (≤ 20 págs.); peticiones secuenciales (`expand`). | Acumular en un array mutable local; considerar paginación/filtro en servidor |

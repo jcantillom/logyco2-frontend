@@ -1,4 +1,4 @@
-import { BarBox, barLayout, formatTick, niceTicks } from './bar-chart';
+import { BarBox, BarDatum, barLayout, formatTick, niceTicks } from './bar-chart';
 
 const BOX: BarBox = { width: 560, height: 140, left: 48, right: 6, top: 18, bottom: 22 };
 
@@ -100,6 +100,55 @@ describe('gráfico de barras (lógica pura)', () => {
     it('formatTick usa separador de miles es-CO y 7 dígitos', () => {
       expect(formatTick(3_400_000)).toBe('3.400.000');
       expect(formatTick(12.6)).toBe('13');
+    });
+  });
+
+  describe('series largas (día, semana)', () => {
+    const series = (n: number, value: (i: number) => number = (i) => i): BarDatum[] => Array.from({ length: n }, (_, i) => ({ label: `D${i}`, value: value(i), tip: [`D${i}`], partial: i === 0 }));
+
+    it('hasta 24 barras no hay modo denso y se rotulan todas (como siempre)', () => {
+      const l = barLayout(series(24), BOX);
+
+      expect([l.dense, l.labelEvery, l.bars.every((b) => b.showLabel)]).toEqual([false, 1, true]);
+    });
+
+    it('con 400 barras en 560 px rotula una de cada N (sin que las etiquetas se encimen), sin tendencia ni cifras y las barras siguen visibles', () => {
+      const l = barLayout(series(400), BOX);
+      const slot = (BOX.width - BOX.left - BOX.right) / 400;
+
+      expect(l.dense).toBeTrue();
+      expect(l.trend).toEqual([]);
+      expect(l.labelEvery).toBeGreaterThanOrEqual(Math.ceil(11 / slot));
+      expect(l.bars.filter((b) => b.showLabel).length).toBeLessThanOrEqual(Math.ceil(400 / l.labelEvery));
+      expect(l.bars[0].showLabel).toBeTrue();
+      expect(l.bars[1].showLabel).toBeFalse();
+      expect(l.bars.every((b) => b.x >= BOX.left && b.x + b.width <= BOX.width - BOX.right + 0.001)).toBeTrue();
+      expect(l.bars[5].width).toBeGreaterThan(0.5);
+    });
+
+    it('53 semanas: densidad de etiquetas razonable (≤ 30) y dentro del ancho', () => {
+      const l = barLayout(series(53), BOX);
+
+      expect(l.dense).toBeTrue();
+      expect(l.bars.filter((b) => b.showLabel).length).toBeLessThanOrEqual(30);
+    });
+
+    it('un valor 0 es una barra de alto 0 (ausente) con su tooltip, no una ranura sin dato; conserva tip y partial', () => {
+      const l = barLayout([{ label: 'a', value: 0, tip: ['a', '0 kg'], partial: true }, { label: 'b', value: 50 }], BOX);
+
+      expect(l.bars[0].value).toBe(0);
+      expect(l.bars[0].height).toBe(0);
+      expect(l.bars[0].tip).toEqual(['a', '0 kg']);
+      expect(l.bars[0].partial).toBeTrue();
+      expect(l.bars[1].tip).toBeNull();
+      expect(l.bars[0].slotWidth).toBeCloseTo((BOX.width - BOX.left - BOX.right) / 2);
+    });
+
+    it('con todo en 0 el eje sigue siendo válido (tope 1) y no hay datos que dibujar', () => {
+      const l = barLayout(series(5, () => 0), BOX);
+
+      expect(l.top).toBe(1);
+      expect(l.bars.every((b) => b.height === 0)).toBeTrue();
     });
   });
 });

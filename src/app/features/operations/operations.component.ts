@@ -2,19 +2,27 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, e
 import { ActivatedRoute, Router } from '@angular/router';
 import { AccessPolicy } from '../../core/auth/access-policy';
 import { OrganizationContext } from '../../core/org/organization-context';
+import { GRANULARITIES, GRANULARITY_TEXT, parseGranularity } from '../../domain/models/granularity';
 import { DedupFilter, OperationTrip, OperationsView } from '../../domain/models/operations';
 import { CursorPagerComponent } from '../../shared/ui/cursor-pager.component';
 import { PageHeroComponent } from '../../shared/ui/page-hero.component';
 import { PeriodSelectorComponent } from '../dashboard/period-selector.component';
 import { FUEL_OPTIONS } from '../vehicles/vehicles.labels';
 import { OPERATIONS_PAGE_SIZES, OperationsFacade, SEARCH_MAX_LENGTH, StatusFilter, VIEWS } from './operations.facade';
-import { DEDUP_OPTIONS, STATUS_OPTIONS, VIEW_LABELS, countText, dayText, detailErrorText, listErrorText, distanceText, fuelText, kgText, routePlaces, routeText, splitPlace, sharedTone, statusTone, tonsText } from './operations.view';
+import { DEDUP_OPTIONS, STATUS_OPTIONS, VIEW_LABELS, countText, dayText, detailErrorText, listErrorText, distanceText, fuelText, kgText, routePlaces, routeText, splitPlace, sharedTone, tripTone, tonsText, CONVERTED_FROM_KG, CONVERTED_FROM_KG_HINT } from './operations.view';
 import { BulkCompletionComponent } from './bulk-completion.component';
 import { BulkCompletionFacade } from './bulk-completion.facade';
 import { OperationExportsComponent } from './operation-exports.component';
 import { TripCompletionComponent } from './trip-completion.component';
 import { TripCompletionFacade } from './trip-completion.facade';
 import { TripDetailPanelComponent } from './trip-detail-panel.component';
+import { TripRegistrationComponent } from './trip-registration.component';
+import { TripRegistrationFacade } from './trip-registration.facade';
+import { TripVoidDialogComponent } from './trip-void-dialog.component';
+import { TripVoidFacade } from './trip-void.facade';
+
+/** Errores del servidor que se dicen dentro del popover de «Exportar» (la persona los corrige ahí mismo). */
+const PANEL_ERROR_CODES: readonly string[] = ['INVALID_GRANULARITY', 'GRANULARITY_TOO_FINE', 'INVALID_PERIOD'];
 
 const ICONS = {
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
@@ -23,6 +31,7 @@ const ICONS = {
   download: 'M12 4v11M7 11l5 5 5-5M4 20h16',
   truck: 'M2 6h12v10H2zM14 9h4l3 3v4h-7zM5 19.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0M16 19.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0',
   clear: 'M6 6l12 12M18 6L6 18',
+  plus: 'M12 5v14M5 12h14',
 } as const;
 
 /**
@@ -32,8 +41,9 @@ const ICONS = {
  */
 @Component({
   selector: 'app-operations',
-  imports: [BulkCompletionComponent, OperationExportsComponent, TripCompletionComponent, PageHeroComponent, PeriodSelectorComponent, CursorPagerComponent, TripDetailPanelComponent],
+  imports: [BulkCompletionComponent, OperationExportsComponent, TripCompletionComponent, TripRegistrationComponent, TripVoidDialogComponent, PageHeroComponent, PeriodSelectorComponent, CursorPagerComponent, TripDetailPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:click)': 'onDocumentClick($event)' },
   styles: [
     `
       :host { display: block; }
@@ -42,7 +52,7 @@ const ICONS = {
       .top app-page-hero { flex: 1 1 520px; min-width: 0; }
       .bar { flex: 0 0 250px; }
       .card { min-width: 0; border: 1px solid var(--c-bd); border-radius: 14px; background: var(--c-sf); box-shadow: 0 10px 30px color-mix(in srgb, var(--c-head) 14%, transparent); }
-      .filters { display: grid; gap: 8px; padding: 10px 12px; }
+      .filters { position: relative; display: grid; gap: 8px; padding: 10px 12px; }
       .vtabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 4px; padding: 3px; border-radius: 12px; background: var(--c-s3); }
       .vtab { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: 9px; font-size: 0.9rem; font-weight: 650; white-space: nowrap; color: var(--c-text2); cursor: pointer; transition: background-color 0.15s, color 0.15s, box-shadow 0.15s; }
       .vtab:hover { background: color-mix(in srgb, var(--c-sf) 80%, transparent); }
@@ -64,13 +74,20 @@ const ICONS = {
             .field select { width: 100%; }
       .actions { display: flex; flex: none; gap: 8px; }
       .actions .btn { min-height: 40px; padding: 0 12px; border-radius: var(--radius-sm); white-space: nowrap; }
+      /* Acciones secundarias solo con ícono (el nombre va en el atributo title y para lector de pantalla): las cuatro caben en la fila de filtros a 1280 px sin crecer. */
+      .actions .btn.ico-btn { width: 40px; padding: 0; justify-content: center; }
+      .register { min-width: 142px; justify-content: center; }
       .export { display: inline-flex; }
-      .export .btn { min-width: 124px; justify-content: center; }
       .spin { width: 16px; height: 16px; border: 2px solid color-mix(in srgb, currentColor 40%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin 0.8s linear infinite; }
       @keyframes spin { to { transform: rotate(360deg); } }
       .ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-      .more { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; padding-top: 10px; border-top: 1px solid var(--c-bd); }
-      .more .field { flex-basis: 260px; }
+      /* «Más filtros» flota bajo la barra (no empuja la lista: la pantalla no crece ni con el panel abierto). */
+      .more { position: absolute; z-index: 30; top: calc(100% + 4px); right: 12px; box-sizing: border-box; display: grid; gap: 6px; width: min(340px, calc(100% - 24px)); padding: 10px 12px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-sf); box-shadow: 0 14px 38px color-mix(in srgb, var(--c-head) 20%, transparent); }
+      .more .field { flex: none; }
+      .more .btn { min-height: 40px; }
+      .more .alert { margin: 0; }
+      .actions .btn.ico-btn { position: relative; }
+      .dot { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--c-primary); box-shadow: 0 0 0 2px var(--c-sf); }
       .hint { margin: 0; font-size: 0.78rem; color: var(--c-mu); }
       @media (max-width: 1100px) { .search { flex-basis: 100%; } .field { flex: 1 1 140px; } .actions { flex: 1 1 100%; } .actions > *, .actions .btn { flex: 1; } .export { display: flex; } }
       .layout { display: grid; gap: 10px; align-items: start; }
@@ -83,7 +100,7 @@ const ICONS = {
       thead th:first-child, td:first-child { padding-left: 12px; }
       thead th:last-child, td:last-child { padding-right: 12px; }
       th.c-date { width: 92px; } th.plate { width: 82px; } th.c-dist { width: 100px; } th.c-cargo { width: 84px; } th.c-fuel { width: 100px; } th.kgh { width: 134px; color: var(--c-head); } th.stateh { width: 156px; } th.acth { width: 52px; }
-      td { height: 44px; border-bottom: 1px solid color-mix(in srgb, var(--c-bd) 40%, transparent); vertical-align: middle; color: var(--c-head); transition: background-color 0.15s; }
+      td { height: 40px; border-bottom: 1px solid color-mix(in srgb, var(--c-bd) 40%, transparent); vertical-align: middle; color: var(--c-head); transition: background-color 0.15s; }
       tbody tr:last-child td { border-bottom-color: transparent; }
       td:first-child { box-shadow: inset 3px 0 0 transparent; }
       tr.sel td { background: color-mix(in srgb, var(--c-primary) 14%, var(--c-sf)); }
@@ -107,6 +124,7 @@ const ICONS = {
       .chip.warning { background: var(--c-warning-bg); color: var(--c-warning); }
       .chip.danger { background: var(--c-danger-bg); color: var(--c-danger); }
       .chip.info { background: var(--c-info-bg); color: var(--c-info); }
+      .conv { display: block; font-size: 0.68rem; font-weight: 600; color: var(--c-mu); line-height: 1.1; }
       .chip.small { font-size: 0.68rem; padding: 0 8px; }
       .eye { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--c-bd); border-radius: 10px; background: var(--c-sf); color: var(--c-head); cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
       .eye:hover { background: var(--c-s2); border-color: var(--c-primary); }
@@ -197,14 +215,15 @@ const ICONS = {
             </label>
           }
           <div class="actions">
-          <button type="button" class="btn btn-secondary" data-testid="more-filters" aria-controls="ops-more" [attr.aria-expanded]="moreOpen()" (click)="toggleMore()"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.filter" /></svg>Más filtros</button>
-          <span class="export"><button type="button" class="btn btn-secondary" [disabled]="!facade.canExport() || facade.exporting()" [attr.aria-busy]="facade.exporting()" [attr.aria-describedby]="facade.canExport() ? null : 'ops-export-hint'" data-testid="export" (click)="facade.exportReport()">@if (facade.exporting()) { <span class="spin" aria-hidden="true"></span>Preparando… } @else { <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.download" /></svg>Exportar }</button>@if (!facade.canExport()) { <small class="sr-only" id="ops-export-hint" data-testid="export-hint">No hay viajes para exportar con los filtros actuales</small> }</span>
+          <button type="button" class="btn btn-secondary ico-btn" title="Más filtros" data-testid="more-filters" aria-controls="ops-more" [attr.aria-expanded]="moreOpen()" (click)="toggleMore()"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.filter" /></svg><span class="sr-only">Más filtros</span>@if (facade.dedup() !== 'counted') { <span class="dot" data-testid="more-active" aria-hidden="true"></span><span class="sr-only">: hay un filtro de duplicados activo</span> }</button>
+          <span class="export"><button type="button" class="btn btn-secondary ico-btn" title="Exportar" aria-controls="ops-export" [attr.aria-expanded]="facade.exportPanelOpen()" [disabled]="!facade.canExport() || facade.exporting()" [attr.aria-busy]="facade.exporting()" [attr.aria-describedby]="facade.canExport() ? null : 'ops-export-hint'" data-testid="export" (click)="toggleExport()">@if (facade.exporting()) { <span class="spin" aria-hidden="true"></span><span class="sr-only">Preparando…</span> } @else { <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.download" /></svg><span class="sr-only">Exportar</span> }</button>@if (!facade.canExport()) { <small class="sr-only" id="ops-export-hint" data-testid="export-hint">No hay viajes para exportar con los filtros actuales</small> }</span>
           <app-operation-exports />
+          <span class="export"><button type="button" class="btn btn-primary register" #register [disabled]="!registration.canRegister()" [attr.aria-haspopup]="'dialog'" [attr.aria-describedby]="registration.canRegister() ? null : 'ops-register-hint'" data-testid="register-trip" (click)="openRegistration($event)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.plus" /></svg>Registrar viaje</button>@if (!registration.canRegister()) { <small class="sr-only" id="ops-register-hint" data-testid="register-hint">Necesitas el permiso para cargar datos de la empresa para registrar viajes</small> }</span>
           </div>
         </form>
 
         @if (moreOpen()) {
-          <div class="more" id="ops-more" data-testid="more-panel">
+          <div class="more" id="ops-more" role="group" aria-label="Más filtros" data-testid="more-panel" tabindex="-1" (keydown.escape)="closeMore($event)">
             <label class="field"><span class="cap">Duplicados</span>
               <select class="input" data-testid="dedup" (change)="facade.setDedup(dedupValue($event))">
                 @for (d of dedups; track d.value) { <option [value]="d.value" [selected]="d.value === facade.dedup()">{{ d.label }}</option> }
@@ -213,11 +232,23 @@ const ICONS = {
             <p class="hint">Los duplicados y los retenidos se muestran con su estado y nunca suman en los totales ni en las emisiones.</p>
           </div>
         }
+        @if (facade.exportPanelOpen()) {
+          <div class="more" id="ops-export" role="group" aria-label="Exportar a Excel" data-testid="export-panel" tabindex="-1" (keydown.escape)="closeExport($event)">
+            <label class="field"><span class="cap">Granularidad de la evolución</span>
+              <select class="input" data-testid="export-granularity" aria-describedby="ops-export-help" (change)="onGranularity($event)">
+                @for (g of granularities; track g) { <option [value]="g" [selected]="g === facade.evolutionGranularity()" [disabled]="facade.isGranularityRefused(g)">{{ granularityText[g].option }}</option> }
+              </select>
+            </label>
+            <p class="hint" id="ops-export-help">La hoja «Evolución de emisiones» suma solo viajes calculados y contados una vez, con el periodo y los filtros de combustible, carga y búsqueda actuales.</p>
+            @if (panelFailure(); as failure) { <div class="alert alert-danger" role="alert" data-testid="export-panel-error"><div>{{ failure.message }}</div></div> }
+            <button type="button" class="btn btn-primary" data-testid="export-excel" [disabled]="!facade.canExport() || facade.exporting() || facade.granularityRefused()" [attr.aria-busy]="facade.exporting()" (click)="facade.exportReport()">@if (facade.exporting()) { <span class="spin" aria-hidden="true"></span>Preparando… } @else { Descargar Excel }</button>
+          </div>
+        }
         @if (facade.exportOffer(); as offer) {
           <div class="alert" role="alert" data-testid="export-offer"><div>{{ offer.maxRows ? 'El reporte tiene más de ' + countOf({ value: offer.maxRows, capped: false }) + ' viajes. ¿Generarlo en segundo plano?' : 'El reporte tiene demasiados viajes para descargarlo directamente. ¿Generarlo en segundo plano?' }}</div><button type="button" class="btn btn-primary btn-sm" data-testid="export-generate" (click)="facade.generateReport()">Generar reporte</button></div>
         }
         @if (facade.exportError(); as failure) {
-          <div class="alert alert-danger" role="alert" data-testid="export-error"><div>{{ failure.message }}</div></div>
+          @if (failure !== panelFailure()) { <div class="alert alert-danger" role="alert" data-testid="export-error"><div>{{ failure.message }}</div></div> }
         }
         @if (searchHint()) { <p class="hint" role="status" data-testid="search-hint">Escribe al menos 2 caracteres para buscar.</p> }
       </section>
@@ -245,14 +276,14 @@ const ICONS = {
                     @for (t of facade.items(); track t.id) {
                       <tr role="row" [class.sel]="t.id === facade.selectedId()" [attr.aria-current]="t.id === facade.selectedId() ? 'true' : null" [attr.aria-label]="'Viaje ' + (t.tripId ?? t.plate ?? '')" data-testid="trip-row">
                         <td role="cell" class="c-date"><span class="lbl">Fecha</span>{{ day(t.tripDate) }}</td>
-                        <td role="cell" class="plate"><span class="lbl">Placa</span>{{ t.plate ?? '—' }}</td>
+                        <td role="cell" class="plate"><span class="lbl">Placa</span>{{ t.plate ?? '—' }}@if (t.source === 'MANUAL') { <span class="dep manual" data-testid="manual-mark" title="Registrado manualmente">Manual</span> }</td>
                         <td role="cell" class="o c-split" data-testid="origin">@let o = split(places(t)[0]);<span class="mun" [attr.title]="places(t)[0]">{{ o[0] }}</span>{{ ' ' }}<span class="dep">{{ o[1] }}</span></td>
                         <td role="cell" class="d c-split" data-testid="destination">@let d = split(places(t)[1]);<span class="mun" [attr.title]="places(t)[1]">{{ d[0] }}</span>{{ ' ' }}<span class="dep">{{ d[1] }}</span></td>
                         <td role="cell" class="route c-merged"><span class="lbl">Origen → Destino</span>
                           <span class="mun" [attr.title]="pathOf(t)">{{ places(t)[0] }}</span>{{ ' ' }}
                           <span class="dep"><span class="arrow" aria-hidden="true">→</span>{{ ' ' }}{{ places(t)[1] }}</span></td>
                         <td role="cell" class="num dist c-dist"><span class="lbl">Distancia (km)</span>{{ km(t.distanceKm) }}</td>
-                        <td role="cell" class="num c-cargo"><span class="lbl">Carga (t)</span>{{ tons(t.cargoTon) }}</td>
+                        <td role="cell" class="num c-cargo"><span class="lbl">Carga (t)</span>{{ tons(t.cargoTon) }}@if (t.cargoConvertedFromKg) { <small class="conv" data-testid="cargo-converted" [attr.title]="convertedHint">de kg<span class="sr-only">: {{ convertedHint }}</span></small> }</td>
                         <td role="cell" class="c-fuel"><span class="lbl">Combustible</span>{{ fuel(t.fuelType) }}</td>
                         <td role="cell" class="num kg"><span class="lbl">Emisiones (kg CO₂)</span>{{ kg(t.kgCo2) }}</td>
                         <td role="cell" class="stateCell"><span class="lbl">Estado</span>
@@ -288,7 +319,7 @@ const ICONS = {
         </section>
 
         @if (facade.selectedId()) {
-          <app-trip-detail-panel #panel [trip]="selectedRow()" [detail]="facade.detail.data()" [status]="facade.detail.status()" [errorMessage]="detailError()" [canComplete]="completion.canComplete()" [editing]="completion.mode() !== 'idle'" [refusal]="refusalText()" (closed)="close()" (retry)="facade.retryDetail()" (completeRequested)="startCompletion()">
+          <app-trip-detail-panel #panel [trip]="selectedRow()" [detail]="facade.detail.data()" [status]="facade.detail.status()" [errorMessage]="detailError()" [canComplete]="completion.canComplete()" [canRegister]="registration.canRegister()" [editing]="completion.mode() !== 'idle'" [refusal]="refusalText()" (closed)="close()" (retry)="facade.retryDetail()" (completeRequested)="startCompletion()" (duplicateRequested)="startFrom('duplicate')" (returnRequested)="startFrom('return')" (voidRequested)="startVoid()">
             @if (completion.mode() !== 'idle') {
               <app-trip-completion completion [mode]="completion.mode()" [state]="completion.state.data()" [status]="completion.state.status()" [loadError]="completion.state.error()" [values]="completion.values()" [errors]="completion.fieldErrors()" [saving]="completion.saving()" [error]="completion.error()" [notice]="completion.notice()" [outcome]="completion.outcome()" [hasValues]="completion.hasValues()" [canNext]="!!completion.nextPending()" (changed)="completion.setValue($event.name, $event.value)" (save)="completion.save()" (saveNext)="completion.save(true)" (dismissed)="stopCompletion()" (finished)="finishCompletion()" (next)="nextCompletion()" (continue)="completion.continueEditing()" (retry)="startCompletion()" />
             }
@@ -296,6 +327,11 @@ const ICONS = {
         }
       </div>
       <span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="completion-live">{{ completion.announcement() }}</span>
+      @if (registration.isOpen()) {
+        <app-trip-registration (closed)="closeRegistration()" (detail)="openFromRegistration($event)" (review)="openFromRegistration($event)" (complete)="completeFromRegistration($event)" />
+      }
+      @if (voidFacade.isOpen()) { <app-trip-void-dialog (closed)="voidFacade.cancel()" /> }
+      <span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="void-live">{{ voidFacade.announcement() }}</span>
     </div>
   `,
 })
@@ -303,13 +339,20 @@ export class OperationsComponent {
   protected readonly facade = inject(OperationsFacade);
   protected readonly completion = inject(TripCompletionFacade);
   protected readonly bulk = inject(BulkCompletionFacade);
+  protected readonly registration = inject(TripRegistrationFacade);
+  protected readonly voidFacade = inject(TripVoidFacade);
   private readonly context = inject(OrganizationContext);
   private readonly access = inject(AccessPolicy);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly panel = viewChild<TripDetailPanelComponent>('panel');
+  private readonly registerButton = viewChild<ElementRef<HTMLElement>>('register');
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private opener: Element | null = null;
+  /** Quién abrió el formulario de registro (el botón del encabezado o «Duplicar» / «Viaje de regreso»): el foco vuelve ahí al cerrarlo. */
+  private registrationOpener: Element | null = null;
+  private voidWasOpen = false;
+  private exportWasOpen = false;
 
   protected readonly icons = ICONS;
   protected readonly views = VIEWS;
@@ -322,8 +365,16 @@ export class OperationsComponent {
   protected readonly skeletonRows = computed(() => Array.from({ length: this.facade.pageSize() }, (_, i) => i + 1));
   protected readonly skeletonCells = [60, 50, 70, 70, 85, 45, 40, 55, 50, 70, 30];
   protected readonly canSeeImports = computed(() => this.access.can('imports:create'));
+  protected readonly granularities = GRANULARITIES;
+  protected readonly granularityText = GRANULARITY_TEXT;
   private readonly moreToggled = signal(false);
-  protected readonly moreOpen = computed(() => this.moreToggled() || this.facade.dedup() !== 'counted');
+  /** El error de la granularidad o del periodo se dice dentro del popover abierto; cualquier otro, en la alerta de la tarjeta. */
+  protected readonly panelFailure = computed(() => {
+    const failure = this.facade.exportError();
+
+    return failure && this.facade.exportPanelOpen() && PANEL_ERROR_CODES.includes(failure.code) ? failure : null;
+  });
+  protected readonly moreOpen = computed(() => this.moreToggled());
   /** Cuando hay un solo carácter escrito: no se busca todavía y se le dice por qué. */
   protected readonly searchHint = computed(() => this.facade.searchText().trim().length === 1);
   protected readonly listError = computed(() => listErrorText(this.facade.list.error()));
@@ -346,10 +397,11 @@ export class OperationsComponent {
   protected readonly day = dayText;
   protected readonly km = distanceText;
   protected readonly tons = tonsText;
+  protected readonly convertedHint = `${CONVERTED_FROM_KG}. ${CONVERTED_FROM_KG_HINT}`;
   protected readonly kg = kgText;
   protected readonly fuel = fuelText;
   protected readonly sharedToneOf = sharedTone;
-  protected readonly tone = (t: OperationTrip): string => statusTone(t.status);
+  protected readonly tone = (t: OperationTrip): string => tripTone(t.status, t.dedupStatus);
   protected readonly split = splitPlace;
   protected readonly places = (t: OperationTrip): readonly [string, string] => routePlaces(t.origin, t.destination);
   protected readonly pathOf = (t: OperationTrip): string => routeText(t.origin, t.destination);
@@ -361,6 +413,25 @@ export class OperationsComponent {
 
     // El estado vive en un facade de raíz: al salir de la pantalla una descarga directa a medias se cancela (si no, el archivo se guardaría en silencio después).
     inject(DestroyRef).onDestroy(() => this.facade.cancelExport());
+
+    // Al abrir el popover de «Exportar» el foco va a su selector; al cerrarlo (Escape, descarga lista, oferta de segundo plano) vuelve a su botón salvo que la persona ya haya movido el foco.
+    effect(() => {
+      const open = this.facade.exportPanelOpen();
+      const wasOpen = this.exportWasOpen;
+
+      untracked(() =>
+        setTimeout(() => {
+          const root = this.host.nativeElement;
+
+          if (open) return root.querySelector<HTMLElement>('[data-testid="export-granularity"]')?.focus();
+
+          const active = document.activeElement;
+
+          if (wasOpen && (!active || active === document.body)) root.querySelector<HTMLElement>('[data-testid="export"]')?.focus();
+        }),
+      );
+      this.exportWasOpen = open;
+    });
 
     // Carga al entrar y al cambiar de empresa.
     effect(() => {
@@ -381,6 +452,17 @@ export class OperationsComponent {
 
       untracked(() => void this.router.navigate([], { relativeTo: this.route, queryParams, queryParamsHandling: 'merge', replaceUrl: true }));
     });
+
+    // Al cerrarse la confirmación de «Anular viaje» el foco vuelve al panel (al botón si sigue ahí, si no al título).
+    effect(() => {
+      const open = this.voidFacade.isOpen();
+
+      untracked(() => {
+        if (this.voidWasOpen && !open) setTimeout(() => this.panel()?.focusVoid());
+
+        this.voidWasOpen = open;
+      });
+    });
   }
 
   protected value(event: Event): string {
@@ -400,8 +482,35 @@ export class OperationsComponent {
   }
 
   protected toggleMore(): void {
-    // Con un filtro de duplicados activo el panel no se puede cerrar: ocultaría un criterio vigente.
-    if (this.facade.dedup() === 'counted') this.moreToggled.update((open) => !open);
+    this.facade.exportPanelOpen.set(false);
+    this.moreToggled.update((open) => !open);
+  }
+
+  protected toggleExport(): void {
+    this.moreToggled.set(false);
+    this.facade.toggleExportPanel();
+  }
+
+  protected onGranularity(event: Event): void {
+    this.facade.setEvolutionGranularity(parseGranularity(this.value(event)));
+  }
+
+  /** Escape cierra el popover de «Exportar» y el foco vuelve a su botón. */
+  protected closeExport(event: Event): void {
+    event.stopPropagation();
+    this.facade.exportPanelOpen.set(false);
+  }
+
+  /** Un clic fuera del botón y del popover de «Exportar» lo cierra. */
+  protected onDocumentClick(event: Event): void {
+    if (this.facade.exportPanelOpen() && !(event.target as Element).closest('#ops-export, [data-testid="export"]')) this.facade.exportPanelOpen.set(false);
+  }
+
+  /** Escape cierra el panel flotante y deja el foco en su botón (el criterio activo se ve en el punto del botón). */
+  protected closeMore(event: Event): void {
+    event.stopPropagation();
+    this.moreToggled.set(false);
+    this.host.nativeElement.querySelector<HTMLElement>('[data-testid="more-filters"]')?.focus();
   }
 
   protected open(trip: OperationTrip, event: Event): void {
@@ -437,6 +546,57 @@ export class OperationsComponent {
     this.facade.detail.reset();
     this.facade.open(next);
     this.completion.start(next, true);
+  }
+
+  protected openRegistration(event: Event): void {
+    this.registrationOpener = event.currentTarget as Element;
+    this.registration.show();
+  }
+
+  /** «Duplicar» y «Viaje de regreso» del detalle: el formulario se abre con lo que el servidor armó de ese viaje. */
+  protected startFrom(mode: 'duplicate' | 'return'): void {
+    const id = this.facade.selectedId();
+
+    if (!id) return;
+
+    this.registrationOpener = (this.host.nativeElement.querySelector('[data-testid="detail-actions-button"]') as Element | null) ?? this.registerButton()?.nativeElement ?? null;
+    this.registration.showFrom(id, mode);
+  }
+
+  protected startVoid(): void {
+    const detail = this.facade.detail.data();
+
+    if (detail) this.voidFacade.request(detail);
+  }
+
+  /** Cierra el formulario de registro y devuelve el foco a quien lo abrió. */
+  protected closeRegistration(): void {
+    this.registration.close();
+    const opener = this.registrationOpener as HTMLElement | null;
+
+    this.registrationOpener = null;
+    // El diálogo modal sigue en pantalla hasta el próximo ciclo de cambios y vuelve inerte lo demás: el foco se pide después.
+    setTimeout(() => (opener?.isConnected ? opener : this.registerButton()?.nativeElement)?.focus?.());
+  }
+
+  /** Desde el aviso de repetido o el resultado: abre el detalle de ese viaje (también si no está en la página actual). */
+  protected openFromRegistration(tripId: string): void {
+    this.registration.close();
+    this.registrationOpener = null;
+    this.completion.cancel();
+    this.facade.detail.reset();
+    this.facade.open(tripId);
+    setTimeout(() => this.panel()?.focusTitle());
+  }
+
+  /** Desde el resultado de un viaje por completar: abre su detalle con el formulario de «Completar datos» de la Etapa 1. */
+  protected completeFromRegistration(tripId: string): void {
+    this.registration.close();
+    this.registrationOpener = null;
+    this.completion.cancel();
+    this.facade.detail.reset();
+    this.facade.open(tripId);
+    this.completion.start(tripId);
   }
 
   protected close(): void {

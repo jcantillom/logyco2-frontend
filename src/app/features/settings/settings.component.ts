@@ -1,13 +1,18 @@
+import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { SessionStore } from '../../core/auth/session.store';
 import { PaletteName, ThemePreference, ThemeService } from '../../core/preferences/theme.service';
 import { OrganizationContext } from '../../core/org/organization-context';
+import { AccessPolicy } from '../../core/auth/access-policy';
+import { EfficiencySettingsComponent } from '../vehicles/efficiency-settings.component';
+import { CompanyPlaceChoicesComponent } from './company-place-choices.component';
 import { hueOf, initialsOf } from '../../shared/ui/avatar';
 import { roleLabel } from '../../shared/ui/labels';
 
 @Component({
   selector: 'app-settings',
+  imports: [DatePipe, EfficiencySettingsComponent, CompanyPlaceChoicesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -28,6 +33,7 @@ import { roleLabel } from '../../shared/ui/labels';
       .theme-opt strong { color: var(--c-head); }
       .theme-opt small { color: var(--c-mu); }
       .toggle { display: flex; align-items: center; gap: 10px; margin-top: 14px; cursor: pointer; }
+      .hint.tight { margin-top: 4px; }
       .hint { color: var(--c-mu); font-size: 0.84rem; margin: 10px 0 0; }
       .companies { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
       .company { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--c-bd); border-radius: var(--radius); }
@@ -67,10 +73,10 @@ import { roleLabel } from '../../shared/ui/labels';
             </dd>
             <dt>Sesión</dt>
             <dd>
-              @if (session.expirationLabel(); as exp) { Vence: {{ exp }} (hora de Bogotá) } @else { Activa }
+              @if (session.expiresAt(); as exp) { Vence: {{ exp | date: 'medium' : 'America/Bogota' }} (hora de Bogotá) } @else { Activa }
             </dd>
           </dl>
-          <p class="hint">Tu sesión vive solo en la memoria de esta pestaña; no se guarda en el navegador.</p>
+          <p class="hint">Tu sesión se mantiene al recargar y en otras pestañas mediante una cookie protegida que la página no puede leer; termina al vencer o al cerrar sesión.</p>
         </section>
 
         <section class="card" aria-labelledby="look">
@@ -115,6 +121,22 @@ import { roleLabel } from '../../shared/ui/labels';
             } @empty { <li class="muted">No perteneces a ninguna empresa.</li> }
           </ul>
         </section>
+
+        @if (access.can('vehicles:read')) {
+        <section class="card full" aria-labelledby="imp-set" data-testid="import-settings">
+          <h2 id="imp-set">Importación de cargas</h2>
+          <p class="hint tight">Cómo se tratan el rendimiento de los vehículos y la carga en kilogramos al subir un archivo a tu empresa.</p>
+          <app-efficiency-settings />
+        </section>
+        }
+
+        @if (access.can('imports:create')) {
+        <section class="card full" aria-labelledby="places-set" data-testid="place-choices-card">
+          <h2 id="places-set">Lugares de tu empresa</h2>
+          <p class="hint tight">Cuando un texto de lugar de tus archivos puede ser más de un municipio, tú eliges cuál es. Aquí ves lo elegido y puedes deshacerlo.</p>
+          <app-company-place-choices />
+        </section>
+        }
         }
       </div>
     </div>
@@ -124,6 +146,7 @@ export class SettingsComponent {
   protected readonly session = inject(SessionStore);
   protected readonly context = inject(OrganizationContext);
   protected readonly theme = inject(ThemeService);
+  protected readonly access = inject(AccessPolicy);
   protected readonly themes: readonly { value: ThemePreference; label: string; hint: string }[] = [
     { value: 'light', label: 'Claro', hint: 'Fondo claro' },
     { value: 'dark', label: 'Oscuro', hint: 'Menos brillo' },

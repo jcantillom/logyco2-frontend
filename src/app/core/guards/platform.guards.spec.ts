@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, CanActivateFn, CanMatchFn, Route, Router, RouterStateSnapshot, UrlSegment, UrlTree } from '@angular/router';
 import { Observable, firstValueFrom, isObservable, of, throwError } from 'rxjs';
-import { buildSuperAdmin, buildUser, FAKE_TOKEN, membership, ORG_ENVIA } from '../../../testing/builders';
-import { AuthToken, CurrentUser } from '../../domain/models/identity';
+import { buildSuperAdmin, buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
+import { CurrentUser } from '../../domain/models/identity';
 import { AuthRepository } from '../../domain/repositories/identity.repositories';
 import { AppError } from '../errors/app-error';
 import { SessionStore } from '../auth/session.store';
@@ -10,7 +10,8 @@ import { platformGuard, platformMatch } from './platform.guards';
 
 class FakeAuthRepository extends AuthRepository {
   me = jasmine.createSpy('me').and.returnValue(of(buildSuperAdmin()) as Observable<CurrentUser>);
-  login(): Observable<AuthToken> { return of(FAKE_TOKEN); }
+  login(): Observable<void> { return of(undefined); }
+  logout(): Observable<void> { return of(undefined); }
   getCurrentUser(): Observable<CurrentUser> { return this.me(); }
 }
 
@@ -32,7 +33,7 @@ describe('guards de la consola de plataforma', () => {
     TestBed.configureTestingModule({ providers: [{ provide: AuthRepository, useValue: repo }] });
     router = TestBed.inject(Router);
     session = TestBed.inject(SessionStore);
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
   });
 
   describe('platformMatch (filtro síncrono)', () => {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { OrganizationContext } from '../../core/org/organization-context';
+import { GRANULARITY_TEXT } from '../../domain/models/granularity';
 import { ExportJob } from '../../domain/models/operations';
 import { OperationExportsFacade } from './operation-exports.facade';
 import { agoText, expiryText, failureText, isActive, sizeText, statusText, statusTone } from './operation-exports.view';
@@ -21,8 +22,8 @@ const ICON = 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6';
   styles: [
     `
       :host { position: relative; display: inline-flex; }
-      .trigger { position: relative; min-width: 110px; justify-content: center; }
-      .trigger .n { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--c-ok-soft); color: var(--c-accent); font-size: 0.72rem; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+      .trigger { position: relative; width: 40px; padding: 0; justify-content: center; }
+      .trigger .n { position: absolute; top: -7px; right: -7px; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--c-ok-soft); color: var(--c-accent); font-size: 0.72rem; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
       .ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
       .panel { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; box-sizing: border-box; width: min(440px, calc(100vw - 32px)); padding: 10px 12px 12px; border: 1px solid var(--c-bd); border-radius: 14px; background: var(--c-sf); box-shadow: 0 14px 38px color-mix(in srgb, var(--c-head) 22%, transparent); }
       .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
@@ -53,8 +54,8 @@ const ICON = 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6';
     `,
   ],
   template: `
-    <button type="button" class="btn btn-secondary trigger" #trigger aria-haspopup="dialog" aria-controls="ops-exports-panel" [attr.aria-expanded]="facade.panelOpen()" data-testid="exports-button" (click)="toggle()">
-      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icon" /></svg>Reportes
+    <button type="button" class="btn btn-secondary trigger" #trigger aria-haspopup="dialog" aria-controls="ops-exports-panel" [attr.aria-expanded]="facade.panelOpen()" title="Reportes" data-testid="exports-button" (click)="toggle()">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icon" /></svg><span class="sr-only">Reportes</span>
       @if (facade.liveCount() > 0) { <span class="n" data-testid="exports-count" [attr.aria-label]="facade.liveCount() + (facade.liveCount() === 1 ? ' reporte activo o listo' : ' reportes activos o listos')">{{ facade.liveCount() }}</span> }
     </button>
     <span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="exports-live">{{ facade.announcement() }}</span>
@@ -78,7 +79,7 @@ const ICON = 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6';
               <li [attr.data-testid]="'export-' + job.id">
                 <div class="line">
                   <span class="chip" [class]="'chip ' + tone(job)" data-testid="export-status">{{ status(job) }}</span>
-                  <span class="meta">{{ job.requestedByName || 'Alguien de tu empresa' }} · {{ ago(job) }}@if (size(job)) { · {{ size(job) }} }</span>
+                  <span class="meta">{{ job.requestedByName || 'Alguien de tu empresa' }} · {{ ago(job) }}@if (size(job)) { · {{ size(job) }} } · Evolución {{ granularityText[job.granularity].adjective }}</span>
                 </div>
                 @if (job.status === 'RUNNING') {
                   <div class="bar" role="progressbar" aria-label="Avance del reporte" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="job.progress ?? 0" data-testid="export-progress"><span [style.width.%]="job.progress ?? 0"></span></div>
@@ -122,6 +123,7 @@ export class OperationExportsComponent {
   protected readonly ago = (job: ExportJob): string => agoText(job.createdAt, Date.now());
   protected readonly expiry = (job: ExportJob): string => expiryText(job, Date.now());
   protected readonly failure = failureText;
+  protected readonly granularityText = GRANULARITY_TEXT;
 
   constructor() {
     // Vigila al entrar y al cambiar de empresa; al salir de la pantalla se detiene la consulta (los trabajos siguen en el servidor).

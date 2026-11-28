@@ -66,10 +66,23 @@ describe('ShareDonutComponent', () => {
     expect(el().scrollWidth).toBeLessThanOrEqual(el().clientWidth + 1);
   });
 
-  it('el diámetro es de ≈ 150 px', () => {
+  it('el total cabe dentro del hueco del anillo, también con 7 dígitos y separadores', () => {
+    for (const value of [50_745, 1_234_567, 21_000_000]) {
+      TestBed.resetTestingModule();
+      render(shareSlices([{ key: 'A', label: 'A', value }]));
+      const svg = el().querySelector('svg')!;
+      const total = el().querySelector<SVGTextElement>('[data-testid="donut-total"]')!;
+      const inner = (40 - 14 / 2) * 2; // diámetro interior del anillo, en unidades del viewBox
+
+      expect(total.getBBox().width).toBeLessThanOrEqual(inner - 4);
+      expect(svg.getBoundingClientRect().width).toBe(176);
+    }
+  });
+
+  it('el diámetro es de ≈ 176 px', () => {
     render();
 
-    expect(el().querySelector('svg')!.getBoundingClientRect().width).toBe(150);
+    expect(el().querySelector('svg')!.getBoundingClientRect().width).toBe(176);
   });
 
   it('usa solo tokens de marca: sin hexadecimales ni rgb() y solo las tintas 14/20/40/60/80 %', () => {

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { buildUser, FAKE_TOKEN, membership, ORG_COORDINADORA, ORG_ENVIA } from '../../../testing/builders';
+import { buildUser, membership, ORG_COORDINADORA, ORG_ENVIA } from '../../../testing/builders';
 import { OrganizationContext } from '../org/organization-context';
 import { AccessPolicy } from './access-policy';
 import { SessionStore } from './session.store';
@@ -9,7 +9,7 @@ describe('AccessPolicy (pistas de interfaz, no autorización)', () => {
   let policy: AccessPolicy;
 
   function signIn(overrides: Parameters<typeof buildUser>[0]): void {
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(buildUser(overrides));
   }
 

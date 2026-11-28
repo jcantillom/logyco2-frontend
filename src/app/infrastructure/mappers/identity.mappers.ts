@@ -1,5 +1,5 @@
 import { PaginatedResponseDto } from '../../core/http/api-envelope';
-import { AuthToken, CurrentUser } from '../../domain/models/identity';
+import { CurrentUser } from '../../domain/models/identity';
 import { CommercialRelationship, Organization, OrganizationTypeInfo } from '../../domain/models/organization';
 import { PlatformAdminMetrics } from '../../domain/models/platform';
 import { Page } from '../../domain/models/pagination';
@@ -16,7 +16,6 @@ import {
   InvitationAcceptedDto,
   InvitationCreatedDto,
   InvitationDto,
-  LoginResponseDto,
   MeResponseDto,
   MembershipDto,
   OrganizationDto,
@@ -64,14 +63,6 @@ export function toPage<D, T>(
   };
 }
 
-export function toAuthToken(dto: LoginResponseDto): AuthToken {
-  return {
-    accessToken: dto.access_token,
-    tokenType: dto.token_type,
-    expirationLabel: dto.expiration_time_utc_bogota,
-  };
-}
-
 export function toCurrentUser(dto: MeResponseDto): CurrentUser {
   return {
     id: dto.id,
@@ -84,6 +75,7 @@ export function toCurrentUser(dto: MeResponseDto): CurrentUser {
       organization: { id: membership.organization.id, name: membership.organization.name },
       roles: membership.roles.map((role) => ({ code: role.code, name: role.name })),
     })),
+    sessionExpiresAt: dto.session_expires_at ?? null,
   };
 }
 

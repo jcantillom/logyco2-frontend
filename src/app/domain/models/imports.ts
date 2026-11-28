@@ -1,4 +1,5 @@
 import { ImportFootprint } from './footprint';
+import { PlaceResolution } from './places';
 export type ImportStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type ImportFormat = 'LOGYCO2_TEMPLATE' | 'CARITRANS' | 'UNRECOGNIZED';
 export type ColumnRequirement = 'REQUIRED' | 'CONDITIONAL' | 'RECOMMENDED' | 'OPTIONAL';
@@ -132,6 +133,122 @@ export interface ImportRoutes {
   readonly rowsByUniqueName: number;
 }
 
+/** Lo que vio el servidor en la columna de carga para proponer kilogramos; todas las cifras son suyas (la pantalla no las deriva). */
+export interface CargoUnitEvidence {
+  readonly rowsWithCargo: number;
+  readonly rowsOverLimit: number;
+  readonly shareOverLimitPct: number;
+  readonly limitTon: number;
+  readonly medianValue: number | null;
+  readonly medianAsTonsIfKg: number | null;
+  readonly medianCapacityTon: number | null;
+  readonly medianPctOfCapacity: number | null;
+  readonly rowsWithCapacity: number;
+  readonly rowsOverCapacityIfKg: number | null;
+  /** `false`: la mediana sale de una muestra determinista (más de 4096 valores). */
+  readonly medianExact: boolean;
+  readonly rowsStillOutOfRangeIfKg: number;
+  readonly totalTonIfKg: number;
+  readonly rowsWithCargoIfKg: number;
+}
+
+export type CargoUnitStatus = 'KG_LIKELY' | 'AMBIGUOUS';
+export type CargoUnitBasis = 'CAPACITY' | 'PLAUSIBLE_RANGE';
+
+/** La columna de carga declara toneladas pero sus valores parecen kilogramos. Solo `KG_LIKELY` se puede confirmar; `AMBIGUOUS` solo informa. */
+export interface CargoUnitProposal {
+  readonly status: CargoUnitStatus;
+  readonly basis: CargoUnitBasis;
+  /** Texto del servidor, en español. */
+  readonly message: string;
+  readonly evidence: CargoUnitEvidence;
+}
+
+export type CargoUnit = 'KG' | 'TON';
+export type CargoUnitSource = 'HEADER' | 'COMPANY_SETTING' | 'ADMIN';
+
+/** La unidad que esta carga usa para derivar la carga en toneladas (`null` en la revisión = sin confirmar: toneladas como se declaran). */
+export interface CargoUnitApplied {
+  readonly unit: CargoUnit;
+  readonly source: CargoUnitSource;
+  readonly confirmedAt: string;
+  /** Solo `HEADER`: el encabezado del archivo que declaró los kilogramos. */
+  readonly header: string | null;
+}
+
+export interface CargoUnitResult {
+  readonly unit: CargoUnit;
+  readonly confirmedAt: string;
+  readonly rowsUpdated: number;
+  readonly rowsConverted: number;
+  /** `true`: la unidad ya estaba confirmada así y no se recalculó nada. */
+  readonly unchanged: boolean;
+}
+
+export type EstimationMode = 'OFF' | 'ASK' | 'AUTO';
+
+export interface EfficiencyConsent {
+  readonly estimate: boolean;
+}
+
+export interface EfficiencyEstimationState {
+  readonly platformEnabled: boolean;
+  readonly mode: EstimationMode;
+  readonly requiresConsent: boolean;
+  readonly canEstimate: boolean;
+  /** Lo registrado en esta carga (solo ASK); `null` si nadie ha decidido. */
+  readonly consent: EfficiencyConsent | null;
+}
+
+export interface CoverageCount {
+  readonly vehicles: number;
+  readonly trips: number;
+}
+
+/** Una referencia técnica que estimaría vehículos de la carga; el valor y el rango son los del servidor. */
+export interface CoverageReference {
+  readonly source: string;
+  readonly valueKmPerGal: number | null;
+  readonly unit: string;
+  readonly uncertaintyLow: number | null;
+  readonly uncertaintyHigh: number | null;
+  readonly licenceStatus: string;
+  readonly vehicles: number;
+  readonly trips: number;
+  readonly unregisteredVehicles: number;
+}
+
+export interface CoverageReason {
+  readonly code: string;
+  readonly label: string;
+  readonly vehicles: number;
+  readonly trips: number;
+}
+
+/** Cobertura del rendimiento de los vehículos de la carga; solo en el detalle de una carga terminada. */
+export interface EfficiencyCoverage {
+  readonly estimation: EfficiencyEstimationState;
+  readonly vehiclesInFile: number;
+  readonly withOwnEfficiency: CoverageCount;
+  readonly alreadyEstimated: CoverageCount;
+  readonly without: CoverageCount & {
+    readonly estimable: CoverageCount & { readonly unregisteredVehicles: number; readonly references: readonly CoverageReference[] };
+    readonly blockedByLicence: CoverageCount & { readonly unregisteredVehicles: number; readonly message: string };
+    readonly noReference: CoverageCount & { readonly reasons: readonly CoverageReason[] };
+  };
+  /** Viajes que no se calculan aunque se estime el rendimiento: les falta la distancia. */
+  readonly tripsWithoutDistance: CoverageCount;
+}
+
+/** Resultado de consentir (o no) la estimación del rendimiento de una carga. */
+export interface EfficiencyConsentResult {
+  readonly mode: EstimationMode;
+  readonly estimateEfficiency: boolean;
+  readonly vehiclesEstimated: number;
+  readonly tripsCalculated: number;
+  readonly tripsStillPending: number;
+}
+
 export interface ImportReview {
   readonly format: ImportFormat;
   readonly rowsRead: number;
@@ -147,10 +264,33 @@ export interface ImportReview {
   readonly routes: ImportRoutes | null;
   /** Kilómetros de esta carga que salen de las rutas (0 si no hubo). */
   readonly totals: { readonly distanceFromRoutesKm: number };
+  /** `null` si la carga no trae valores imposibles como toneladas. */
+  readonly cargoUnitProposal: CargoUnitProposal | null;
+  /** `null` = nadie confirmó nada: la carga se usa en toneladas, como se declara. */
+  readonly cargoUnitApplied: CargoUnitApplied | null;
+  /** `null` fuera del detalle de una carga terminada. */
+  readonly efficiencyCoverage: EfficiencyCoverage | null;
+  /** Lugares sin resolver de esta carga (calculado por el servidor al leer); `null` si la respuesta no lo trae. */
+  readonly placeResolution: PlaceResolution | null;
+}
+
+/** El archivo, tal como está, no tiene viajes calculables, pero SÍ se pueden calcular estimando el rendimiento con una referencia técnica (teórico). Todas las cifras son del servidor. */
+export interface CalculableWithEstimation {
+  /** Viajes que se calcularían estimando ahora (0 si ya se estimaron). */
+  readonly trips: number;
+  readonly vehicles: number;
+  readonly alreadyEstimatedTrips: number;
+  readonly mode: Exclude<EstimationMode, 'OFF'>;
+  /** `true` en ASK sin el consentimiento de esta carga: se da en «Rendimiento de los vehículos». */
+  readonly requiresConsent: boolean;
+  /** Viajes que seguirían pendientes (sin distancia, sin referencia o con la licencia bloqueada). */
+  readonly pendingWithoutDistanceOrReference: number;
 }
 
 export interface ImportDetail extends ImportSummary {
   readonly review: ImportReview | null;
+  /** `null` si no aplica (la carga se calcula por sí misma, o no es calculable ni estimando); entonces rige el comportamiento de siempre. */
+  readonly calculableWithEstimation: CalculableWithEstimation | null;
   /** Huella de CO₂ de esta carga; `null` si aún no se calculó (cargas anteriores al cálculo o sin viajes). */
   readonly footprint: ImportFootprint | null;
 }
@@ -180,6 +320,9 @@ export interface ProposedVehicle {
   readonly modelYear: number | null;
   readonly fuelType: string | null;
   readonly vehicleType: string | null;
+  /** Informativas: solo completan un dato que falta y no intervienen en el cálculo. */
+  readonly technology: string | null;
+  readonly capacityTons: number | null;
 }
 
 /** Un campo que cambiaría en un vehículo registrado; la etiqueta viene del servidor. */
@@ -216,15 +359,22 @@ export interface VehicleCandidate {
 }
 
 /** La decisión recae sobre una lista de candidatos o sobre todos los de un tipo (exactamente uno de los dos). */
-export type VehicleDecisionRequest =
+export type VehicleDecisionRequest = (
   | { readonly decision: 'ACCEPT' | 'REJECT'; readonly candidateIds: readonly string[] }
-  | { readonly decision: 'ACCEPT' | 'REJECT'; readonly kind: 'NEW' | 'CHANGED' };
+  | { readonly decision: 'ACCEPT' | 'REJECT'; readonly kind: 'NEW' | 'CHANGED' }
+) & {
+  /** Consentimiento de estimar el rendimiento de la carga (solo en modo ASK: el servidor lo registra, también un «no»). Ausente = no se envía. */
+  readonly estimateEfficiency?: boolean;
+};
 
 export interface VehicleDecisionResult {
   readonly accepted: number;
   readonly rejected: number;
   readonly skipped: number;
   readonly skippedReasons: readonly { readonly code: string; readonly rows: number }[];
+  /** Vehículos que recibieron un rendimiento estimado en esta solicitud y los viajes que quedaron calculados (0 si no se estimó). */
+  readonly vehiclesEstimated: number;
+  readonly tripsEstimated: number;
   /** Nuevos y con cambios que siguen sin decidir en la carga tras la solicitud. */
   readonly remaining: number;
 }

@@ -62,6 +62,16 @@ export interface DuplicateTrip {
   readonly rowNumber: number | null;
 }
 
+/** Un atributo del vehículo que cambia entre el viaje que cuenta (ancla) y el repetido. `attribute` es la clave del archivo; la vista la traduce. */
+export interface VehicleDifference {
+  readonly attribute: string;
+  readonly anchor: string | null;
+  readonly repeated: string | null;
+}
+
+/** Nota de calidad que el servidor adjunta a un caso resuelto o retenido (solo se conocen las listadas en la vista; otras se ignoran). */
+export type DuplicateNote = 'FUEL_CONFLICT_ANCHOR_FUEL_USED';
+
 export interface DuplicateEvidence {
   readonly identical: boolean;
   readonly matches: readonly string[];
@@ -72,6 +82,13 @@ export interface DuplicateEvidence {
   readonly group: DuplicateGroup | null;
   /** Una de las dos versiones trae el id del viaje y la otra no (el archivo ganó o perdió la columna): se comparan por fecha, placa y ruta. */
   readonly idMismatch: boolean;
+  /** Lo resolvió el sistema (regla R3a: el mismo viaje repetido por atributos del vehículo), no una persona. */
+  readonly auto: boolean;
+  /** Atributos del vehículo que difieren en el archivo; vacío si no hay o no se informan. */
+  readonly vehicleDiffers: readonly VehicleDifference[];
+  /** Otros campos del archivo que también difieren (por eso no se resolvió solo). */
+  readonly otherDiffers: readonly string[];
+  readonly notes: readonly DuplicateNote[];
 }
 
 /** Un posible duplicado: `a` es el viaje retenido (el nuevo) y `b` el original con el que se comparó (`null` si ya no existe). */

@@ -11,6 +11,8 @@ export const SUPER_ADMIN_LIMIT_MESSAGE =
 
 export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   // Autenticación y sesión
+  SESSION_NOT_SAVED:
+    'La sesión no se guardó: el navegador rechazó la cookie de sesión. Abre la aplicación con el mismo host que la API (localhost y 127.0.0.1 son distintos), permite las cookies del sitio y vuelve a intentar.',
   INVALID_CREDENTIALS: 'El correo o la contraseña no son correctos.',
   LOGIN_RATE_LIMITED: 'Demasiados intentos de inicio de sesión. Inténtalo de nuevo más tarde.',
   MISSING_TOKEN: 'Tu sesión no es válida. Inicia sesión nuevamente.',
@@ -62,6 +64,8 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   INVALID_CURSOR: 'La lista cambió y la página pedida ya no es válida. Vuelve a la primera página.',
   INVALID_LIMIT: 'Esa cantidad de viajes por página no está permitida.',
   INVALID_PERIOD: 'El periodo no es válido: indica la fecha inicial y la final, y que la inicial no sea posterior.',
+  INVALID_GRANULARITY: 'Esa granularidad no es válida: elige diaria, semanal, mensual, trimestral, semestral o anual.',
+  GRANULARITY_TOO_FINE: 'El periodo es demasiado largo para ver la serie diaria. Elige granularidad semanal o mensual, o un periodo más corto.',
   INVALID_STATUS: 'Ese estado no es válido para filtrar los viajes.',
   EXPORT_TOO_LARGE: 'El reporte tiene demasiados viajes: acótalo con un periodo o un filtro e inténtalo de nuevo.',
   EXPORT_NOT_FOUND: 'El reporte no existe.',
@@ -81,6 +85,15 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   TRIP_HAS_CONFIRMED_MATCH: 'Este viaje ya está confirmado con una empresa vinculada y no se puede completar.',
   TRIP_NOT_COMPLETABLE: 'A este viaje no se le puede completar datos en pantalla.',
   FIELD_NOT_EDITABLE: 'Ese dato no se puede completar en este viaje.',
+  MANUAL_TRIP_REPEATED: 'Ya hay un viaje de ese vehículo en esa fecha y con esa ruta. Si es otro viaje, confírmalo.',
+  IDEMPOTENCY_KEY_REQUIRED: 'No se pudo registrar el viaje. Inténtalo de nuevo.',
+  IDEMPOTENCY_KEY_INVALID: 'No se pudo registrar el viaje. Inténtalo de nuevo.',
+  TRIP_NOT_MANUAL: 'Solo se pueden anular los viajes registrados manualmente. Los de un archivo se corrigen cargándolo de nuevo.',
+  PLATE_NOT_REGISTERED: 'Ese vehículo no está registrado en tu empresa. Regístralo primero en «Mis vehículos».',
+  VEHICLE_FUEL_MISSING: 'El vehículo no tiene combustible registrado. Elige el combustible del viaje o complétalo en «Mis vehículos».',
+  FUEL_MISMATCH: 'El combustible del viaje es el del vehículo y no se puede cambiar.',
+  UNIT_INCOMPATIBLE: 'La unidad no corresponde al combustible del vehículo. Elige una de las que se ofrecen.',
+  DATE_OUT_OF_RANGE: 'La fecha debe estar entre el 1 de enero de 2000 y mañana.',
   INVALID_FIELD_VALUE: 'Hay datos no válidos. Corrígelos y vuelve a guardar.',
   COMPLETION_TOO_LARGE: 'Son más de 5.000 viajes por vez. Acota a una carga o a menos placas.',
   COMPLETION_TOKEN_INVALID: 'La confirmación no corresponde a lo que revisaste. Revísalo de nuevo.',
@@ -145,6 +158,30 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   STORAGE_QUOTA_EXCEEDED: 'Se alcanzó el espacio de almacenamiento disponible para tu empresa. Contacta al administrador de la plataforma.',
   STORAGE_UNAVAILABLE: 'El almacenamiento de archivos no está disponible por ahora. Inténtalo de nuevo en unos minutos.',
   VEHICLE_NOT_FOUND: 'El vehículo no existe en tu empresa. Vuelve a la lista y actualízala.',
+
+  // Rendimiento por vehículo y «Ficha por vehículo»
+  EFFICIENCY_CONFLICT: 'Otra persona declaró el rendimiento de este vehículo al mismo tiempo. Revisa el valor vigente y vuelve a guardar.',
+  EFFICIENCY_APPLY_TOO_LARGE: 'Son demasiados viajes para aplicarlos de una vez. No se cambió nada: inténtalo de nuevo en unos minutos.',
+  FICHA_TOKEN_EXPIRED: 'La vista previa venció. Vuelve a cargar el archivo para revisarlo.',
+  FICHA_PREVIEW_STALE: 'Los vehículos cambiaron después de la vista previa. Vuelve a cargar el archivo para revisarlo.',
+  FICHA_TOKEN_INVALID: 'La confirmación no corresponde a este archivo. Vuelve a cargarlo para revisarlo.',
+  FICHA_TOO_LARGE: 'La ficha tiene más filas de las permitidas. Divídela en partes más pequeñas.',
+  FICHA_NOTHING_TO_APPLY: 'Ninguna fila de la ficha es válida, así que no hay nada que aplicar. Corrígela y vuelve a cargarla.',
+  ESTIMATION_DISABLED: 'La estimación con referencia UPME no está disponible por ahora.',
+  INVALID_ESTIMATE_SCOPE: 'La selección de vehículos para estimar no es válida. Cierra el diálogo y vuelve a abrirlo.',
+  ESTIMATE_TOO_LARGE: 'Son demasiados vehículos para estimar de una vez. Hazlo por partes más pequeñas.',
+  MEASURED_PROTECTED: 'Este vehículo tiene un rendimiento medido vigente. No se reemplaza sin tu confirmación.',
+  ESTIMATION_MODE_OFF: 'La estimación del rendimiento está apagada en los ajustes de tu empresa. Un administrador puede activarla en Configuración.',
+  CARGO_UNIT_NOT_PROPOSED: 'Esta carga ya no tiene una conversión de kilogramos para confirmar: el archivo ya declara la unidad o la propuesta cambió. Actualiza la revisión.',
+  PLACE_ALREADY_RECOGNIZED: 'La plataforma ya reconoce este lugar: no hay nada que elegir. Actualiza la revisión.',
+  PLACE_CHOICES_LIMIT: 'Tu empresa llegó al máximo de 1.000 lugares elegidos. Deshaz alguno que ya no necesites y vuelve a intentarlo.',
+  PLACE_CHOICE_NOT_FOUND: 'Esta elección ya no existe: alguien la deshizo. Actualiza la lista.',
+  UNKNOWN_MUNICIPALITY_CODE: 'Ese municipio no está en el catálogo oficial. Elige uno de la lista.',
+  CHOICE_NOT_A_CANDIDATE: 'Ese municipio no es una de las opciones de este lugar. Actualiza la revisión y elige de nuevo.',
+  INVALID_PLACE_TEXT: 'El texto del lugar no es válido. Actualiza la revisión.',
+  INVALID_NOTE: 'La nota tiene caracteres que no se admiten. Escríbela de nuevo con texto normal.',
+  ESTIMATE_PREVIEW_STALE: 'Los vehículos cambiaron después de la vista previa. Revísala de nuevo antes de aplicar.',
+  INVALID_FILE: 'No se pudo leer el archivo. Usa la plantilla de la ficha, sin cambiar sus hojas ni sus columnas.',
 
   // Directorio corporativo
   // LoGyCO₂ Intelligence

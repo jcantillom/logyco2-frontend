@@ -44,9 +44,25 @@ function isPlatformPath(path: string): boolean {
   return path === '/plataforma' || path.startsWith('/plataforma/');
 }
 
+/**
+ * Ruta interna segura: empieza por `/`, no es protocolo-relativa (`//`, `/\`) y ninguna forma decodificada
+ * (los navegadores tratan `\` como `/`) ni caracteres de control la convierten en otra cosa.
+ */
+function isSafeInternalPath(value: string): boolean {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return false;
+  }
+  // eslint-disable-next-line no-control-regex
+  const hostile = /[\\\u0000-\u001f\u007f]/;
+  return [value, decoded].every((candidate) => candidate.startsWith('/') && !candidate.startsWith('//') && !hostile.test(candidate));
+}
+
 /** Acepta solo rutas internas (evita redirecciones abiertas) y devuelve su ruta sin query ni fragmento para decidir. */
 function normalize(value: string | null): string | null {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/login')) return null;
+  if (!value || !isSafeInternalPath(value) || value.startsWith('/login')) return null;
   const end = value.search(/[?#]/);
   const path = end === -1 ? value : value.slice(0, end);
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;

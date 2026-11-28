@@ -2,7 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, input, signal } from '@an
 import { formatTick } from './bar-chart';
 import { ShareSlice } from './share-chart';
 
-const RADIUS = 38;
+const RADIUS = 40;
+/** Grosor del anillo (unidades del viewBox): delgado para que el hueco central (≈ 66 de 112) aloje el total. */
+const STROKE = 14;
+/** Ancho útil del total en el hueco (unidades) y tamaño máximo/mínimo de su letra; el ancho de un dígito tabular ≈ 0,62 em. */
+const TOTAL_BOX = 56;
+const TOTAL_MAX = 18;
+const DIGIT_EM = 0.62;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 /** Hueco entre porciones (unidades de arco): se ve como un borde fino del color de la tarjeta. */
 const GAP = 1.6;
@@ -17,12 +23,12 @@ const PCT = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFr
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
-      :host { display: flex; align-items: center; gap: 24px; min-width: 0; }
-      svg { flex: none; width: 150px; height: 150px; }
+      :host { display: flex; align-items: center; gap: 16px; min-width: 0; }
+      svg { flex: none; width: 176px; height: 176px; }
       .halo { fill: none; stroke: var(--c-s2); stroke-width: 1; }
-      .slice { fill: none; stroke-width: 18; transition: opacity 0.2s ease; }
+      .slice { fill: none; stroke-width: 14; transition: opacity 0.2s ease; }
       .slice.dim { opacity: 0.3; }
-      .total { text-anchor: middle; fill: var(--c-head); font-size: 17px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+      .total { text-anchor: middle; fill: var(--c-head); font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
       .unit { text-anchor: middle; fill: var(--c-text2); font-size: 8px; font-weight: 600; }
       ul { flex: 1; min-width: 0; list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
       li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: center; column-gap: 8px; row-gap: 3px; padding: 5px 8px; border-radius: 10px; font-size: 0.82rem; min-width: 0; transition: background 0.15s ease, opacity 0.2s ease; }
@@ -43,7 +49,7 @@ const PCT = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFr
       @for (arc of arcs(); track arc.key) {
         <circle class="slice" [class.dim]="active() !== null && active() !== arc.key" (pointerenter)="active.set(arc.key)" (pointerleave)="active.set(null)" cx="56" cy="56" [attr.r]="radius" [attr.stroke]="arc.color" [attr.stroke-dasharray]="arc.dash" [attr.stroke-dashoffset]="arc.offset" transform="rotate(-90 56 56)" data-testid="donut-slice"><title>{{ arc.label }}: {{ arc.pctText }} %</title></circle>
       }
-      <text class="total" x="56" y="57" data-testid="donut-total">{{ totalText() }}</text>
+      <text class="total" x="56" y="57" [attr.font-size]="totalSize()" data-testid="donut-total">{{ totalText() }}</text>
       <text class="unit" x="56" y="70">{{ unit() }}</text>
     </svg>
     <ul data-testid="donut-legend">
@@ -68,6 +74,8 @@ export class ShareDonutComponent {
   protected readonly active = signal<string | null>(null);
   protected readonly total = computed(() => this.slices().reduce((sum, s) => sum + s.value, 0));
   protected readonly totalText = computed(() => formatTick(this.total()));
+  /** Tamaño de letra del total: el normal y, si la cifra es larga (7 dígitos con separadores), el que cabe en el hueco. */
+  protected readonly totalSize = computed(() => Math.min(TOTAL_MAX, TOTAL_BOX / (DIGIT_EM * Math.max(this.totalText().length, 1))));
   protected readonly arcs = computed(() => {
     let offset = 0;
 

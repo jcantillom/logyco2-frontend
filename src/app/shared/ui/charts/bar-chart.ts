@@ -2,6 +2,10 @@
 export interface BarDatum {
   readonly label: string;
   readonly value: number | null;
+  /** Líneas del tooltip propio (hover y teclado); sin ellas la barra solo lleva el `title` nativo. */
+  readonly tip?: readonly string[];
+  /** La barra cubre solo parte de su periodo (primera y última cubeta de la serie): se dibuja con trazo discontinuo. */
+  readonly partial?: boolean;
 }
 
 export interface BarLayoutItem {
@@ -16,6 +20,13 @@ export interface BarLayoutItem {
   /** Centro de la barra (x) y altura de su borde superior (y): por ahí pasa la línea de tendencia. */
   readonly cx: number;
   readonly cy: number;
+  /** Etiqueta del eje X visible (con muchas barras solo se rotula una de cada `labelEvery`). */
+  readonly showLabel: boolean;
+  readonly tip: readonly string[] | null;
+  readonly partial: boolean;
+  /** Franja completa de la ranura (alto del área de dibujo): zona sensible al puntero y al teclado. */
+  readonly slotX: number;
+  readonly slotWidth: number;
 }
 
 export interface BarLayout {
@@ -30,6 +41,10 @@ export interface BarLayout {
   readonly rotateValues: boolean;
   /** `true` si ninguna ranura tiene dato (no hay barras que dibujar). */
   readonly empty: boolean;
+  /** Muchas barras (series diarias o semanales): sin cifras sobre las barras, sin pista por barra, sin tendencia ni puntos, para que el SVG siga ligero y legible. */
+  readonly dense: boolean;
+  /** Se rotula una de cada `labelEvery` etiquetas del eje X. */
+  readonly labelEvery: number;
 }
 
 export interface BarBox {
@@ -46,6 +61,10 @@ const WHOLE = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 const CHAR = 5.4;
 /** Hasta cuántas etiquetas del eje X caben sin inclinarse. */
 const FLAT_AXIS_MAX = 6;
+/** Desde cuántas barras el gráfico pasa a modo denso. */
+export const DENSE_MIN = 24;
+/** Ancho horizontal mínimo que ocupa una etiqueta inclinada del eje X (unidades del viewBox). */
+const ROTATED_LABEL_STEP = 11;
 
 /** Cifra al entero con separador de miles es-CO. */
 export const formatTick = (value: number): string => WHOLE.format(Math.round(value));
@@ -85,14 +104,17 @@ export function barLayout(data: readonly BarDatum[], box: BarBox): BarLayout {
   const plotW = box.width - box.left - box.right;
   const plotH = box.height - box.top - box.bottom;
   const slot = data.length > 0 ? plotW / data.length : plotW;
-  const barW = Math.min(slot * 0.62, 56);
+  const barW = Math.min(slot * (data.length > DENSE_MIN ? 0.8 : 0.62), 56);
+  const rotateAxis = data.length > FLAT_AXIS_MAX;
+  // Con etiquetas inclinadas solo se rotula una de cada N para que no se encimen; sin inclinar (pocas barras) se rotulan todas.
+  const labelEvery = rotateAxis ? Math.max(1, Math.ceil(ROTATED_LABEL_STEP / Math.max(slot, 0.1))) : 1;
   const yOf = (v: number): number => box.top + plotH - (v / top) * plotH;
   const bars = data.map((d, i): BarLayoutItem => {
     const value = values[i];
     const cx = box.left + slot * i + slot / 2;
     const height = value === null ? 0 : (value / top) * plotH;
 
-    return { label: d.label, value, valueLabel: value === null ? '—' : formatTick(value), x: cx - barW / 2, y: value === null ? yOf(0) : yOf(value), width: barW, height, cx, cy: value === null ? yOf(0) : yOf(value) };
+    return { label: d.label, value, valueLabel: value === null ? '—' : formatTick(value), x: cx - barW / 2, y: value === null ? yOf(0) : yOf(value), width: barW, height, cx, cy: value === null ? yOf(0) : yOf(value), showLabel: i % labelEvery === 0, tip: d.tip ?? null, partial: d.partial === true, slotX: box.left + slot * i, slotWidth: slot };
   });
   const trend: string[] = [];
   let run: string[] = [];
@@ -113,8 +135,10 @@ export function barLayout(data: readonly BarDatum[], box: BarBox): BarLayout {
     bars,
     ticks: tickValues.map((value) => ({ value, y: yOf(value), label: formatTick(value) })),
     top,
-    trend,
-    rotateAxis: data.length > FLAT_AXIS_MAX,
+    trend: data.length > DENSE_MIN ? [] : trend,
+    rotateAxis,
+    dense: data.length > DENSE_MIN,
+    labelEvery,
     rotateValues: bars.some((b) => b.valueLabel.length * CHAR > slot * 0.96),
     empty: values.every((v) => v === null),
   };

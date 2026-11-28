@@ -1,7 +1,6 @@
 import { PaginatedResponseDto } from '../../core/http/api-envelope';
 import { MeResponseDto, UserSummaryDto } from '../dto/identity.dto';
 import {
-  toAuthToken,
   toCurrentUser,
   toInvitation,
   toManagedUser,
@@ -10,14 +9,6 @@ import {
 } from './identity.mappers';
 
 describe('mapeadores de identidad (DTO → dominio)', () => {
-  it('toAuthToken conserva solo lo necesario', () => {
-    expect(toAuthToken({ access_token: 'abc', token_type: 'Bearer', expiration_time_utc_bogota: '2026-11-14T10:00:00' })).toEqual({
-      accessToken: 'abc',
-      tokenType: 'Bearer',
-      expirationLabel: '2026-11-14T10:00:00',
-    });
-  });
-
   it('toCurrentUser convierte snake_case a camelCase', () => {
     const dto: MeResponseDto = {
       id: 'u1',
@@ -34,6 +25,8 @@ describe('mapeadores de identidad (DTO → dominio)', () => {
     expect(user.globalRoles[0].code).toBe('SUPER_ADMIN');
     expect(user.memberships[0].membershipId).toBe('m1');
     expect(user.memberships[0].organization.name).toBe('ENVIA');
+    expect(user.sessionExpiresAt).toBeNull();
+    expect(toCurrentUser({ ...dto, session_expires_at: '2026-11-27T20:00:00Z' }).sessionExpiresAt).toBe('2026-11-27T20:00:00Z');
   });
 
   it('toOrganization convierte fechas ISO a Date', () => {

@@ -99,6 +99,8 @@ const TABS: readonly DetectedTab[] = ['NEW', 'CHANGED'];
                       <div><dt>Configuración</dt><dd>{{ c.proposed.configurationCode ?? '—' }}</dd></div>
                       <div><dt>Año</dt><dd>{{ c.proposed.modelYear ?? '—' }}</dd></div>
                       <div><dt>Combustible</dt><dd>{{ c.fuelLabel ?? c.proposed.fuelType ?? '—' }}</dd></div>
+                      @if (c.proposed.technology) { <div><dt>Tecnología</dt><dd data-testid="cand-technology">{{ c.proposed.technology }}</dd></div> }
+                      @if (c.proposed.capacityTons !== null) { <div><dt>Capacidad</dt><dd data-testid="cand-capacity">{{ c.proposed.capacityTons }} t</dd></div> }
                       @if (c.proposed.vehicleType) { <div><dt>Tipo</dt><dd>{{ c.proposed.vehicleType }}</dd></div> }
                       <div><dt>Filas del archivo</dt><dd>{{ c.tripRows }}</dd></div>
                     </dl>

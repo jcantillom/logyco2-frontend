@@ -9,7 +9,7 @@ Angular 20 (standalone, signals) · TypeScript 5.9 · npm · SCSS · Karma/Jasmi
 ```bash
 cp .env.example .env      # configuración por entorno (ver «Configuración»)
 npm install
-npm start                 # http://localhost:4200  (API en API_BASE_URL, por defecto http://127.0.0.1:8120)
+npm start                 # http://localhost:4200  (`ng serve` reenvía /api a http://127.0.0.1:8120 con proxy.conf.json)
 npm run test:ci           # requiere Chrome (export CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 npm run lint
 npm run build:prod        # exige APP_ENV=production y las demás variables (las define el pipeline); `npm run build` es el mismo bundle y tiene la misma guarda
@@ -22,9 +22,8 @@ La configuración por entorno sale de `.env` (local, ignorado por Git; plantilla
 | Variable | Valores |
 |---|---|
 | `APP_ENV` | `development` o `production` (`build:prod` exige `production`) |
-| `API_BASE_URL` | origen del backend, sin ruta ni barra final; vacío solo en producción (mismo origen) |
+| `API_BASE_URL` | vacío = mismo origen (recomendado; en desarrollo lo atiende el proxy `proxy.conf.json`). Si se define, origen absoluto sin ruta ni barra final y con el MISMO host que la página |
 | `API_PREFIX` | prefijo de versión de la API, p. ej. `/api/v1` |
-| `SESSION_PERSISTENCE` | `tab` (solo desarrollo) o `memory` (obligatorio en producción) |
 
 El backend debe tener el origen del frontend (p. ej. `http://localhost:4200`) en su variable `CORS_ALLOWED_ORIGINS`.
 
@@ -36,7 +35,7 @@ El enlace contrato↔implementación vive solo en `infrastructure/providers.ts`.
 
 - `core/errors`: `AppError` + catálogo de mensajes por `error.code` (nunca se muestra el texto crudo del servidor).
 - `core/org`: organización activa; `ContextResetRegistry` descarta todo el estado al cambiar de organización o cerrar sesión; `ScopedResource` descarta respuestas tardías.
-- `core/auth`: sesión **solo en memoria** (ver «Sesión» abajo).
+- `core/auth`: sesión por cookie HttpOnly del backend; el estado (sin token) vive en memoria (ver «Sesión» abajo).
 - `AccessPolicy` espeja la matriz rol→permiso solo para **mostrar/ocultar**; `/auth/me` devuelve roles, no permisos. El backend autoriza.
 
 ## Estado de los módulos
@@ -55,38 +54,18 @@ Detalle en `docs/features/system.md`.
 
 - `LOGYCA_AUTH_IDENTITY_MODE=verified_email` es una decisión de riesgo transitoria del backend; no asumir como definitiva.
 
-## Sesión: qué ocurre realmente y por qué
+## Sesión: cookie HttpOnly
 
-Investigado en el código y contra el backend (`POST /auth/login`, `GET /auth/me`): el login devuelve un Bearer
-token en el JSON (`access_token`); **no** hay cookie HttpOnly, ni refresh token, ni endpoint de cierre/revocación.
-`SessionStore` guarda token y usuario en señales (memoria). La persistencia es una **decisión por entorno**
-(`SESSION_PERSISTENCE`, tipo `AppConfig`):
+El backend entrega el token en una **cookie `HttpOnly`** (`POST /auth/login`); la aplicación nunca lo lee, lo guarda ni lo envía a mano: el navegador la adjunta a las peticiones a la API (`withCredentials`). Por eso la sesión **sobrevive a recargar, abrir pestañas nuevas y navegar por URL**, y un XSS no puede robar el token. La cookie caduca con el token corporativo.
 
-| Entorno | Valor | Efecto |
-|---|---|---|
-| Desarrollo | `tab` | El token (solo el token) se guarda en `sessionStorage`: sobrevive a recargar la pestaña y se borra al cerrarla. |
-| Producción | `memory` | Nada se escribe en el navegador; recargar exige iniciar sesión. **No cambiar** hasta tener cookie HttpOnly (contrato abajo). |
-
-Con `tab`, al arrancar (`provideAppInitializer` → `SessionPersistence.restore()`) el token **no se da por bueno**: se
-revalida con `GET /auth/me`; un 401, un error o 5 s sin respuesta lo descartan y el usuario siempre sale del backend.
-Cerrar sesión o un 401 posterior lo borran. Riesgo asumido en desarrollo: mientras esté activo, un XSS podría leer el token
-(`localStorage` nunca se usa). Cubierto por `session-persistence.spec.ts` y `session-lifecycle.spec.ts`.
-
-| Situación | Comportamiento actual |
-|---|---|
-| Recargar la página | `tab` (desarrollo): se restaura y revalida con `/auth/me`; si falla, `/login?returnUrl=<ruta>`. `memory` (producción): se pierde el estado y el guard redirige a `/login?returnUrl=<ruta>`, volviendo a esa ruta tras autenticarse. |
-| Abrir una pestaña nueva | Estado independiente (`sessionStorage` es por pestaña): pide iniciar sesión. |
-| Cerrar la pestaña o el navegador | Pide iniciar sesión (el token guardado se elimina con la pestaña). |
-| Expiración del token | El backend responde 401 → se limpia la sesión local y se redirige a `/login?reason=expired&returnUrl=…`. No se interpreta `expiration_time_utc_bogota` (formato no garantizado); la expiración se detecta por el 401. |
-| Cierre de sesión voluntario | Limpia token, usuario y contexto de organización. **El token no se revoca en el servidor** (no existe endpoint). |
-
-### Contrato de backend necesario para conservar la sesión de forma segura (no implementado, requiere FastAPI)
-
-1. `POST /auth/login` entrega el access token en cookie `HttpOnly; Secure; SameSite=Strict` (y un refresh token rotativo en otra cookie con `Path=/api/v1/auth`), sin devolverlo al JavaScript.
-2. `POST /auth/refresh` (rotación con detección de reutilización) y `POST /auth/logout` (revoca el refresh token).
-3. Protección CSRF para métodos no seguros (cabecera personalizada + `SameSite`, o doble envío de cookie).
-4. CORS con `allow_credentials=true` y orígenes explícitos.
-5. `GET /auth/me` ya sirve para restaurar la sesión al arrancar: bastaría un `APP_INITIALIZER` que lo invoque y trate el 401 como "sin sesión".
+- **Arranque**: `provideAppInitializer` → `SessionBootstrap.restore()` consulta `GET /auth/me`; los guards ven la sesión ya resuelta (sin destello de login). Sin sesión, 401, error o 5 s sin respuesta = sin sesión.
+- **CSRF**: toda petición a la API que cambia estado lleva `X-Requested-With: LoGyCO2` (`authInterceptor`); el backend la exige con cookie.
+- **Cierre de sesión**: `POST /auth/logout` borra la cookie; se limpia el estado local aunque la llamada falle.
+- **Entre pestañas**: `CrossTabSession` (BroadcastChannel; respaldo con el evento `storage`) avisa de login/logout; solo viaja la palabra `login` o `logout`.
+- **Caducidad**: no hay refresh (el contrato del proveedor no está confirmado). Un 401 con sesión activa limpia el estado y lleva a `/login?reason=expired&returnUrl=…`. `GET /auth/me` informa `session_expires_at` (se muestra en Configuración).
+- **Nada sensible en el navegador**: ni `localStorage` ni `sessionStorage` guardan token ni usuario.
+- **Desarrollo**: `API_BASE_URL=` (vacío) y `ng serve`: el proxy `proxy.conf.json` reenvía `/api` a `127.0.0.1:8120`, así SPA y API son el MISMO origen (cookie de primera parte, sin CORS; igual que producción). Abra siempre `http://localhost:4200`. Evite `API_BASE_URL=http://127.0.0.1:8120`: `localhost` y `127.0.0.1` son sitios distintos y el navegador no envía la cookie (Brave/Chrome bloquean terceros). En el `.env` del backend, `CORS_ALLOWED_ORIGINS` debe incluir `http://localhost:4200` (la comprobación anti-CSRF compara el `Origin`); `AUTH_COOKIE_SECURE` se deduce de `APP_ENV` (false en development). Si el login responde pero la sesión no persiste, la pantalla dice «La sesión no se guardó…» (`SESSION_NOT_SAVED`). **Producción**: HTTPS, `AUTH_COOKIE_SECURE=true`, frontend y API en el mismo sitio. Detalle en el backend: `docs/modules/auth.md` §13 y `docs/tasks/persistent-session.md`.
+- **Límites**: sin refresh; el logout no revoca en el proveedor (un token copiado vale hasta su `exp`).
 
 ## Identidad visual
 

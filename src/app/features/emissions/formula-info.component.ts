@@ -104,7 +104,7 @@ export class FormulaInfoComponent {
 
     return factor ? factorValue(factor) : null;
   });
-  protected readonly unit = computed(() => unitLabel(this.facade.factor()?.unit ?? ''));
+  protected readonly unit = computed(() => this.facade.factor()?.unitLabel || unitLabel(this.facade.factor()?.unit ?? ''));
   protected readonly volumeUnit = computed(() => unitLabel(this.facade.factor()?.volumeUnit ?? ''));
   protected readonly efficiency = computed(() => this.divide(this.values().km, this.values().gallons));
   protected readonly fuel = computed(() => this.divide(this.values().distance, this.values().efficiency));

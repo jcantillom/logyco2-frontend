@@ -3,6 +3,8 @@ import { HttpTestingController, TestRequest } from '@angular/common/http/testing
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { provideTestApp, signInAs } from '../../../testing/providers';
+import { SETTINGS_URL, settingsDto } from '../../../testing/vehicle-efficiency';
+import { viewDto } from '../../../testing/vehicle-efficiency';
 import { pagedBody, summaryDto, vehicleDetailDto, vehicleDto, VEHICLES_ORG_URL } from '../../../testing/vehicles';
 import { SessionStore } from '../../core/auth/session.store';
 import { VehicleDto } from '../../infrastructure/dto/vehicles.dto';
@@ -37,6 +39,9 @@ describe('VehiclesComponent: Mis vehículos', () => {
     http.expectOne(`${VEHICLES_ORG_URL}/vehicles/summary`).flush({ data: summaryDto });
     listRequest().flush(pagedBody(items, total));
     http.expectOne(`${EMISSIONS}/vehicles`).flush({ data: catalogDto() });
+    fixture.detectChanges();
+    // Quien administra pregunta con el primer vehículo si la estimación está encendida (apagada en estas pruebas).
+    http.match((r) => /\/efficiency$/.test(r.url) && r.params.get('page_size') === '1').forEach((r) => r.flush({ data: viewDto() }));
     fixture.detectChanges();
   }
 
@@ -92,7 +97,7 @@ describe('VehiclesComponent: Mis vehículos', () => {
     init([vehicleDto(), vehicleDto({ id: 'veh-2', plate: 'XYZ987', plate_original: 'XYZ987', configuration_code: 'C1', configuration_recognized: false, fuel_type: 'NATURAL_GAS', model_year: null })]);
 
     expect(Array.from(el().querySelectorAll('thead th')).map((th) => th.textContent!.trim())).toEqual([
-      'Placa', 'Configuración', 'Tipo', 'Combustible', 'Modelo', 'Estado', 'Fecha de registro', 'Acciones',
+      'Placa', 'Configuración', 'Tipo', 'Combustible', 'Rendimiento', 'Modelo', 'Estado', 'Fecha de registro', 'Acciones',
     ]);
     expect(el().querySelector('table caption')).not.toBeNull();
     const rows = Array.from(el().querySelectorAll('tbody tr'));
@@ -105,9 +110,86 @@ describe('VehiclesComponent: Mis vehículos', () => {
     expect(rows[1].textContent).toContain('No reconocida');
     expect(rows[1].textContent).toContain('Gas natural');
     expect(rows[1].textContent).not.toContain('Como llegó');
-    expect(rows[0].querySelector('button')!.getAttribute('title')).toBe('Ver detalle');
-    expect(rows[0].querySelector('button svg')).not.toBeNull();
-    expect(rows[0].querySelector('button')!.getAttribute('aria-label')).toBe('Ver detalle de ABC123');
+    const detail = rows[0].querySelector('[data-testid="view-detail"]')!;
+
+    expect(detail.getAttribute('title')).toBe('Ver detalle');
+    expect(detail.querySelector('svg')).not.toBeNull();
+    expect(detail.getAttribute('aria-label')).toBe('Ver detalle de ABC123');
+  });
+
+  describe('rendimiento por vehículo', () => {
+    const efficiency = (overrides: Record<string, unknown> = {}) => ({ value: '6.900000', unit: 'km/gal', origin: 'DECLARED', basis: 'THEORETICAL', source_kind: 'MANUAL', measured_on: null, declared_at: '2026-11-20T15:00:00Z', ...overrides });
+    const cell = (row: number): string => (el().querySelectorAll('[data-testid="efficiency-cell"]')[row].textContent ?? '').replace(/\s+/g, ' ').trim();
+
+    it('cada fila muestra el valor con su unidad y un chip de origen (Declarado o Medido), o «Sin rendimiento» en texto atenuado, sin tarjetas nuevas', () => {
+      init([vehicleDto({ efficiency: efficiency() }), vehicleDto({ id: 'veh-2', plate: 'XYZ987', efficiency: efficiency({ origin: 'MEASURED', basis: 'REAL', value: '7.250000', unit: 'km/l' }) }), vehicleDto({ id: 'veh-3', plate: 'JJJ111' })]);
+
+      expect(cell(0)).toBe('6,9 km/galDeclarado');
+      expect(cell(1)).toBe('7,25 km/lMedido');
+      expect(cell(2)).toBe('Sin rendimiento');
+      expect(el().querySelectorAll('[data-testid="efficiency-cell"] app-status-badge').length).toBe(2);
+      expect(q('[data-testid="efficiency-none"]')!.classList).toContain('muted');
+      expect(el().querySelectorAll('[data-testid="vehicle-tiles"] .kpi').length).toBe(2);
+    });
+
+    it('cada fila tiene una acción con nombre accesible que abre «Rendimiento del vehículo» y devuelve el foco al cerrarse', async () => {
+      init();
+      document.body.appendChild(el());
+      const button = q<HTMLButtonElement>('[data-testid="open-efficiency"]')!;
+
+      expect(button.getAttribute('aria-label')).toBe('Rendimiento de ABC123');
+      expect(button.getAttribute('title')).toBe('Rendimiento');
+      button.focus();
+      button.click();
+      fixture.detectChanges();
+      http.expectOne((r) => r.url === `${VEHICLES_ORG_URL}/vehicles/veh-1/efficiency`).flush({ data: viewDto() });
+      fixture.detectChanges();
+
+      expect(q<HTMLDialogElement>('[data-testid="efficiency-dialog"]')!.open).toBeTrue();
+      q<HTMLButtonElement>('[data-testid="efficiency-close"]')!.click();
+      await settle();
+      fixture.detectChanges();
+
+      expect(q('[data-testid="efficiency-dialog"]')).toBeNull();
+      expect(document.activeElement).toBe(button);
+      document.body.removeChild(el());
+    });
+
+    it('quien solo consulta (analista, lector) ve la columna y abre la vista de consulta, pero no tiene «Ficha de rendimiento»', () => {
+      for (const role of ['ORG_ANALYST', 'ORG_VIEWER']) {
+        init([vehicleDto({ efficiency: efficiency() })], [role]);
+
+        expect(cell(0)).toBe('6,9 km/galDeclarado');
+        expect(q('[data-testid="open-efficiency"]')).not.toBeNull();
+        expect(q('[data-testid="open-ficha"]')).toBeNull();
+        http.verify();
+        TestBed.resetTestingModule();
+      }
+
+      init();
+    });
+
+    it('«Ficha de rendimiento» (solo ORG_ADMIN) abre el diálogo de la ficha y devuelve el foco a su botón', async () => {
+      init();
+      document.body.appendChild(el());
+      const button = q<HTMLButtonElement>('[data-testid="open-ficha"]')!;
+
+      expect(button.textContent).toContain('Ficha de rendimiento');
+      button.focus();
+      button.click();
+      fixture.detectChanges();
+
+      const dialog = q<HTMLDialogElement>('[data-testid="ficha-dialog"]')!;
+
+      expect(dialog.open).toBeTrue();
+      dialog.close();
+      await settle();
+      fixture.detectChanges();
+
+      expect(q('[data-testid="ficha-dialog"]')).toBeNull();
+      expect(document.activeElement).toBe(button);
+      document.body.removeChild(el());
+    });
   });
 
   it('anuncia la cantidad de resultados en una región aria-live', () => {
@@ -562,5 +644,65 @@ describe('VehiclesComponent: Mis vehículos', () => {
     const rows = Array.from(el().querySelectorAll('[data-testid="vehicle-table"] tbody tr'));
     expect(rows[0].querySelector('[data-testid="source-import"]')!.textContent!.trim()).toBe('Origen: Excel');
     expect(rows[1].querySelector('[data-testid="source-import"]')).toBeNull();
+  });
+});
+
+describe('VehiclesComponent: estimar rendimiento de pendientes', () => {
+  let fixture: ComponentFixture<VehiclesComponent>;
+  let http: HttpTestingController;
+  const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
+
+  function init(roles: string[], enabled: boolean, mode = 'ASK'): void {
+    TestBed.configureTestingModule({ imports: [VehiclesComponent], providers: provideTestApp() });
+    signInAs(buildUser({ memberships: [membership(ORG_ENVIA, roles)] }), TestBed.inject(SessionStore));
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(VehiclesComponent);
+    fixture.detectChanges();
+    http.expectOne(`${VEHICLES_ORG_URL}/vehicles/summary`).flush({ data: summaryDto });
+    http.expectOne((r) => r.url === `${VEHICLES_ORG_URL}/vehicles`).flush(pagedBody([vehicleDto()]));
+    http.expectOne(`${EMISSIONS}/vehicles`).flush({ data: catalogDto() });
+    fixture.detectChanges();
+    const probes = http.match((r) => /\/efficiency$/.test(r.url));
+
+    probes.forEach((r) => r.flush({ data: viewDto({ estimation_enabled: enabled }) }));
+    http.match(SETTINGS_URL).forEach((r) => r.flush({ data: settingsDto({ mode }) }));
+    fixture.detectChanges();
+    expect(probes.length).toBe(roles.includes('ORG_ADMIN') ? 1 : 0);
+  }
+
+  afterEach(() => http.verify());
+
+  it('ORG_ADMIN con la estimación encendida ve «Estimar rendimiento de pendientes» y abre el diálogo con la vista previa', () => {
+    init(['ORG_ADMIN'], true);
+    const button = el().querySelector<HTMLButtonElement>('[data-testid="open-estimation"]')!;
+
+    expect(button.textContent).toContain('Estimar rendimiento de pendientes');
+    button.click();
+    fixture.detectChanges();
+    expect(http.expectOne(`${VEHICLES_ORG_URL}/vehicles/efficiency/estimate/preview`).request.body).toEqual({ all_pending: true });
+    expect(el().querySelector('[data-testid="estimation-dialog"]')).not.toBeNull();
+  });
+
+  it('con la estimación apagada en el servidor el botón no existe', () => {
+    init(['ORG_ADMIN'], false);
+
+    expect(el().querySelector('[data-testid="open-estimation"]')).toBeNull();
+    expect(el().querySelector('[data-testid="open-ficha"]')).not.toBeNull();
+  });
+
+  it('con la estimación desactivada para la empresa (OFF) el botón se ve deshabilitado con su nota y no abre nada', () => {
+    init(['ORG_ADMIN'], true, 'OFF');
+    const button = el().querySelector<HTMLButtonElement>('[data-testid="open-estimation"]')!;
+
+    expect(button.disabled).toBeTrue();
+    expect(button.title).toBe('La estimación está desactivada para tu empresa. Actívala en Configuración.');
+    button.click();
+    http.expectNone(`${VEHICLES_ORG_URL}/vehicles/efficiency/estimate/preview`);
+  });
+
+  it('analista y lector no ven el botón ni preguntan por la bandera', () => {
+    init(['ORG_ANALYST'], true);
+
+    expect(el().querySelector('[data-testid="open-estimation"]')).toBeNull();
   });
 });

@@ -255,6 +255,22 @@ describe('QualityComponent: Calidad de datos', () => {
       expect(pairs[1].querySelector('[data-testid="pair-id-mismatch"]')).toBeNull();
     });
 
+    it('un retenido con `vehicle_differs` lista cada atributo en español con los dos valores y, con la nota de combustible, la explica; sin ellos no hay bloque', () => {
+      render();
+      listRequest().flush(duplicatesBody([
+        possibleDuplicateDto({ id: 'p1', rule: 'R3', evidence: { identical: false, matches: [], differs: [], other_differs: ['distancia_km'], vehicle_differs: { tipo_combustible: { anchor: 'DIESEL', this: 'GASOLINA' }, capacidad_toneladas: { anchor: '10', this: null } }, notes: ['FUEL_CONFLICT_ANCHOR_FUEL_USED'] } }),
+        possibleDuplicateDto({ id: 'p2', rule: 'R3' }),
+      ]));
+      fixture.detectChanges();
+      const pairs = qa('[data-testid="duplicate-pair"]');
+      const diffs = Array.from(pairs[0].querySelectorAll('[data-testid="pair-vehicle-diff"]')).map((li) => li.textContent!.trim());
+
+      expect(diffs).toEqual(['Combustible: primer registro «DIESEL», registro repetido «GASOLINA»', 'Capacidad (toneladas): primer registro «10», registro repetido «—»']);
+      expect(pairs[0].querySelector('[data-testid="pair-quality-note"]')!.textContent).toContain('se usó el combustible del primer registro');
+      expect(pairs[0].textContent).not.toMatch(/tipo_combustible|FUEL_CONFLICT|SYSTEM/);
+      expect(pairs[1].querySelector('[data-testid="pair-vehicle-diffs"]')).toBeNull();
+    });
+
     it('un aviso de éxito con omitidos los explica: ya resueltos o de una carga que no terminó de procesarse', () => {
       init(1);
       const toast = spyOn(TestBed.inject(ToastService), 'success');

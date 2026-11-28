@@ -4,6 +4,7 @@ import { AccessPolicy } from '../../core/auth/access-policy';
 import { ImportSummary, VehiclesDetected } from '../../domain/models/imports';
 import { TruckArtComponent } from '../../shared/ui/truck-art.component';
 import { TruckProgressComponent } from '../../shared/ui/truck-progress.component';
+import { EfficiencySettingsFacade } from '../vehicles/efficiency-settings.facade';
 import { ImportVehiclesFacade } from './import-vehicles.facade';
 import { ImportsFacade } from './imports.facade';
 import { formatCount, skippedReasonLabel } from './imports.labels';
@@ -39,6 +40,10 @@ const ARRIVAL_MS = 1200;
       .chips { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
       .chip { padding: 5px 12px; border-radius: 999px; background: var(--c-ok-soft); color: var(--c-head); font-size: 0.9rem; font-weight: 600; }
       .chip.soft { background: var(--c-s2); color: var(--c-text2); }
+      .consent { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 10px 12px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-s2); cursor: pointer; }
+      .consent input { margin-top: 3px; flex: none; }
+      .consent:has(input:focus-visible) { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+      .consent small { display: block; color: var(--c-mu); font-size: 0.84rem; line-height: 1.4; }
       .actions { display: grid; gap: 8px; margin-top: 6px; }
       .actions .btn { justify-content: center; font-size: 1rem; padding: 12px 18px; }
       .link { background: none; border: 0; color: var(--c-mu); font: inherit; cursor: pointer; padding: 8px; border-radius: 8px; }
@@ -85,6 +90,7 @@ const ARRIVAL_MS = 1200;
           }
           @case ('done') {
             <p id="vf-text" data-testid="modal-done-text">{{ doneText() }}</p>
+            @if (estimatedText(); as t) { <p data-testid="modal-estimated">{{ t }}</p> }
             @if (reasons().length > 0) {
               <p data-testid="modal-skipped">{{ reasons().join(' · ') }}</p>
             }
@@ -104,6 +110,12 @@ const ARRIVAL_MS = 1200;
               @if (counts().new > 0) { <span class="chip">{{ counts().new }} {{ counts().new === 1 ? 'nuevo' : 'nuevos' }}</span> }
               @if (counts().changed > 0) { <span class="chip soft">{{ counts().changed }} con cambios</span> }
             </div>
+            @if (canManage() && counts().new > 0 && settings.asksConsent()) {
+              <label class="consent" data-testid="modal-consent">
+                <input type="checkbox" data-testid="modal-consent-input" [checked]="estimate()" (change)="estimate.set($any($event.target).checked)" />
+                <span><strong>Estimar con referencia técnica (teórico)</strong><small>Para los vehículos sin rendimiento usamos un valor de referencia, no una medición de tu flota. Puedes cambiarlo después declarando el real.</small></span>
+              </label>
+            }
             <div class="actions">
               @if (!canManage()) {
                 <button type="button" class="btn btn-primary" data-testid="modal-view" (click)="review.emit()">Ver vehículos</button>
@@ -127,6 +139,7 @@ export class VehiclesFoundModalComponent {
   private readonly vehicles = inject(ImportVehiclesFacade);
   private readonly imports = inject(ImportsFacade);
   private readonly access = inject(AccessPolicy);
+  protected readonly settings = inject(EfficiencySettingsFacade);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   readonly summary = input.required<ImportSummary>();
@@ -137,6 +150,8 @@ export class VehiclesFoundModalComponent {
 
   protected readonly phase = signal<Phase>('ask');
   protected readonly arriving = signal(true);
+  /** Consentimiento de estimar el rendimiento (solo en modo ASK); empieza en «no»: nada se estima sin un sí explícito. */
+  protected readonly estimate = signal(false);
   protected readonly canManage = computed(() => this.access.can('vehicles:manage'));
   protected readonly counts = computed<VehiclesDetected>(() => this.summary().vehiclesDetected ?? { new: 0, changed: 0, unchanged: 0, pendingDecision: 0 });
   /** Cuántos nuevos había al empezar a registrar: el total contra el que se cuenta lo que sí quedó registrado. */
@@ -169,7 +184,15 @@ export class VehiclesFoundModalComponent {
   });
   protected readonly doneText = computed(() => ((this.vehicles.result()?.accepted ?? 0) > 0 ? 'Ya aparecen en Mis vehículos.' : 'Los vehículos ya estaban registrados o ya tenían una decisión.'));
 
+  protected readonly estimatedText = computed(() => {
+    const result = this.vehicles.result();
+
+    return result && result.vehiclesEstimated > 0 ? `Estimamos el rendimiento de ${formatCount(result.vehiclesEstimated)} ${result.vehiclesEstimated === 1 ? 'vehículo' : 'vehículos'} (teórico): ${formatCount(result.tripsEstimated)} ${result.tripsEstimated === 1 ? 'viaje quedó calculado' : 'viajes quedaron calculados'}.` : null;
+  });
+
   constructor() {
+    if (this.canManage()) this.settings.load();
+
     const timer = setTimeout(() => this.arriving.set(false), ARRIVAL_MS);
 
     inject(DestroyRef).onDestroy(() => clearTimeout(timer));
@@ -189,7 +212,7 @@ export class VehiclesFoundModalComponent {
     this.started.set(this.counts().new);  // en un reintento son los que faltan
 
     this.phase.set('working');
-    this.vehicles.decide(id, { decision: 'ACCEPT', kind: 'NEW' }).subscribe({
+    this.vehicles.decide(id, { decision: 'ACCEPT', kind: 'NEW', ...(this.settings.asksConsent() ? { estimateEfficiency: this.estimate() } : {}) }).subscribe({
       next: () => {
         this.phase.set('done');
         this.imports.reloadImport(id);

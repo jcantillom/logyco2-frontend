@@ -1,15 +1,16 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
-import { buildUser, FAKE_TOKEN } from '../../../testing/builders';
+import { buildUser } from '../../../testing/builders';
 import { provideTestApp } from '../../../testing/providers';
 import { AppError } from '../../core/errors/app-error';
-import { AuthToken, CurrentUser } from '../../domain/models/identity';
+import { CurrentUser } from '../../domain/models/identity';
 import { AuthRepository } from '../../domain/repositories/identity.repositories';
 import { LoginComponent, SUCCESS_MS } from './login.component';
 
 class FakeAuthRepository extends AuthRepository {
-  login = jasmine.createSpy('login').and.returnValue(of(FAKE_TOKEN) as Observable<AuthToken>);
+  logout = jasmine.createSpy('logout').and.returnValue(of(undefined) as Observable<void>);
+  login = jasmine.createSpy('login').and.returnValue(of(undefined) as Observable<void>);
   getCurrentUser = jasmine.createSpy('me').and.returnValue(of(buildUser()) as Observable<CurrentUser>);
 }
 

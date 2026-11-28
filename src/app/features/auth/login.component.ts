@@ -149,7 +149,7 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
   ],
   template: `
     <div class="wrap" [style.--t.ms]="successMs()">
-      <section class="brand-panel" [class.leaving]="phase() === 'success'" #panel aria-label="Presentación de LoGyCO2" (pointermove)="onPointerMove($event)">
+      <section class="brand-panel" [class.leaving]="phase() === 'success'" #panel aria-label="Presentación de LoGyCO₂" (pointermove)="onPointerMove($event)">
         <span class="blob b1" aria-hidden="true"></span>
         <span class="blob b2" aria-hidden="true"></span>
         <span class="blob b3" aria-hidden="true"></span>
@@ -180,7 +180,7 @@ const ROUTE = 'M-20 700C110 700 170 600 270 600S400 500 470 440S560 300 600 210S
           <circle class="truck" r="5" fill="#fff" /><circle class="truck t2" r="4" fill="#fd7035" />
         </svg>
 
-        <div class="reveal" style="--d: 0"><app-logo variant="horizontal" theme="dark" [size]="72" motion="live" /></div>
+        <div class="reveal" style="--d: 0"><app-logo variant="horizontal" theme="dark" [size]="logoSize()" motion="live" /></div>
 
         <div class="copy">
           <h2 class="headline reveal" style="--d: 250">Transformamos datos logísticos en decisiones para <em>reducir emisiones.</em></h2>
@@ -296,6 +296,8 @@ export class LoginComponent {
   private readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
 
   protected readonly steps = STEPS;
+  /** Alto del lockup: grande en escritorio; en móvil se ajusta al ancho útil (el lockup mide ~5,4× su alto). */
+  protected readonly logoSize = signal(92);
   protected readonly error = signal<AppError | null>(null);
   protected readonly showPassword = signal(false);
   protected readonly capsLock = signal(false);
@@ -318,7 +320,12 @@ export class LoginComponent {
   private frame = 0;
 
   constructor() {
+    const narrow = matchMedia('(max-width: 860px)');
+    const fit = (): void => this.logoSize.set(narrow.matches ? 62 : 92);
+    fit();
+    narrow.addEventListener('change', fit);
     this.destroyRef.onDestroy(() => {
+      narrow.removeEventListener('change', fit);
       if (this.navigationTimer) clearTimeout(this.navigationTimer);
       if (this.frame) cancelAnimationFrame(this.frame);
     });

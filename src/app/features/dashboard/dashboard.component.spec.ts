@@ -9,6 +9,10 @@ import { SessionStore } from '../../core/auth/session.store';
 import { factorDto, GASOLINE, NATURAL_GAS } from '../emissions/emissions.fixtures';
 import { ROUTE_PIN_ICON, TRUCK_ICON } from '../../shared/ui/icons';
 import { DashboardComponent } from './dashboard.component';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { bucketDto } from '../../../testing/footprint';
+import { METHODOLOGY_URL, dataOriginShareDto, inventoryCoverageDto, methodologyDto } from '../../../testing/methodology';
 
 describe('DashboardComponent', () => {
   const API = 'http://api.test/api/v1';
@@ -18,7 +22,7 @@ describe('DashboardComponent', () => {
   const loaded = importCountsDto({ total: 5, in_progress: 2, completed: 3, failed: 1, vehicles_pending: 2, rows_read: 3_400_000, rows_calculable: 3_200_000, rows_pending: 200_000 });
 
   /** Huella pedida sin ningún viaje calculado ni pendiente: la empresa aún no tiene emisiones. */
-  const NO_EMISSIONS = footprintDto({ by_month: [], by_fuel: [], periods: [], totals: { ...footprintDto().totals, kg_co2: 0, trips_calculated: 0, trips_pending: 0, trips_blocked: 0, trips_duplicate: 0, coverage_trips_pct: null, partial: false, measured_kg_co2: 0, estimated_kg_co2: 0, measured_trips: 0, estimated_trips: 0 } });
+  const NO_EMISSIONS = footprintDto({ by_month: [], by_fuel: [], periods: [], series: ['abr', 'may', 'jun'].map((m, i) => bucketDto({ key: `2026-0${i + 4}`, label: `${m} 2026`, kg_co2: 0, t_co2: 0, trips: 0 })), series_total_kg: 0, totals: { ...footprintDto().totals, kg_co2: 0, trips_calculated: 0, trips_pending: 0, trips_blocked: 0, trips_duplicate: 0, coverage_trips_pct: null, partial: false, measured_kg_co2: 0, estimated_kg_co2: 0, measured_trips: 0, estimated_trips: 0 } });
   const footprintRequests = () => http.match((r) => r.url === `${ORG}/emissions/footprint`);
 
   let fixture: ComponentFixture<DashboardComponent>;
@@ -32,9 +36,18 @@ describe('DashboardComponent', () => {
   const caption = (testid: string): string => text(`[data-testid="${testid}"] .cap`);
   const countsRequests = () => http.match((r) => r.url === `${ORG}/imports/counts`);
 
-  function open(roles: string[] = ['ORG_ADMIN']): void {
-    TestBed.configureTestingModule({ imports: [DashboardComponent], providers: provideTestApp() });
+  /** Parámetros de la URL simulados (`?gran=`) y el `navigate` espiado, solo cuando una prueba pasa `urlGran`. */
+  let params$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let navigate: jasmine.Spy;
+
+  function open(roles: string[] = ['ORG_ADMIN'], urlGran?: string | null): void {
+    params$ = new BehaviorSubject(convertToParamMap(urlGran ? { gran: urlGran } : {}));
+    TestBed.configureTestingModule({
+      imports: [DashboardComponent],
+      providers: [...provideTestApp(), ...(urlGran === undefined ? [] : [{ provide: ActivatedRoute, useValue: { queryParamMap: params$.asObservable() } }])],
+    });
     signInAs(buildUser({ memberships: [membership(ORG_ENVIA, roles), membership(ORG_COORDINADORA, ['ORG_VIEWER'])] }), TestBed.inject(SessionStore));
+    if (urlGran !== undefined) navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
@@ -259,14 +272,14 @@ describe('DashboardComponent', () => {
       });
       it('ORG_ADMIN ve cinco tarjetas en orden: huella, viajes procesados, datos por completar, vehículos y cargas en proceso', () => {
         open();
-        answer({ periods: [RECENT, OLDER] });
+        answer({ periods: [RECENT, OLDER], footprint: footprintDto() });
 
         expect(qa('[data-testid="kpi-row"] .kpis-in > *').map((n) => n.getAttribute('data-testid'))).toEqual(['kpi-footprint', 'kpi-trips', 'kpi-missing', 'kpi-registered', 'kpi-running']);
         expect(tiles().map((t) => text(`[data-testid="${t.getAttribute('data-testid')}"] .label`))).toEqual(['Viajes procesados', 'Datos por completar', 'Vehículos registrados', 'Cargas en proceso']);
-        expect(tiles().map((t) => t.querySelector('[data-testid="kpi-value"]')!.textContent)).toEqual(['3.400.000', '200.000', '12', '2']);
+        expect(tiles().map((t) => t.querySelector('[data-testid="kpi-value"]')!.textContent)).toEqual(['3.400.000', '6', '12', '2']);
         expect(tiles().map((t) => text(`[data-testid="${t.getAttribute('data-testid')}"] .cap`))).toEqual([
           'viajes revisados en el periodo',
-          '6 % de los viajes procesados',
+          '33 % de los viajes sin calcular',
           '2 cargas con vehículos por revisar',
           '5 en total · 1 fallida',
         ]);
@@ -282,20 +295,23 @@ describe('DashboardComponent', () => {
         expect(caption('kpi-trips')).toBe('viajes revisados en total');
       });
 
-      it('«Datos por completar» expresa la proporción sobre lo procesado y nunca 0 % ni 100 % falsos', () => {
+      it('«Datos por completar» es en vivo (pendientes + bloqueados del inventario) y no usa la foto de la carga: 63.433 al subir, 6 tras calcular', () => {
         open();
-        answer({ counts: importCountsDto({ total: 1, completed: 1, rows_read: 3_400_000, rows_pending: 1 }) });
-        expect(caption('kpi-missing')).toBe('1 % de los viajes procesados');
+        answer({ counts: importCountsDto({ total: 1, completed: 1, rows_read: 63_433, rows_calculable: 0, rows_pending: 63_433 }), footprint: footprintDto({ totals: { ...footprintDto().totals, trips_calculated: 3_305, trips_pending: 2, trips_blocked: 1 } }) });
 
-        TestBed.resetTestingModule();
-        open();
-        answer({ counts: importCountsDto({ total: 1, completed: 1, rows_read: 3_400_000, rows_pending: 3_399_999 }) });
-        expect(caption('kpi-missing')).toBe('99 % de los viajes procesados');
+        expect(value('kpi-missing')).toBe('3');
+        expect(caption('kpi-missing')).toBe('1 % de los viajes sin calcular');
       });
 
-      it('sin cargas terminadas no inventa nada: «—» y una invitación a subir el primer archivo', () => {
+      it('la proporción es pendientes ÷ contabilizables y nunca da 0 % ni 100 % falsos', () => {
         open();
-        answer({ counts: importCountsDto() });
+        answer({ footprint: footprintDto({ totals: { ...footprintDto().totals, trips_calculated: 1, trips_pending: 3_399_999, trips_blocked: 0 } }) });
+        expect(caption('kpi-missing')).toBe('99 % de los viajes sin calcular');
+      });
+
+      it('sin viajes contabilizables no inventa nada: «—» y una invitación a subir el primer archivo', () => {
+        open();
+        answer({ counts: importCountsDto(), footprint: NO_EMISSIONS });
 
         expect(tiles().map((t) => t.querySelector('[data-testid="kpi-value"]')!.textContent)).toEqual(['—', '—', '12', '0']);
         expect(caption('kpi-trips')).toBe('Sube tu primer archivo para empezar');
@@ -305,12 +321,12 @@ describe('DashboardComponent', () => {
         expect(tiles()[1].querySelector('.kpi')!.classList).not.toContain('warn');
       });
 
-      it('si todo lo procesado se puede calcular, «Datos por completar» vale 0 con tono normal', () => {
+      it('si todos los viajes están calculados, «Datos por completar» vale 0 con tono normal', () => {
         open();
-        answer({ counts: importCountsDto({ total: 1, completed: 1, rows_read: 200, rows_calculable: 200 }) });
+        answer({ counts: importCountsDto({ total: 1, completed: 1, rows_read: 200, rows_calculable: 200 }), footprint: footprintDto({ totals: { ...footprintDto().totals, trips_pending: 0, trips_blocked: 0, partial: false } }) });
 
         expect(value('kpi-missing')).toBe('0');
-        expect(caption('kpi-missing')).toBe('Todo lo procesado se puede calcular');
+        expect(caption('kpi-missing')).toBe('Todos los viajes están calculados');
         expect(tiles()[1].querySelector('.kpi')!.classList).not.toContain('warn');
       });
 
@@ -379,7 +395,7 @@ describe('DashboardComponent', () => {
         http.match(`${ORG}/vehicles/summary`).forEach((r) => r.flush({ data: summaryDto }));
         fixture.detectChanges();
 
-        expect(tiles().map((t) => !!t.querySelector('[role="alert"]'))).toEqual([true, true, false, true]);
+        expect(tiles().map((t) => !!t.querySelector('[role="alert"]'))).toEqual([true, false, false, true]);  // «Datos por completar» es en vivo (huella): no depende de los counts
         tiles()[0].querySelector<HTMLButtonElement>('[role="alert"] button')!.click();
         expect(http.match(`${ORG}/imports/periods`).length).toBe(0);
         countsRequests()[0].flush({ data: loaded });
@@ -411,7 +427,7 @@ describe('DashboardComponent', () => {
 
       it('los cinco chips de ícono de la fila son idénticos en tamaño, radio y aro (el tono solo cambia el color)', () => {
         open();
-        answer({ periods: [RECENT] });
+        answer({ periods: [RECENT], footprint: footprintDto() });
         const chips = qa('[data-testid="kpi-row"] .ico');
         const shape = (c: HTMLElement): string[] => [getComputedStyle(c).width, getComputedStyle(c).height, getComputedStyle(c).borderRadius, getComputedStyle(c).boxShadow.includes('inset') ? 'ring' : 'none', getComputedStyle(c.querySelector('svg')!).width];
 
@@ -602,6 +618,30 @@ describe('DashboardComponent', () => {
         expect(text('[data-testid="result-distance-value"]')).toBe('1.234.567');
       });
 
+      it('«Metodología y calidad del dato» abre el detalle con la declaración del servidor y «Cerrar» lo retira, sin tocar las demás tarjetas', async () => {
+        open();
+        answer({ periods: [RECENT], counts: withTotals, footprint: footprintDto({ methodology: { id: 'LGC-CO2-TTW', version: '1.0.0', scope_label: 'TTW', unit: 'kg de CO₂ (no CO₂e)', has_estimates: true }, data_origin_share: dataOriginShareDto(), inventory_coverage: inventoryCoverageDto() }) });
+
+        expect(q('[data-testid="methodology-dialog"]')).toBeNull();
+        q<HTMLButtonElement>('[data-testid="result-methodology"]')!.click();
+        fixture.detectChanges();
+        http.expectOne(METHODOLOGY_URL).flush({ data: methodologyDto() });
+        fixture.detectChanges();
+
+        expect(q<HTMLDialogElement>('[data-testid="methodology-dialog"]')!.open).toBeTrue();
+        expect(text('[data-testid="origin-REAL_CONSUMPTION"]')).toContain('Consumo real');
+        expect(q('[data-testid="monthly-chart"]')).not.toBeNull();
+        expect(q('[data-testid="emission-factor"]')).not.toBeNull();
+        // El evento `close` del <dialog> es asíncrono: se espera el evento mismo (no un temporizador) para que la prueba no dependa de la carga de la máquina.
+        const native = new Promise((resolve) => q('[data-testid="methodology-dialog"]')!.addEventListener('close', resolve, { once: true }));
+
+        q<HTMLButtonElement>('[data-testid="methodology-close"]')!.click();
+        await native;
+        fixture.detectChanges();
+
+        expect(q('[data-testid="methodology-dialog"]')).toBeNull();
+      });
+
       it('con «Todos los periodos» el chip lo dice y al elegir otro periodo las cifras de la derecha cambian con los counts', () => {
         open();
         answer({ periods: [] , counts: withTotals });
@@ -663,8 +703,6 @@ describe('DashboardComponent', () => {
     });
 
     describe('gráficas de emisiones', () => {
-      const slots = (): string[] => (fixture.componentInstance as unknown as { chartSlots: () => string[] }).chartSlots();
-
       it('van en una fila nueva de igual tamaño debajo de «Factor» y «Resultado» y encima de «Usuarios» y «Precios», con la misma altura', () => {
         open();
         answer();
@@ -684,7 +722,7 @@ describe('DashboardComponent', () => {
         open();
         answer({ periods: [RECENT] });
 
-        expect(qa('[data-testid="charts-row"] [data-testid="chart-message"]').map((m) => m.textContent)).toEqual(['Aún no hay emisiones calculadas', 'Aún no hay emisiones calculadas']);
+        expect(qa('[data-testid="charts-row"] [data-testid="chart-message"]').map((m) => m.textContent)).toEqual(['Sin viajes calculados en este periodo. Aún no hay emisiones calculadas', 'Aún no hay emisiones calculadas']);
         expect(q('[data-testid="charts-row"] svg[role="img"]')).toBeNull();
         expect(q('[data-testid="charts-row"] [data-testid="bar"]')).toBeNull();
         expect(q('[data-testid="charts-row"] [data-testid="donut-slice"]')).toBeNull();
@@ -695,7 +733,7 @@ describe('DashboardComponent', () => {
         answer({ periods: [RECENT] });
 
         expect(q('[data-testid="monthly-chart"] [data-testid="bar-frame"]')).not.toBeNull();
-        expect(Array.from(el().querySelectorAll('[data-testid="monthly-chart"] [data-testid="frame-months"] span')).map((m) => m.textContent)).toEqual(['Abr 2026', 'May 2026', 'Jun 2026']);
+        expect(Array.from(el().querySelectorAll('[data-testid="monthly-chart"] [data-testid="frame-months"] span')).map((m) => m.textContent)).toEqual(['abr 2026', 'may 2026', 'jun 2026']);
         expect(q('[data-testid="fuel-chart"] [data-testid="donut-frame"]')).not.toBeNull();
         expect(q('[data-testid="fuel-chart"] [data-testid="donut-slice"]')).toBeNull();
         expect(q('[data-testid="monthly-chart"] [data-testid="bar"]')).toBeNull();
@@ -748,55 +786,14 @@ describe('DashboardComponent', () => {
         expect(countsRequests().length).toBe(0);
       });
 
-      it('con huella real dibuja las barras por mes (un mes sin dato queda vacío) y la dona por combustible, y marca «Parcial»', () => {
+      it('con huella real dibuja las barras de la serie (un mes sin viajes queda en cero, sin barra) y la dona por combustible, y marca «Parcial»', () => {
         open();
-        answer({ periods: [RECENT], footprint: footprintDto({ period: { from: '2026-04-01', to: '2026-06-30' }, by_month: [{ month: '2026-04', kg_co2: 1000, trips_calculated: 3 }, { month: '2026-06', kg_co2: 500, trips_calculated: 2 }] }) });
+        answer({ periods: [RECENT], footprint: footprintDto({ period: { from: '2026-04-01', to: '2026-06-30' }, series: [bucketDto({ key: '2026-04', label: 'abr 2026', kg_co2: 1000, trips: 3 }), bucketDto({ key: '2026-05', label: 'may 2026', kg_co2: 0, t_co2: 0, trips: 0 }), bucketDto({ key: '2026-06', label: 'jun 2026', kg_co2: 500, trips: 2 })] }) });
 
         expect(qa('[data-testid="monthly-chart"] [data-testid="bar"]').length).toBe(2);
+        expect(qa('[data-testid="monthly-chart"] [data-testid="bar-hit"]').length).toBe(3);
         expect(qa('[data-testid="fuel-chart"] [data-testid="donut-slice"]').length).toBe(2);
         expect(qa('[data-testid="charts-row"] [data-testid="chart-partial"]').length).toBe(2);
-      });
-
-      it('las ranuras del eje X salen del periodo elegido: un mes por ranura; con «todos», del mínimo al máximo (24 meses como máximo)', () => {
-        open();
-        http.expectOne(`${ORG}/imports/periods`).flush({ data: [RECENT, OLDER] });
-        countsRequests()[0].flush({ data: loaded });
-        fixture.detectChanges();
-        expect(slots()).toEqual(['2026-04', '2026-05', '2026-06']);
-
-        q<HTMLButtonElement>('[data-testid="period"] button')!.click();
-        fixture.detectChanges();
-        q('[data-testid="period-option-2"]')!.click();
-        fixture.detectChanges();
-        expect(slots()).toEqual(['2026-01', '2026-02', '2026-03']);
-
-        q<HTMLButtonElement>('[data-testid="period"] button')!.click();
-        fixture.detectChanges();
-        q('[data-testid="period-option-0"]')!.click();
-        fixture.detectChanges();
-        expect(slots()).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06']);
-      });
-
-      it('con «todos» el eje también cubre los meses con viajes calculados que la lista de periodos no trae (cargas que abarcan más de un mes)', () => {
-        open();
-        const withMonths = footprintDto({ by_month: [{ month: '2026-03', kg_co2: 100, trips_calculated: 2 }, { month: '2026-05', kg_co2: 200, trips_calculated: 3 }] });
-
-        answer({ periods: [RECENT], footprint: withMonths });
-        q<HTMLButtonElement>('[data-testid="period"] button')!.click();
-        fixture.detectChanges();
-        q('[data-testid="period-option-0"]')!.click();
-        fixture.detectChanges();
-        http.match((r) => r.url === `${ORG}/emissions/footprint`).forEach((r) => r.flush({ data: withMonths }));
-        fixture.detectChanges();
-
-        expect(slots()).toEqual(['2026-03', '2026-04', '2026-05', '2026-06']);
-      });
-
-      it('sin periodos no hay ranuras', () => {
-        open();
-        answer({ periods: [] });
-
-        expect(slots()).toEqual([]);
       });
 
       it('sin imports:create siguen pendientes y sin esqueleto (no hay nada que esperar)', () => {
@@ -805,6 +802,242 @@ describe('DashboardComponent', () => {
 
         expect(qa('[data-testid="charts-row"] [data-testid="chart-skeleton"]').length).toBe(0);
         expect(qa('[data-testid="charts-row"] [data-testid="chart-period"]').length).toBe(0);
+      });
+    });
+
+    describe('huella por granularidad', () => {
+      const PERIOD = { from: '2026-04-01', to: '2026-06-30' };
+      const WEEKS = [
+        bucketDto({ key: '2026-W14', label: 'Sem 14', start: '2026-04-01', end: '2026-04-05', kg_co2: 1000, t_co2: 1, trips: 3, partial: true }),
+        bucketDto({ key: '2026-W15', label: 'Sem 15', start: '2026-04-06', end: '2026-04-12', kg_co2: 0, t_co2: 0, trips: 0 }),
+        bucketDto({ key: '2026-W16', label: 'Sem 16', start: '2026-04-13', end: '2026-04-19', kg_co2: 500, t_co2: 0.5, trips: 2 }),
+      ];
+      const weekly = (extra: object = {}) => footprintDto({ period: PERIOD, granularity: 'week', series: WEEKS, series_total_kg: 1500, ...extra });
+      const select = (): HTMLSelectElement => q<HTMLSelectElement>('[data-testid="monthly-chart"] [data-testid="granularity-select"]')!;
+      const pick = (value: string): void => {
+        select().value = value;
+        select().dispatchEvent(new Event('change'));
+        fixture.detectChanges();
+      };
+
+      it('por defecto es mensual y la petición no cambia (sin `granularity`); la URL no lleva ?gran', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+
+        expect(select().value).toBe('month');
+        expect(text('[data-testid="monthly-chart"] h2')).toBe('Emisiones de CO₂ por mes');
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it('al elegir «Semanal» pide UNA vez el mismo periodo con granularity=week, muestra el esqueleto sin cambiar la altura y dibuja la serie (con 0 y parcial)', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+        const before = Math.round(q('[data-testid="monthly-chart"] .cc')!.getBoundingClientRect().height);
+
+        pick('week');
+        const requests = footprintRequests();
+
+        expect(requests.length).toBe(1);
+        expect([requests[0].request.params.get('granularity'), requests[0].request.params.get('from'), requests[0].request.params.get('to')]).toEqual(['week', '2026-04-01', '2026-06-30']);
+        expect(q('[data-testid="monthly-chart"] [data-testid="chart-skeleton"]')).not.toBeNull();
+        expect(Math.round(q('[data-testid="monthly-chart"] .cc')!.getBoundingClientRect().height)).toBe(before);
+        requests[0].flush({ data: weekly() });
+        fixture.detectChanges();
+
+        expect(text('[data-testid="monthly-chart"] h2')).toBe('Emisiones de CO₂ por semana');
+        expect(qa('[data-testid="monthly-chart"] [data-testid="bar"]').length).toBe(2);
+        expect(qa('[data-testid="monthly-chart"] [data-testid="bar-hit"]').length).toBe(3);
+        expect(text('[data-testid="monthly-chart"] [data-testid="chart-subtitle"]')).toBe('Total 1.500 kg');
+        expect(Math.round(q('[data-testid="monthly-chart"] .cc')!.getBoundingClientRect().height)).toBe(256);
+      });
+
+      it('lo demás no cambia al cambiar la granularidad: el total de la tarjeta de huella y la dona siguen siendo los de totals/by_fuel', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+        const kpi = text('[data-testid="kpi-footprint"] [data-testid="kpi-value"]');
+
+        pick('week');
+        footprintRequests()[0].flush({ data: weekly() });
+        fixture.detectChanges();
+
+        expect(text('[data-testid="kpi-footprint"] [data-testid="kpi-value"]')).toBe(kpi);
+        expect(kpi).toContain('5.588');
+        expect(qa('[data-testid="fuel-chart"] [data-testid="donut-slice"]').length).toBe(2);
+      });
+
+      it('la URL queda con ?gran=week (reemplazando el historial) y con la mensual se quita', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+        pick('week');
+
+        expect(navigate).toHaveBeenCalledWith([], jasmine.objectContaining({ queryParams: { gran: 'week' }, queryParamsHandling: 'merge', replaceUrl: true }));
+        footprintRequests().forEach((r) => r.flush({ data: weekly() }));
+        params$.next(convertToParamMap({ gran: 'week' }));
+        navigate.calls.reset();
+        fixture.detectChanges();
+        pick('month');
+
+        expect(navigate).toHaveBeenCalledWith([], jasmine.objectContaining({ queryParams: { gran: null } }));
+      });
+
+      it('al abrir con ?gran=quarter la primera petición ya la lleva (no se pide antes la mensual) y el control la muestra', () => {
+        open(['ORG_ADMIN'], 'quarter');
+        http.match(`${ORG}/imports/periods`).forEach((r) => r.flush({ data: [RECENT] }));
+        http.match((r) => r.url === `${ORG}/imports/counts`).forEach((r) => r.flush({ data: loaded }));
+        fixture.detectChanges();
+        const requests = footprintRequests();
+
+        expect(requests.length).toBe(1);
+        expect(requests[0].request.params.get('granularity')).toBe('quarter');
+        expect(select().value).toBe('quarter');
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it('un valor hostil en la URL vuelve a la mensual (sin enviarlo al servidor) y limpia la URL', () => {
+        for (const hostile of ['zzz', '<script>alert(1)</script>', 'WEEK', '__proto__', 'day;drop']) {
+          TestBed.resetTestingModule();
+          open(['ORG_ADMIN'], hostile);
+          http.match(`${ORG}/imports/periods`).forEach((r) => r.flush({ data: [RECENT] }));
+          http.match((r) => r.url === `${ORG}/imports/counts`).forEach((r) => r.flush({ data: loaded }));
+          fixture.detectChanges();
+          const requests = footprintRequests();
+
+          expect(requests.length).withContext(hostile).toBe(1);
+          expect(requests[0].request.params.has('granularity')).withContext(hostile).toBeFalse();
+          expect(select().value).toBe('month');
+          expect(navigate).toHaveBeenCalledWith([], jasmine.objectContaining({ queryParams: { gran: null } }));
+          http.match(() => true);
+        }
+      });
+
+      it('si la URL cambia (atrás/adelante) la serie se vuelve a pedir una vez con la nueva granularidad', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+        params$.next(convertToParamMap({ gran: 'semester' }));
+        fixture.detectChanges();
+        const requests = footprintRequests();
+
+        expect(requests.length).toBe(1);
+        expect(requests[0].request.params.get('granularity')).toBe('semester');
+      });
+
+      it('cambiar de periodo con otra granularidad la conserva en la nueva petición', () => {
+        open();
+        answer({ periods: [RECENT, OLDER], footprint: footprintDto({ period: PERIOD }) });
+        pick('week');
+        footprintRequests().forEach((r) => r.flush({ data: weekly() }));
+        fixture.detectChanges();
+        q<HTMLButtonElement>('[data-testid="period"] button')!.click();
+        fixture.detectChanges();
+        qa('[data-testid="period"] [role="option"]')[2].click();
+        fixture.detectChanges();
+        const requests = footprintRequests();
+
+        expect(requests.length).toBe(1);
+        expect([requests[0].request.params.get('granularity'), requests[0].request.params.get('from')]).toEqual(['week', '2026-01-05']);
+      });
+
+      it('cambios seguidos de granularidad cancelan la petición anterior y solo cuenta la última', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+        pick('week');
+        const first = footprintRequests();
+
+        pick('year');
+        const second = footprintRequests();
+
+        expect(first[0].cancelled).toBeTrue();
+        expect(second.length).toBe(1);
+        second[0].flush({ data: footprintDto({ period: PERIOD, granularity: 'year', series: [bucketDto({ key: '2026', label: '2026', kg_co2: 1500, t_co2: 1.5, trips: 5 })], series_total_kg: 1500 }) });
+        fixture.detectChanges();
+        expect(text('[data-testid="monthly-chart"] h2')).toBe('Emisiones de CO₂ por año');
+      });
+
+      it('GRANULARITY_TOO_FINE: vuelve a la granularidad anterior, muestra el mensaje en español con estilo de alerta, deshabilita «Diario» y no rompe el resto', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+        pick('day');
+        footprintRequests()[0].flush({ error: { code: 'GRANULARITY_TOO_FINE', message: 'El periodo tiene 91 días: la serie diaria admite hasta 30.' } }, { status: 422, statusText: 'x' });
+        fixture.detectChanges();
+        const retry = footprintRequests();
+
+        expect(retry.length).toBe(1);
+        expect(retry[0].request.params.has('granularity')).toBeFalse();
+        retry[0].flush({ data: footprintDto({ period: PERIOD }) });
+        fixture.detectChanges();
+
+        expect(select().value).toBe('month');
+        const alert = q('[data-testid="monthly-chart"] [data-testid="granularity-notice"]')!;
+
+        expect(alert.getAttribute('role')).toBe('alert');
+        expect(alert.textContent).toContain('demasiado largo para ver la serie diaria');
+        expect(Array.from(select().options).filter((o) => o.disabled).map((o) => o.value)).toEqual(['day']);
+        expect(q('[data-testid="monthly-chart"] [data-testid="chart-error"]')).toBeNull();
+        expect(Math.round(q('[data-testid="monthly-chart"] .cc')!.getBoundingClientRect().height)).toBe(256);
+      });
+
+      it('INVALID_PERIOD: aviso con el mensaje del catálogo en estilo de alerta y la gráfica anterior intacta (sin error ni esqueleto), a 256 px', () => {
+        open();
+        answer({ periods: [RECENT, OLDER], footprint: footprintDto({ period: PERIOD }) });
+        const bars = qa('[data-testid="monthly-chart"] [data-testid="bar"]').length;
+
+        q<HTMLButtonElement>('[data-testid="period"] button')!.click();
+        fixture.detectChanges();
+        qa('[data-testid="period"] [role="option"]')[2].click();
+        fixture.detectChanges();
+        footprintRequests()[0].flush({ error: { code: 'INVALID_PERIOD', message: 'x' } }, { status: 422, statusText: 'x' });
+        fixture.detectChanges();
+
+        const alert = q('[data-testid="monthly-chart"] [data-testid="granularity-notice"]')!;
+
+        expect(alert.getAttribute('role')).toBe('alert');
+        expect(alert.textContent).toContain('El periodo no es válido');
+        expect(q('[data-testid="monthly-chart"] [data-testid="chart-error"]')).toBeNull();
+        expect(qa('[data-testid="monthly-chart"] [data-testid="bar"]').length).toBe(bars);
+        expect(Math.round(q('[data-testid="monthly-chart"] .cc')!.getBoundingClientRect().height)).toBe(256);
+      });
+
+      it('un error de la serie muestra «No se pudo cargar» con «Reintentar», que vuelve a pedir la misma granularidad', () => {
+        open(['ORG_ADMIN'], null);
+        answer({ periods: [RECENT], footprint: footprintDto({ period: PERIOD }) });
+        pick('week');
+        footprintRequests()[0].flush({ error: { code: 'INTERNAL_ERROR' } }, { status: 500, statusText: 'x' });
+        fixture.detectChanges();
+
+        expect(q('[data-testid="monthly-chart"] [data-testid="chart-error"]')).not.toBeNull();
+        expect(select().value).toBe('week');
+        q<HTMLButtonElement>('[data-testid="monthly-chart"] [data-testid="chart-error"] button')!.click();
+        expect(footprintRequests()[0].request.params.get('granularity')).toBe('week');
+      });
+
+      it('serie en cero: «Sin viajes calculados en este periodo» con la pista de cobertura y la altura de siempre', () => {
+        const zero = WEEKS.map((b) => ({ ...b, kg_co2: 0, t_co2: 0, trips: 0 }));
+        const empty = footprintDto({ period: PERIOD, by_month: [], by_fuel: [], periods: [], granularity: 'week', series: zero, series_total_kg: 0, totals: { ...footprintDto().totals, kg_co2: 0, trips_calculated: 0, trips_pending: 4, coverage_trips_pct: 0, partial: true, measured_kg_co2: 0, estimated_kg_co2: 0, measured_trips: 0, estimated_trips: 0 } });
+
+        open(['ORG_ADMIN'], 'week');
+        answer({ periods: [RECENT], footprint: empty });
+
+        expect(text('[data-testid="monthly-chart"] [data-testid="chart-message"]')).toBe('Sin viajes calculados en este periodo. Aún no hay emisiones calculadas: faltan datos en 6 viajes');
+        expect(Math.round(q('[data-testid="monthly-chart"] .cc')!.getBoundingClientRect().height)).toBe(256);
+      });
+
+      it('la tabla alterna con el gráfico en la misma tarjeta, con el total de series_total_kg, sin cambiar de alto ni pedir nada', () => {
+        open(['ORG_ADMIN'], 'week');
+        answer({ periods: [RECENT], footprint: weekly() });
+        q<HTMLButtonElement>('[data-testid="monthly-chart"] [data-testid="view-table"]')!.click();
+        fixture.detectChanges();
+
+        expect(qa('[data-testid="monthly-chart"] [data-testid="series-row"]').length).toBe(3);
+        expect(text('[data-testid="monthly-chart"] [data-testid="series-total"]')).toBe('Total 1.500 kg CO₂');
+        expect(Math.round(q('[data-testid="monthly-chart"] .cc')!.getBoundingClientRect().height)).toBe(256);
+        expect(footprintRequests().length).toBe(0);
+      });
+
+      it('la tarjeta de gráficas por combustible no cambia de alto ni de contenido con la serie semanal', () => {
+        open(['ORG_ADMIN'], 'week');
+        answer({ periods: [RECENT], footprint: weekly() });
+
+        expect(Math.round(q('[data-testid="fuel-chart"] .cc')!.getBoundingClientRect().height)).toBe(256);
       });
     });
 

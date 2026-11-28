@@ -5,6 +5,7 @@ import { AppError } from '../../core/errors/app-error';
 import { toAppError } from '../../core/errors/http-error-mapper';
 import { ContextResetRegistry } from '../../core/org/context-reset';
 import { OrganizationContext } from '../../core/org/organization-context';
+import { Granularity } from '../../domain/models/granularity';
 import { ExportJob, OperationsFilter, OperationsView } from '../../domain/models/operations';
 import { OperationsRepository } from '../../domain/repositories/operations.repositories';
 import { saveFile } from '../imports/save-file';
@@ -102,8 +103,8 @@ export class OperationExportsFacade {
     this.panelOpen.set(false);
   }
 
-  /** Pide un reporte con los filtros y la pestaña actuales; `done` recibe el error (o `null` si quedó en cola). */
-  request(filter: OperationsFilter, view: OperationsView, done?: (error: AppError | null) => void): void {
+  /** Pide un reporte con los filtros, la pestaña y la granularidad de la evolución actuales; `done` recibe el error (o `null` si quedó en cola). */
+  request(filter: OperationsFilter, view: OperationsView, granularity: Granularity, done?: (error: AppError | null) => void): void {
     const organizationId = this.context.activeOrganizationId();
 
     if (!organizationId || this.requesting()) return;
@@ -117,7 +118,7 @@ export class OperationExportsFacade {
     this.fetching = null;
     this.listing++;
     this.clearTimer();
-    this.repository.createExport(organizationId, filter, view).subscribe({
+    this.repository.createExport(organizationId, filter, view, granularity).subscribe({
       next: (job) => {
         if (epoch !== this.epoch) return;
 

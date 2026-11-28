@@ -65,6 +65,17 @@ const SKIPPED_REASONS: Readonly<Record<string, string>> = {
 
 export const skippedReasonLabel = (code: string): string => SKIPPED_REASONS[code] ?? 'Otro motivo';
 
+/** Estado de la licencia de una referencia técnica; `VERIFIED` no necesita aviso y un código desconocido se muestra como sin confirmar (no se afirma lo que no se sabe). */
+const LICENCE_NOTES: Readonly<Record<string, string | null>> = {
+  VERIFIED: null,
+  PUBLIC_CITED: 'Fuente pública citada',
+};
+
+export const licenceNote = (status: string): string | null => (status in LICENCE_NOTES ? LICENCE_NOTES[status] : 'Licencia sin confirmar: solo para pruebas');
+
+/** «1 vehículo» / «3 vehículos». */
+export const vehiclesCount = (value: number): string => `${formatCount(value)} ${value === 1 ? 'vehículo' : 'vehículos'}`;
+
 /** «2 vehículos nuevos · 1 con cambios», con las cifras que entrega el servidor. */
 export const vehiclesSummary = (counts: VehiclesDetected): string => `${counts.new} ${counts.new === 1 ? 'vehículo nuevo' : 'vehículos nuevos'} · ${counts.changed} con cambios`;
 

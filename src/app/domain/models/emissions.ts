@@ -100,6 +100,8 @@ export interface EmissionFactor {
   readonly value: string | null;
   /** Unidad del factor (`kg_CO2/gal`, `kg_CO2/m3`). */
   readonly unit: string;
+  /** Etiqueta legible de la unidad del factor que manda el servidor («kg CO₂/gal»); `null` si no la envía (se usa el código). */
+  readonly unitLabel: string | null;
   /** Unidad del volumen consumido (`gal`, `m3`). */
   readonly volumeUnit: string;
   /** Unidad del rendimiento (`km/gal`, `km/m3`). */

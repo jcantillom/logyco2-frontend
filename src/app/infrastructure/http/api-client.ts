@@ -42,6 +42,11 @@ export class ApiClient {
       .pipe(map((response) => response.data));
   }
 
+  /** POST sin cuerpo cuya respuesta es 204 (sin sobre `{data, meta}`), p. ej. cerrar la sesión. */
+  postEmpty(path: string): Observable<void> {
+    return this.http.post<void>(this.url(path), null);
+  }
+
   put<T>(path: string, body: unknown): Observable<T> {
     return this.http
       .put<ApiResponseDto<T>>(this.url(path), body)
@@ -79,6 +84,11 @@ export class ApiClient {
 
   delete(path: string): Observable<void> {
     return this.http.delete<void>(this.url(path));
+  }
+
+  /** DELETE cuya respuesta trae un resultado en `data` (p. ej. cuántos viajes volvieron atrás al deshacer una decisión). */
+  deleteData<T>(path: string): Observable<T> {
+    return this.http.delete<ApiResponseDto<T>>(this.url(path)).pipe(map((response) => response.data));
   }
 
   /** GET fuera del prefijo de versión y sin sobre `{data, meta}` (p. ej. `/health`). */

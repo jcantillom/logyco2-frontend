@@ -3,6 +3,7 @@ import { FootprintByFuel } from '../../domain/models/footprint';
 import { ImportCounts } from '../../domain/models/imports';
 import { ROTATION_MS } from '../../shared/ui/rotation';
 import { buildFootprint, completeTotals, emptyTotals } from '../../../testing/footprint';
+import { dataOriginShare, methodologyRef } from '../../../testing/methodology';
 import { ResultCardComponent } from './result-card.component';
 
 const FUELS: FootprintByFuel = [
@@ -532,5 +533,49 @@ describe('ResultCardComponent', () => {
       discardPeriodicTasks();
       fixture.destroy();
     }));
+  });
+  describe('entrada a «Metodología y calidad del dato»', () => {
+    const withMethodology = (): Record<string, unknown> => ({ footprint: buildFootprint({ totals: completeTotals(), methodology: methodologyRef(), dataOriginShare: dataOriginShare() }), counts: COUNTS });
+
+    it('con la huella lista y los bloques del servidor ofrece un único botón con la versión, el alcance y la unidad en su tooltip', () => {
+      render(withMethodology());
+      const button = q<HTMLButtonElement>('[data-testid="result-methodology"]');
+
+      expect(button?.textContent?.trim()).toBe('Metodología');
+      expect(button?.getAttribute('aria-label')).toBe('Metodología y calidad del dato');
+      expect(button?.getAttribute('title')).toBe('Metodología 1.0.0 · Emisiones directas por combustión (TTW), solo CO₂ · kg de CO₂ (no CO₂e)');
+      expect(el().querySelectorAll('[data-testid="result-methodology"]').length).toBe(1);
+    });
+
+    it('al pulsarlo emite `methodology`', () => {
+      render(withMethodology());
+      let emitted = 0;
+
+      fixture.componentInstance.methodology.subscribe(() => emitted++);
+      q<HTMLButtonElement>('[data-testid="result-methodology"]')!.click();
+
+      expect(emitted).toBe(1);
+    });
+
+    it('sin los bloques (servidor antiguo), con error o sin huella no hay botón', () => {
+      render({ byFuel: FUELS, counts: COUNTS });
+      expect(q('[data-testid="result-methodology"]')).toBeNull();
+      fixture.componentRef.setInput('footprint', buildFootprint({ totals: completeTotals(), methodology: methodologyRef() }));
+      fixture.componentRef.setInput('footprintStatus', 'error');
+      settle();
+      expect(q('[data-testid="result-methodology"]')).toBeNull();
+      fixture.componentRef.setInput('footprint', null);
+      fixture.componentRef.setInput('footprintStatus', 'ready');
+      settle();
+      expect(q('[data-testid="result-methodology"]')).toBeNull();
+    });
+
+    it('el encabezado y su subtítulo no se envuelven (el botón no suma altura)', () => {
+      render(withMethodology());
+      const css = Array.from(document.querySelectorAll('style')).map((st) => (st.textContent ?? '').replace(/\[_ng(?:content|host)-[^\]]+\]/g, '').replace(/\s+/g, ' ')).filter((c) => c.includes('.mlink')).join('\n');
+
+      expect(css).toMatch(/\.sub \{[^}]*flex-wrap: nowrap[^}]*white-space: nowrap/);
+      expect(css).toMatch(/\.ht \{[^}]*overflow: hidden/);
+    });
   });
 });

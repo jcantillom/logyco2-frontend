@@ -1,13 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
-import { ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportNotCalculable, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../../domain/models/imports';
+import { CargoUnit, CargoUnitResult, EfficiencyConsentResult, ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportNotCalculable, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../../domain/models/imports';
 import { Page, PageRequest } from '../../domain/models/pagination';
 import { PeriodRange } from '../../domain/models/period';
 import { ImportsRepository } from '../../domain/repositories/imports.repositories';
-import { ImportCountsDto, ImportPeriodDto, ImportCreatedDto, ImportDetailDto, ImportNotCalculableDto, ImportSummaryDto, VehicleCandidateDto, VehicleDecisionResultDto } from '../dto/imports.dto';
+import { CargoUnitResultDto, EfficiencyConsentResultDto, ImportCountsDto, ImportPeriodDto, ImportCreatedDto, ImportDetailDto, ImportNotCalculableDto, ImportSummaryDto, VehicleCandidateDto, VehicleDecisionResultDto } from '../dto/imports.dto';
 import { ApiClient } from '../http/api-client';
 import { toPage } from '../mappers/identity.mappers';
-import { toDecisionBody, toDecisionResult, toImportCounts, toImportPeriod, toImportCreated, toImportDetail, toImportSummary, toNotCalculable, toVehicleCandidate } from '../mappers/imports.mappers';
+import { toCargoUnitResult, toConsentBody, toConsentResult, toDecisionBody, toDecisionResult, toImportCounts, toImportPeriod, toImportCreated, toImportDetail, toImportSummary, toNotCalculable, toVehicleCandidate } from '../mappers/imports.mappers';
 
 /** Nombre con el que se guarda la plantilla si el servidor no informa uno (el mismo que envía el backend). */
 export const DEFAULT_TEMPLATE_FILE_NAME = 'plantilla_cargas_logyco2.xlsx';
@@ -66,5 +66,13 @@ export class HttpImportsRepository extends ImportsRepository {
 
   decideVehicles(organizationId: string, importId: string, request: VehicleDecisionRequest): Observable<VehicleDecisionResult> {
     return this.api.post<VehicleDecisionResultDto>(`${base(organizationId)}/${id(importId)}/vehicles/decisions`, toDecisionBody(request)).pipe(map(toDecisionResult));
+  }
+
+  confirmCargoUnit(organizationId: string, importId: string, unit: CargoUnit): Observable<CargoUnitResult> {
+    return this.api.post<CargoUnitResultDto>(`${base(organizationId)}/${id(importId)}/cargo-unit`, { unit }).pipe(map(toCargoUnitResult));
+  }
+
+  consentEfficiencyEstimation(organizationId: string, importId: string, estimate: boolean): Observable<EfficiencyConsentResult> {
+    return this.api.post<EfficiencyConsentResultDto>(`${base(organizationId)}/${id(importId)}/efficiency-estimation`, toConsentBody(estimate)).pipe(map(toConsentResult));
   }
 }

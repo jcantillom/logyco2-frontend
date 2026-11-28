@@ -85,6 +85,19 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       expect(text('[data-testid="trip-row"] [data-testid="state-chip"]')).toBe('Calculado');
     });
 
+    it('una carga convertida de kilogramos lo marca (con el texto del servidor como ayuda y para lectores) y las demás filas no', () => {
+      init([operationTripDto({ cargo_ton: '34.4400', cargo_converted_from_kg: true }), operationTripDto({ id: 'trip-2', trip_id: 'VIA-000002', cargo_ton: '18.0000' }), operationTripDto({ id: 'trip-3', trip_id: 'VIA-000003', cargo_converted_from_kg: false })]);
+      const rows = qa('[data-testid="trip-row"]');
+      const marker = rows[0].querySelector('[data-testid="cargo-converted"]')!;
+
+      expect(rows[0].querySelector('td.c-cargo')!.textContent).toContain('34,4');
+      expect(marker.textContent).toContain('de kg');
+      expect(marker.getAttribute('title')).toBe('Convertida de kg. El archivo conserva su valor original en kilogramos.');
+      expect(marker.querySelector('.sr-only')!.textContent).toContain('Convertida de kg');
+      expect(rows[1].querySelector('[data-testid="cargo-converted"]')).toBeNull();
+      expect(rows[2].querySelector('[data-testid="cargo-converted"]')).toBeNull();
+    });
+
     it('un dato que falta se ve «—», nunca 0, y el chip dice lo que dice el servidor con su motivo como ayuda', () => {
       init([operationTripDto({ trip_id: null, trip_date: null, plate: null, distance_km: null, cargo_ton: null, fuel_type: null, kg_co2: null, status: 'PENDING', state_label: 'Por completar', reason: 'MISSING_DISTANCE', reason_label: 'Falta la distancia' })], { next: null });
       const cells = qa('[data-testid="trip-row"] td');
@@ -299,8 +312,27 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       fixture.detectChanges();
       expect(listRequest().request.params.get('dedup')).toBe('duplicates');
       summaryRequest();
+      // El panel flota y se cierra aunque haya un filtro activo; el punto del botón lo recuerda.
       click('[data-testid="more-filters"]');
-      expect(q('[data-testid="more-panel"]')).not.toBeNull();
+      expect(q('[data-testid="more-panel"]')).toBeNull();
+      expect(q('[data-testid="more-active"]')).not.toBeNull();
+      expect(text('[data-testid="more-filters"]')).toContain('hay un filtro de duplicados activo');
+    });
+
+    it('«Más filtros» flota bajo la barra (no empuja la lista) y Escape lo cierra devolviendo el foco al botón', () => {
+      init();
+      const before = q('#ops-results')!.getBoundingClientRect().top;
+
+      click('[data-testid="more-filters"]');
+
+      expect(getComputedStyle(q('[data-testid="more-panel"]')!).position).toBe('absolute');
+      expect(q('#ops-results')!.getBoundingClientRect().top).toBe(before);
+
+      q('[data-testid="more-panel"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+
+      expect(q('[data-testid="more-panel"]')).toBeNull();
+      expect(document.activeElement).toBe(q('[data-testid="more-filters"]'));
     });
 
     it('los filtros de la URL se aplican al entrar y el estado de la vista se escribe de vuelta en la URL sin historial', () => {
@@ -310,7 +342,8 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       expect(request.request.params.get('view')).toBe('pending');
       expect(request.request.params.get('fuel')).toBe('GASOLINE');
       expect(request.request.params.get('dedup')).toBe('held');
-      expect(q('[data-testid="more-panel"]')).not.toBeNull();
+      expect(q('[data-testid="more-panel"]')).toBeNull();
+      expect(q('[data-testid="more-active"]')).not.toBeNull();
       expect(q<HTMLSelectElement>('[data-testid="fuel"]')!.value).toBe('GASOLINE');
       request.flush(operationsPageBody([]));
       summaryRequest().flush({ data: tabCountsDto(), meta: {} });
@@ -364,6 +397,12 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       return { create: spyOn(URL, 'createObjectURL').and.returnValue('blob:reporte'), anchorClick: spyOn(HTMLAnchorElement.prototype, 'click').and.stub() };
     };
 
+    /** El camino único: «Exportar» abre el popover y «Descargar Excel» pide el archivo. */
+    const download = (): void => {
+      click('[data-testid="export"]');
+      click('[data-testid="export-excel"]');
+    };
+
     it('con filas el botón está activo, sin la leyenda «Disponible próximamente» ni título de ayuda', () => {
       init();
 
@@ -383,6 +422,7 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       expect(button().getAttribute('aria-describedby')).toBe('ops-export-hint');
       expect(text('[data-testid="export-hint"]')).toBe('No hay viajes para exportar con los filtros actuales');
       button().click();
+      expect(q('[data-testid="export-panel"]')).toBeNull();
       http.expectNone((r) => r.url === EXPORT_URL);
     });
 
@@ -392,7 +432,7 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       const navigations = (TestBed.inject(Router).navigate as jasmine.Spy).calls.count();
       const width = button().getBoundingClientRect().width;
 
-      click('[data-testid="export"]');
+      download();
       const request = exportRequest();
 
       expect(request.request.responseType).toBe('blob');
@@ -401,11 +441,13 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       expect(request.request.params.get('q')).toBe('ABC');
       expect(request.request.params.has('cursor')).toBeFalse();
       expect(request.request.params.has('limit')).toBeFalse();
+      expect(request.request.params.get('granularity')).toBe('month');
       expect(button().disabled).toBeTrue();
       expect(button().getAttribute('aria-busy')).toBe('true');
       expect(button().textContent).toContain('Preparando…');
       expect(button().getBoundingClientRect().width).toBe(width);
-      click('[data-testid="export"]');  // un segundo clic no lanza otra petición
+      expect(q<HTMLButtonElement>('[data-testid="export-excel"]')!.disabled).toBeTrue();  // un segundo clic no lanza otra petición
+      expect(text('[data-testid="export-excel"]')).toBe('Preparando…');
       request.flush(new Blob(['xlsx']), { headers: { 'Content-Disposition': 'attachment; filename="operaciones-logisticas_20261123.xlsx"' } });
       fixture.detectChanges();
 
@@ -422,7 +464,7 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       init();
       const { create } = spyDownload();
 
-      click('[data-testid="export"]');
+      download();
       exportRequest().flush(
         new Blob([JSON.stringify({ error: { code: 'EXPORT_TOO_LARGE', message: 'x', details: [{ field: 'sync_max_rows', message: '100000', type: 'limit' }] } })], { type: 'application/json' }),
         { status: 422, statusText: 'Unprocessable Entity' },
@@ -448,7 +490,7 @@ describe('OperationsComponent: Operaciones logísticas', () => {
     it('«Generar reporte» pide el trabajo, quita la oferta, abre el panel «Reportes» con el trabajo en cola y anuncia el estado', async () => {
       init();
       spyDownload();
-      click('[data-testid="export"]');
+      download();
       exportRequest().flush(new Blob([JSON.stringify({ error: { code: 'EXPORT_TOO_LARGE', message: 'x' } })], { type: 'application/json' }), { status: 422, statusText: 'Unprocessable Entity' });
 
       for (let attempt = 0; attempt < 100 && !q('[data-testid="export-generate"]'); attempt++) {
@@ -457,7 +499,10 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       }
 
       click('[data-testid="export-generate"]');
-      http.expectOne((r) => r.url === EXPORTS_URL && r.method === 'POST').flush({ data: exportJobDto({ status: 'QUEUED', progress: 0, downloadable: false, size_bytes: null }), meta: {} }, { status: 202, statusText: 'Accepted' });
+      const create = http.expectOne((r) => r.url === EXPORTS_URL && r.method === 'POST');
+
+      expect(create.request.body.granularity).toBe('month');
+      create.flush({ data: exportJobDto({ status: 'QUEUED', progress: 0, downloadable: false, size_bytes: null }), meta: {} }, { status: 202, statusText: 'Accepted' });
       fixture.detectChanges();
 
       expect(q('[data-testid="export-offer"]')).toBeNull();
@@ -468,10 +513,146 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       fixture.destroy();
     });
 
-    it('al salir de la pantalla cancela la descarga directa en vuelo: el archivo no se guarda en silencio después', () => {
+    it('«Exportar» abre un popover flotante con la granularidad (los seis rótulos, Mensual por defecto), su explicación y «Descargar Excel», sin pedir nada ni cambiar la altura', () => {
+      init();
+      const before = el().scrollHeight;
+
+      expect(q('[data-testid="export-panel"]')).toBeNull();
+      expect(button().getAttribute('aria-expanded')).toBe('false');
+      click('[data-testid="export"]');
+      const panel = q('[data-testid="export-panel"]')!;
+      const select = q<HTMLSelectElement>('[data-testid="export-granularity"]')!;
+
+      expect(button().getAttribute('aria-expanded')).toBe('true');
+      expect(button().getAttribute('aria-controls')).toBe(panel.id);
+      expect(Array.from(select.options).map((o) => o.textContent!.trim())).toEqual(['Diario', 'Semanal', 'Mensual', 'Trimestral', 'Semestral', 'Anual']);
+      expect(select.value).toBe('month');
+      expect(select.getAttribute('aria-describedby')).toBe('ops-export-help');
+      expect(text('#ops-export-help')).toBe('La hoja «Evolución de emisiones» suma solo viajes calculados y contados una vez, con el periodo y los filtros de combustible, carga y búsqueda actuales.');
+      expect(text('.cap')).toBeTruthy();
+      expect(text('[data-testid="export-excel"]')).toBe('Descargar Excel');
+      expect(getComputedStyle(panel).position).toBe('absolute');
+      expect(el().scrollHeight).toBe(before);
+      expect(select.getBoundingClientRect().height).toBeGreaterThanOrEqual(40);
+      expect(q('[data-testid="export-excel"]')!.getBoundingClientRect().height).toBeGreaterThanOrEqual(40);
+      http.expectNone((r) => r.url === EXPORT_URL);
+    });
+
+    it('la granularidad elegida viaja en la petición; Escape cierra el popover y deja el foco en «Exportar»; un clic fuera también lo cierra', async () => {
       init();
       spyDownload();
       click('[data-testid="export"]');
+      const select = q<HTMLSelectElement>('[data-testid="export-granularity"]')!;
+
+      select.value = 'semester';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      click('[data-testid="export-excel"]');
+
+      const request = exportRequest();
+
+      expect(request.request.params.get('granularity')).toBe('semester');
+      request.flush(new Blob(['xlsx']));
+      fixture.detectChanges();
+      click('[data-testid="export"]');
+      expect(q<HTMLSelectElement>('[data-testid="export-granularity"]')!.value).toBe('semester');  // la selección se conserva
+
+      q('[data-testid="export-panel"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(q('[data-testid="export-panel"]')).toBeNull();
+      expect(button().getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(button());
+
+      click('[data-testid="export"]');
+      expect(q('[data-testid="export-panel"]')).not.toBeNull();
+      q('[data-testid="export-panel"]')!.click();
+      fixture.detectChanges();
+      expect(q('[data-testid="export-panel"]')).not.toBeNull();  // un clic dentro no lo cierra
+      document.body.click();
+      fixture.detectChanges();
+
+      expect(q('[data-testid="export-panel"]')).toBeNull();
+    });
+
+    it('abrir «Más filtros» cierra el popover de «Exportar» y al revés (nunca dos a la vez)', () => {
+      init();
+      click('[data-testid="export"]');
+      click('[data-testid="more-filters"]');
+
+      expect(q('[data-testid="export-panel"]')).toBeNull();
+      expect(q('[data-testid="more-panel"]')).not.toBeNull();
+      click('[data-testid="export"]');
+
+      expect(q('[data-testid="more-panel"]')).toBeNull();
+      expect(q('[data-testid="export-panel"]')).not.toBeNull();
+    });
+
+    it('GRANULARITY_TOO_FINE se dice dentro del popover (que sigue abierto con la selección), bloquea esa granularidad y las más finas y desactiva el botón; elegir otra limpia el aviso', async () => {
+      init();
+      spyDownload();
+      click('[data-testid="export"]');
+      const select = q<HTMLSelectElement>('[data-testid="export-granularity"]')!;
+
+      select.value = 'day';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      click('[data-testid="export-excel"]');
+      exportRequest().flush(new Blob([JSON.stringify({ error: { code: 'GRANULARITY_TOO_FINE', message: 'x' } })], { type: 'application/json' }), { status: 422, statusText: 'Unprocessable Entity' });
+
+      for (let attempt = 0; attempt < 100 && !q('[data-testid="export-panel-error"]'); attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        fixture.detectChanges();
+      }
+
+      expect(text('[data-testid="export-panel-error"]')).toContain('Elige granularidad semanal o mensual');
+      expect(q('[data-testid="export-panel-error"]')!.getAttribute('role')).toBe('alert');
+      expect(q('[data-testid="export-error"]')).toBeNull();
+      expect(q('[data-testid="export-panel"]')).not.toBeNull();
+      expect(select.value).toBe('day');
+      expect(Array.from(select.options).map((o) => o.disabled)).toEqual([true, false, false, false, false, false]);
+      expect(q<HTMLButtonElement>('[data-testid="export-excel"]')!.disabled).toBeTrue();
+
+      select.value = 'week';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(q('[data-testid="export-panel-error"]')).toBeNull();
+      expect(q<HTMLButtonElement>('[data-testid="export-excel"]')!.disabled).toBeFalse();
+    });
+
+    it('un error que no es de la granularidad (EXPORT_BUSY) sigue en la alerta de la tarjeta, no en el popover', async () => {
+      init();
+      spyDownload();
+      download();
+      exportRequest().flush(new Blob([JSON.stringify({ error: { code: 'EXPORT_BUSY', message: 'x' } })], { type: 'application/json' }), { status: 429, statusText: 'Too Many Requests' });
+
+      for (let attempt = 0; attempt < 100 && !q('[data-testid="export-error"]'); attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        fixture.detectChanges();
+      }
+
+      expect(text('[data-testid="export-error"]')).toContain('Hay reportes generándose');
+      expect(q('[data-testid="export-panel-error"]')).toBeNull();
+    });
+
+    it('una descarga correcta cierra el popover y devuelve el foco a «Exportar»', async () => {
+      init();
+      spyDownload();
+      download();
+      exportRequest().flush(new Blob(['xlsx']));
+      fixture.detectChanges();
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(q('[data-testid="export-panel"]')).toBeNull();
+      expect(document.activeElement).toBe(button());
+    });
+
+    it('al salir de la pantalla cancela la descarga directa en vuelo: el archivo no se guarda en silencio después', () => {
+      init();
+      spyDownload();
+      download();
       const request = exportRequest();
       fixture.destroy();
 
@@ -498,6 +679,25 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       http.expectOne(`${OPERATIONS_URL}/trip-1`).flush({ data: tripDetailDto(), meta: {} });
     });
 
+    it('un duplicado resuelto automáticamente dice que lo resolvió el sistema y muestra las diferencias del vehículo y la nota de combustible', () => {
+      const base = tripDetailDto();
+      const evidence = { identical: false, matches: [], differs: [], auto: true, resolved_by: 'SYSTEM', vehicle_differs: { tipo_combustible: { anchor: 'DIESEL', this: 'GASOLINA' } }, notes: ['FUEL_CONFLICT_ANCHOR_FUEL_USED'] };
+      openFirst({ ...base, dedup: { ...base.dedup, status: 'RESOLVED_DUPLICATE', status_label: 'Resuelto automáticamente: es el mismo viaje', rule: 'R3a', evidence, resolved_by_name: null, resolved_at: '2026-11-28T10:00:00Z' } });
+      const text = rows('[data-testid="detail-info"]');
+
+      expect(text).toContain('Resuelto por El sistema, automáticamente');
+      expect(text).toContain('Dato distinto: Combustible Primer registro «DIESEL», repetido «GASOLINA»');
+      expect(text).toContain('Nota de calidad El combustible no coincide');
+      expect(text).not.toMatch(/FUEL_CONFLICT|SYSTEM/);
+    });
+
+    it('una resolución de una persona sigue mostrando su nombre', () => {
+      const base = tripDetailDto();
+      openFirst({ ...base, dedup: { ...base.dedup, status: 'RESOLVED_DUPLICATE', status_label: 'Duplicado', rule: 'R2', resolved_by_name: 'Ana Pérez', resolved_at: '2026-11-28T10:00:00Z' } });
+
+      expect(rows('[data-testid="detail-info"]')).toContain('Resuelto por Ana Pérez');
+    });
+
     it('ofrece el acceso a Calidad de datos solo cuando hay un posible duplicado retenido', () => {
       openFirst();
       expect(q('[data-testid="detail-quality-link"]')).toBeNull();
@@ -510,7 +710,17 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       expect(q('[data-testid="detail-quality-link"]')!.getAttribute('href')).toBe('/calidad');
     });
 
-    it('«Información» muestra lo guardado: vehículo, combustible, trayecto, distancia, carga, rendimiento y archivo de origen', () => {
+    it('el detalle de una carga convertida de kilogramos lo dice junto a la carga; si no, no hay nota', () => {
+      openFirst({ ...tripDetailDto(), cargo_converted_from_kg: true });
+      expect(rows('[data-testid="detail-info"]')).toContain('Carga transportada 18,0 toneladas Convertida de kg. El archivo conserva su valor original en kilogramos.');
+    });
+
+    it('el detalle de una carga en toneladas no trae la nota de conversión', () => {
+      openFirst();
+      expect(rows('[data-testid="detail-info"]')).not.toContain('Convertida de kg');
+    });
+
+    it('«Información» muestra lo guardado: vehículo, combustible, trayecto, distancia, carga y rendimiento (el archivo de origen va en la cabecera)', () => {
       openFirst();
       const info = rows('[data-testid="detail-info"]');
 
@@ -523,8 +733,37 @@ describe('OperationsComponent: Operaciones logísticas', () => {
       expect(info).toContain('Carga transportada 18,0 toneladas');
       expect(info).toContain('Rendimiento 8 km/gal');
       expect(info).toContain('Rendimiento 8 km/gal Estimado');
-      expect(info).toContain('Archivo Excel: Viajes_marzo.xlsx (fila 128)');
+      // El archivo de origen está en la cabecera del panel, no se repite en Información.
+      expect(text('.meta .file')).toBe('Registrado en la carga: Viajes_marzo.xlsx (fila 128)');
+      expect(info).not.toContain('Archivo Excel');
       expect(text('[data-testid="detail-kg"]')).toContain('50,745 kg CO₂');
+    });
+
+    it('«Información» dice de dónde salió el rendimiento: el de la fila se rotula «Declarado en la fila» y el del vehículo muestra su valor, origen, base y fecha', () => {
+      const row = tripDetailDto();
+
+      openFirst({ ...row, energy: { ...row.energy, efficiency_label: 'Declarado en la fila' } });
+      expect(rows('[data-testid="detail-info"]')).toContain('Rendimiento 8 km/gal Declarado en la fila');
+    });
+
+    it('con el rendimiento del vehículo, Información y Cálculo muestran su valor aunque la fila no traiga rendimiento, con la nota y quién lo declaró como ayuda', () => {
+      const row = tripDetailDto();
+      const vehicleEfficiency = { id: 'rec-1', value: '6.900000', unit: 'km/gal', origin: 'DECLARED', basis: 'THEORETICAL', note: 'Ficha del fabricante', measured_on: null, declared_by_name: 'Ana Prueba', declared_at: '2026-11-20T15:00:00Z', is_current: true };
+
+      openFirst({ ...row, energy: { ...row.energy, efficiency: { quantity: null, unit: null }, efficiency_label: 'Declarado para el vehículo', vehicle_efficiency: vehicleEfficiency } });
+
+      expect(rows('[data-testid="detail-info"]')).toContain('Rendimiento 6,9 km/gal Declarado para el vehículo (Teórico) · 20/11/2026');
+      expect(qa('[data-testid="detail-info"] dd').find((dd) => dd.textContent!.includes('6,9 km/gal'))!.getAttribute('title')).toBe('Ficha del fabricante · Declarado el 20/11/2026 · por Ana Prueba');
+      click('[data-testid="detail-tab-emissions"]');
+      expect(rows('[data-testid="detail-emissions"]')).toContain('Rendimiento 6,9 km/gal Declarado para el vehículo (Teórico)');
+    });
+
+    it('un viaje calculado con un valor anterior del vehículo lo dice sin alarmar', () => {
+      const row = tripDetailDto();
+
+      openFirst({ ...row, energy: { ...row.energy, efficiency_label: 'Medido', vehicle_efficiency: { id: 'r', value: '7.000000', unit: 'km/gal', origin: 'MEASURED', basis: 'REAL', note: null, measured_on: '2026-11-01', declared_by_name: null, declared_at: '2026-11-02T10:00:00Z', is_current: false } } });
+
+      expect(rows('[data-testid="detail-info"]')).toContain('Medido (Real) · valor anterior · 01/11/2026');
     });
 
     it('«Cálculo de emisiones» muestra los valores guardados con su factor y fuente, sin recalcular nada', () => {
@@ -564,7 +803,8 @@ describe('OperationsComponent: Operaciones logísticas', () => {
         shared: { state: 'POSSIBLE_MATCH', label: 'Posible coincidencia' },
       }));
 
-      expect(rows('[data-testid="detail-info"]')).toContain('Duplicados Duplicado confirmado Mismo identificador');
+      expect(rows('[data-testid="detail-info"]')).toContain('Duplicados Duplicado confirmado');
+      expect(rows('[data-testid="detail-info"]')).toContain('Mismo identificador');
       expect(rows('[data-testid="detail-info"]')).toContain('Viajes_febrero.xlsx');
       expect(rows('[data-testid="detail-info"]')).toContain('Ana Prueba');
       expect(text('[data-testid="detail-shared"]')).toBe('Posible coincidencia');

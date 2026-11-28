@@ -1,4 +1,4 @@
-import { BulkApplyDto, BulkPreviewDto, CappedCountDto, CompletionOutDto, CompletionStateDto, ExportJobDto, OperationTripDto, OperationsPageDto, TabCountsDto, TripDetailDto } from '../app/infrastructure/dto/operations.dto';
+import { BulkApplyDto, BulkPreviewDto, CappedCountDto, CompletionOutDto, CompletionPlateDto, CompletionPlatesPageDto, CompletionStateDto, ExportJobDto, OperationTripDto, OperationsPageDto, TabCountsDto, TripDetailDto } from '../app/infrastructure/dto/operations.dto';
 import { ORG_ENVIA } from './builders';
 
 /** URL base de Operaciones logísticas de la empresa de pruebas (sin query). */
@@ -112,6 +112,7 @@ export const exportJobDto = (overrides: Partial<ExportJobDto> = {}): ExportJobDt
   expires_at: new Date(Date.now() + 70.5 * 3_600_000).toISOString(),
   error_code: null,
   downloadable: true,
+  filters: { granularity: 'month' },
   ...overrides,
 });
 
@@ -182,3 +183,20 @@ export const bulkPreviewDto = (overrides: Partial<BulkPreviewDto> = {}): BulkPre
 });
 
 export const bulkApplyDto = (overrides: Partial<BulkApplyDto> = {}): BulkApplyDto => ({ applied: 301, already_completed: 0, now_calculated: 280, still_pending: 21, held: 3, skipped_incompatible: 2, ...overrides });
+
+/** Una placa por completar. Sin unidad declarada ofrece las del servidor; con ella no hay opciones que elegir. */
+export const completionPlateDto = (n: number, overrides: Partial<CompletionPlateDto> = {}): CompletionPlateDto => ({
+  plate: `PLA${String(n).padStart(3, '0')}`,
+  trips: 30 + n,
+  fuel_type: 'DIESEL',
+  fuel_label: 'Diésel',
+  efficiency_unit: null,
+  unit_options: [{ value: 'km/gal', label: 'km/gal' }, { value: 'km/l', label: 'km/l' }],
+  ...overrides,
+});
+
+/** La respuesta del listado de placas: `data` + `meta` con cursor y, solo en la primera página, el total. */
+export const completionPlatesBody = (plates: readonly CompletionPlateDto[], meta: Partial<CompletionPlatesPageDto['meta']> = {}): CompletionPlatesPageDto => ({
+  data: plates,
+  meta: { next_cursor: null, limit: 6, total_plates: null, request_id: 'r-1', ...meta },
+});

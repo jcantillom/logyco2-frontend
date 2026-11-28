@@ -32,8 +32,8 @@ describe('HttpNotificationsRepository', () => {
 
     expect(page!.total).toBe(2);
     expect(page!.items).toEqual([
-      { id: 'n-1', kind: 'VEHICLES_NEW', title: 'Vehículos nuevos en tu carga', body: 'La carga trae 2 vehículos nuevos para registrar.', payload: { importId: 'imp-1', new: 2, changed: 0 }, createdAt: '2026-03-01T10:02:00Z', readAt: null },
-      jasmine.objectContaining({ id: 'n-2', kind: 'VEHICLES_CHANGED', readAt: '2026-03-02T08:00:00Z', payload: { importId: 'imp-2', new: 0, changed: 3 } }),
+      { id: 'n-1', kind: 'VEHICLES_NEW', title: 'Vehículos nuevos en tu carga', body: 'La carga trae 2 vehículos nuevos para registrar.', payload: { importId: 'imp-1', importKind: null, new: 2, changed: 0 }, createdAt: '2026-03-01T10:02:00Z', readAt: null },
+      jasmine.objectContaining({ id: 'n-2', kind: 'VEHICLES_CHANGED', readAt: '2026-03-02T08:00:00Z', payload: { importId: 'imp-2', importKind: null, new: 0, changed: 3 } }),
     ]);
   });
 

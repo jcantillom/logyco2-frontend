@@ -23,18 +23,13 @@ export interface CurrentUser {
   readonly isActive: boolean;
   readonly globalRoles: readonly RoleRef[];
   readonly memberships: readonly Membership[];
+  /** Caducidad de la sesión (ISO 8601 UTC, el `exp` del token); la informa `GET /auth/me`. Ausente = no se sabe. */
+  readonly sessionExpiresAt?: string | null;
 }
 
 export interface LoginCredentials {
   readonly email: string;
   readonly password: string;
-}
-
-export interface AuthToken {
-  readonly accessToken: string;
-  readonly tokenType: string;
-  /** Informativo (hora de Bogotá, tal como la informa el backend). No se interpreta. */
-  readonly expirationLabel: string | null;
 }
 
 /** Códigos de permiso del catálogo RBAC del backend (`src/apps/rbac/permissions.py`). */

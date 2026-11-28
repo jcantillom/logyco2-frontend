@@ -1,3 +1,5 @@
+import { DuplicateEvidenceDto } from './duplicates.dto';
+
 /** Contratos JSON de `/organizations/{id}/operations/trips…`. Los decimales viajan como texto. */
 export interface OperationPlaceDto {
   readonly code: string | null;
@@ -23,6 +25,7 @@ export interface OperationTripDto {
   readonly destination: OperationPlaceDto;
   readonly distance_km: string | null;
   readonly cargo_ton: string | null;
+  readonly cargo_converted_from_kg?: boolean;
   readonly fuel_type: string | null;
   readonly kg_co2: string | null;
   readonly status: string;
@@ -36,6 +39,7 @@ export interface OperationTripDto {
   readonly vehicle: { readonly configuration_code: string | null } | null;
   readonly shared: OperationSharedDto | null;
   readonly corrected?: boolean;
+  readonly source?: 'FILE' | 'MANUAL';
 }
 
 export interface CappedCountDto {
@@ -71,9 +75,12 @@ export interface TripDetailDto {
     readonly file_name: string;
     readonly created_at: string;
     readonly calculated_at: string | null;
+    readonly source?: 'FILE' | 'MANUAL';
+    readonly registered_by_name?: string | null;
   };
   readonly trip_date: string | null;
   readonly cargo_ton: string | null;
+  readonly cargo_converted_from_kg?: boolean;
   readonly fuel_type: string | null;
   readonly status: string;
   readonly state_label: string;
@@ -101,6 +108,19 @@ export interface TripDetailDto {
     readonly consumption: OperationQuantityDto;
     readonly volume_normalized: OperationQuantityDto;
     readonly efficiency: OperationQuantityDto;
+    readonly efficiency_label?: string | null;
+    readonly vehicle_efficiency?: {
+      readonly id: string;
+      readonly value: string;
+      readonly unit: string;
+      readonly origin: string;
+      readonly basis: string | null;
+      readonly note: string | null;
+      readonly measured_on: string | null;
+      readonly declared_by_name: string | null;
+      readonly declared_at: string;
+      readonly is_current: boolean;
+    } | null;
   };
   readonly emissions: {
     readonly kg_co2: string;
@@ -119,6 +139,7 @@ export interface TripDetailDto {
     readonly status_label: string;
     readonly rule: string | null;
     readonly rule_label: string | null;
+    readonly evidence?: DuplicateEvidenceDto | null;
     readonly resolved_by_name: string | null;
     readonly resolved_at: string | null;
     readonly duplicate_of: {
@@ -132,6 +153,8 @@ export interface TripDetailDto {
   readonly shared: OperationSharedDto | null;
   readonly history: readonly { readonly event: string; readonly label: string; readonly at: string }[];
   readonly completable?: boolean;
+  readonly voidable?: boolean;
+  readonly void_blocked_reason?: string | null;
   readonly missing_fields?: readonly string[];
   readonly correction_version?: number;
   readonly corrected?: { readonly at: string; readonly by_name: string | null } | null;
@@ -157,6 +180,8 @@ export interface ExportJobDto {
   readonly expires_at: string | null;
   readonly error_code: string | null;
   readonly downloadable: boolean;
+  /** Los filtros con los que se pidió el reporte; `granularity` falta en los trabajos anteriores a la hoja «Evolución de emisiones». */
+  readonly filters?: Readonly<Record<string, string | null>> | null;
 }
 
 // ------------------------------------------------------------------ completar viajes pendientes (Etapa 1)
@@ -210,7 +235,26 @@ export interface CompletionOutDto {
 export interface BulkScopeDto {
   readonly reason: 'DISTANCE_WITHOUT_EFFICIENCY';
   readonly import_file_id?: string;
-  readonly items: readonly { readonly plate: string; readonly efficiency_value: string; readonly efficiency_unit: string }[];
+  readonly items: readonly { readonly plate: string; readonly efficiency_value: string; readonly efficiency_unit?: string }[];
+}
+
+export interface CompletionPlateDto {
+  readonly plate: string;
+  readonly trips: number;
+  readonly fuel_type: string | null;
+  readonly fuel_label: string;
+  readonly efficiency_unit: string | null;
+  readonly unit_options: readonly { readonly value: string; readonly label: string }[];
+}
+
+export interface CompletionPlatesPageDto {
+  readonly data: readonly CompletionPlateDto[];
+  readonly meta: {
+    readonly next_cursor: string | null;
+    readonly limit: number;
+    readonly total_plates?: CappedCountDto | null;
+    readonly request_id?: string | null;
+  };
 }
 
 export interface BulkPlatePreviewDto {

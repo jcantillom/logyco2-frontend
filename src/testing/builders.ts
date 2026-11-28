@@ -26,8 +26,6 @@ export function buildUser(overrides: Partial<CurrentUser> = {}): CurrentUser {
   };
 }
 
-export const FAKE_TOKEN = { accessToken: 'token-de-prueba', tokenType: 'Bearer', expirationLabel: null };
-
 export function buildSuperAdmin(overrides: Partial<CurrentUser> = {}): CurrentUser {
   return buildUser({ fullName: 'Admin Plataforma', email: 'admin@example.com', globalRoles: [{ code: 'SUPER_ADMIN', name: 'Superadministrador' }], memberships: [], ...overrides });
 }

@@ -2,14 +2,15 @@ import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testin
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { NEVER, Observable, of, throwError } from 'rxjs';
 import { AppError } from '../../core/errors/app-error';
-import { buildSuperAdmin, buildUser, FAKE_TOKEN } from '../../../testing/builders';
+import { buildSuperAdmin, buildUser } from '../../../testing/builders';
 import { provideTestApp } from '../../../testing/providers';
-import { AuthToken, CurrentUser } from '../../domain/models/identity';
+import { CurrentUser } from '../../domain/models/identity';
 import { AuthRepository } from '../../domain/repositories/identity.repositories';
 import { LoginComponent, SUCCESS_MS } from './login.component';
 
 class FakeAuthRepository extends AuthRepository {
-  login = jasmine.createSpy('login').and.returnValue(of(FAKE_TOKEN) as Observable<AuthToken>);
+  logout = jasmine.createSpy('logout').and.returnValue(of(undefined) as Observable<void>);
+  login = jasmine.createSpy('login').and.returnValue(of(undefined) as Observable<void>);
   getCurrentUser = jasmine.createSpy('me').and.returnValue(of(buildUser()) as Observable<CurrentUser>);
 }
 
@@ -143,6 +144,14 @@ describe('LoginComponent: textos, accesibilidad y estados', () => {
     expect(el().querySelector('app-logo svg[role="img"]')).not.toBeNull();
     expect(el().querySelector('app-logyca-logo img[alt="LOGYCA"]')).not.toBeNull();
     expect(el().querySelector('app-logyca-logo .chip')).toBeNull(); // sin fondo blanco
+  });
+
+  it('el lockup del login es grande (alto 92 px en escritorio o 62 px en pantalla estrecha, cabe en su ancho)', () => {
+    setup();
+    const svg = el().querySelector<SVGSVGElement>('app-logo svg')!;
+    const height = parseFloat(svg.style.height);
+    expect([62, 92]).toContain(height);
+    expect(matchMedia('(max-width: 860px)').matches ? height === 62 : height === 92).toBeTrue();
   });
 
   it('muestra el recorrido de la plataforma (Registra, Mide, Compara, Reduce) y el lema que explica su propósito', () => {

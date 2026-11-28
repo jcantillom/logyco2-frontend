@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed, fakeAsync, flush, tick } from '@angular/core
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import {
-  COMPLETIONS_URL, EXPORTS_URL, OPERATIONS_URL, bulkApplyDto, bulkPreviewDto, capped, completionOutDto, completionStateDto, completionUrl, exportsBody, operationTripDto, operationsPageBody, pendingTripDetailDto, tabCountsDto,
+  COMPLETIONS_URL, EXPORTS_URL, OPERATIONS_URL, bulkApplyDto, bulkPreviewDto, capped, completionOutDto, completionPlateDto, completionPlatesBody, completionStateDto, completionUrl, exportsBody, operationTripDto, operationsPageBody, pendingTripDetailDto, tabCountsDto,
   tripDetailDto,
 } from '../../../testing/operations';
 import { provideTestApp, signInAs } from '../../../testing/providers';
@@ -327,17 +327,17 @@ describe('Operaciones logísticas: completar datos', () => {
     }));
   });
 
+  const six = (): ReturnType<typeof completionPlateDto>[] => Array.from({ length: 6 }, (_, i) => completionPlateDto(i + 1));
+  const platesRequest = (): ReturnType<HttpTestingController['expectOne']> => http.expectOne((r) => r.url === `${COMPLETIONS_URL}/plates`);
+  /** Abre el diálogo y atiende la primera página de placas del servidor. */
+  const openBulk = (plates = six(), meta: Parameters<typeof completionPlatesBody>[1] = { next_cursor: 'c1', total_plates: { value: 1926, capped: false } }): void => {
+    click('[data-testid="bulk-open"]');
+    platesRequest().flush(completionPlatesBody(plates, meta));
+    fixture.detectChanges();
+  };
+
   describe('completar por vehículo', () => {
     const rows = (): OperationTripDto[] => Array.from({ length: 8 }, (_, i) => pendingRow(i + 1));
-    const openBulk = (): void => {
-      click('[data-testid="bulk-open"]');
-      http.expectOne(completionUrl('trip-1')).flush({
-        data: completionStateDto({ fields: [{ name: 'efficiency.unit', label: 'Unidad', kind: 'unit', group: 'efficiency', options: [{ value: 'km/gal', label: 'km/gal' }], range: null, hint: null }] }),
-        meta: {},
-      });
-      fixture.detectChanges();
-    };
-
     it('solo se ofrece en «Por completar» con viajes a la vista, junto al paginador (sin añadir una fila nueva a la página)', () => {
       init(rows());
       expect(q('[data-testid="bulk-open"]')).toBeNull();
@@ -353,21 +353,76 @@ describe('Operaciones logísticas: completar datos', () => {
       expect(text('#bulk-hint')).toContain('permiso');
     });
 
-    it('muestra 6 placas por página, una entrada y una unidad por placa sin valor por defecto, y pagina dentro del diálogo', fakeAsync(() => {
+    it('muestra las placas del servidor (6 por página) con viajes y combustible, una entrada por placa y una unidad por elegir sin valor por defecto, y pagina dentro del diálogo', fakeAsync(() => {
       init(rows(), ['ORG_ANALYST'], { view: 'pending' });
       openBulk();
       tick();
 
       expect(q('[data-testid="bulk-panel"]')!.getAttribute('role')).toBe('dialog');
       expect(qa('[data-testid="bulk-row"]').length).toBe(6);
+      expect(text('[data-testid="bulk-row"] .plate')).toBe('PLA001 · 31 viajes · Diésel');
       expect((q('[data-testid="bulk-value-PLA001"]') as HTMLInputElement).value).toBe('');
       expect((q('[data-testid="bulk-unit-PLA001"]') as HTMLSelectElement).value).toBe('');
-      expect(Array.from((q('[data-testid="bulk-unit-PLA001"]') as HTMLSelectElement).options).map((o) => o.textContent!.trim())).toEqual(['Elegir', 'km/gal']);
+      expect(Array.from((q('[data-testid="bulk-unit-PLA001"]') as HTMLSelectElement).options).map((o) => o.textContent!.trim())).toEqual(['Elegir', 'km/gal', 'km/l']);
       expect(document.activeElement?.id).toBe('bulk-title');
       expect((q('[data-testid="bulk-review"]') as HTMLButtonElement).disabled).toBeTrue();
+      expect(text('[data-testid="bulk-pager"]')).toContain('1–6 de 1.926 placas');
+      expect(text('[data-testid="bulk-filled"]')).toBe('0 placas con valor de 1.926');
+      expect((q('[data-testid="bulk-prev"]') as HTMLButtonElement).disabled).toBeTrue();
+      type('[data-testid="bulk-value-PLA001"]', '9,5');
       click('[data-testid="bulk-next"]');
+      const next = platesRequest();
+
+      expect(next.request.params.get('cursor')).toBe('c1');
+      next.flush(completionPlatesBody([completionPlateDto(7), completionPlateDto(8)], { next_cursor: null }));
+      fixture.detectChanges();
       expect(qa('[data-testid="bulk-row"]').length).toBe(2);
-      expect(text('[data-testid="bulk-pager"]')).toContain('7–8 de 8 placas');
+      expect(text('[data-testid="bulk-pager"]')).toContain('7–8 de 1.926 placas');
+      expect(text('[data-testid="bulk-live"]')).toContain('Placas 7–8 de 1.926 placas');
+      expect((q('[data-testid="bulk-next"]') as HTMLButtonElement).disabled).toBeTrue();
+      click('[data-testid="bulk-prev"]');
+      platesRequest().flush(completionPlatesBody(six(), { next_cursor: 'c1' }));
+      fixture.detectChanges();
+      expect((q('[data-testid="bulk-value-PLA001"]') as HTMLInputElement).value).toBe('9,5');  // lo escrito se conserva al paginar
+      expect(text('[data-testid="bulk-filled"]')).toBe('1 placa con valor de 1.926');
+      flush();
+    }));
+
+    it('la unidad ya declarada se muestra de solo lectura «km/gal (del archivo)» (sin select vacío) y no se envía; la que no se declara se elige', fakeAsync(() => {
+      init(rows(), ['ORG_ANALYST'], { view: 'pending' });
+      openBulk([completionPlateDto(1, { efficiency_unit: 'km/gal', unit_options: [] }), completionPlateDto(2)], { next_cursor: null });
+
+      expect(text('[data-testid="bulk-declared-PLA001"]')).toBe('km/gal (del archivo)');
+      expect(q('[data-testid="bulk-unit-PLA001"]')).toBeNull();
+      expect(q('[data-testid="bulk-unit-PLA002"]')).not.toBeNull();
+      expect(qa('[data-testid="bulk-panel"] select').every((select) => (select as HTMLSelectElement).options.length > 1)).toBeTrue();  // ningún select queda solo con «Elegir»
+      type('[data-testid="bulk-value-PLA001"]', '8');
+      click('[data-testid="bulk-review"]');
+
+      expect(http.expectOne(`${COMPLETIONS_URL}/preview`).request.body.items).toEqual([{ plate: 'PLA001', efficiency_value: '8' }]);
+      flush();
+    }));
+
+    it('la búsqueda por placa espera 300 ms, pide el prefijo y muestra su resultado; sin coincidencias lo dice', fakeAsync(() => {
+      init(rows(), ['ORG_ANALYST'], { view: 'pending' });
+      openBulk();
+      type('[data-testid="bulk-search"]', 'pla-00');
+      tick(299);
+      http.expectNone((r) => r.url === `${COMPLETIONS_URL}/plates`);
+      tick(1);
+      const search = platesRequest();
+
+      expect(search.request.params.get('q')).toBe('PLA00');
+      search.flush(completionPlatesBody([completionPlateDto(1)], { total_plates: { value: 1, capped: false } }));
+      fixture.detectChanges();
+      expect(qa('[data-testid="bulk-row"]').length).toBe(1);
+      type('[data-testid="bulk-search"]', 'ZZZ');
+      tick(300);
+      platesRequest().flush(completionPlatesBody([], { total_plates: { value: 0, capped: false } }));
+      fixture.detectChanges();
+
+      expect(text('[data-testid="bulk-empty"]')).toBe('Ninguna placa con viajes sin rendimiento empieza por «ZZZ».');
+      expect(q('[data-testid="bulk-add-input"]')).toBeNull();  // la búsqueda reemplaza el «Agregar otra placa» escrito a mano
       flush();
     }));
 
@@ -443,14 +498,21 @@ describe('Operaciones logísticas: completar datos', () => {
       openDetail();
       openForm();
       click('[data-testid="bulk-open"]');
-      http.expectOne(completionUrl('trip-1'));
+      platesRequest();
       const css = [componentCss('.cf {'), componentCss('.trigger { min-height: 34px'), componentCss('.guide {')].join('\n');
 
       expect(css).toContain('.cf');
       expect(css).toContain('.panel');
       expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}(?![0-9a-zA-Z-])/);
       expect(css).not.toMatch(/rgb\(/);
-      expect(css).not.toMatch(/overflow(-y)?:\s*(auto|scroll)/);
+      // Escritorio: ningún overflow auto/scroll. La excepción es el teléfono (< 720 px): el cuerpo se desplaza y el pie queda fijo, como en el diálogo de registro.
+      const at = css.indexOf('@media (max-width: 719px)');
+
+      expect(at).toBeGreaterThan(0);
+      expect(css.slice(0, at)).not.toMatch(/overflow(-y)?:\s*(auto|scroll)/);
+      expect(css.slice(at)).toMatch(/\.bd \{[^}]*overflow-y: auto/);
+      expect(css.slice(at)).toMatch(/\.head, \.ft \{ flex: none; \}/);
+      expect(css.slice(at)).toMatch(/max-height: 100dvh/);
 
       for (const m of css.matchAll(/color-mix\(in srgb, [^,]+ (\d+)%/g)) expect([14, 20, 40, 60, 80]).toContain(Number(m[1]));
     });
@@ -475,9 +537,7 @@ describe('Operaciones logísticas: completar datos', () => {
       expect(scrollable()).toEqual([]);
       click('[data-testid="completion-cancel"]');
       tick();
-      click('[data-testid="bulk-open"]');
-      http.expectOne(completionUrl('trip-1')).flush({ data: completionStateDto(), meta: {} });
-      fixture.detectChanges();
+      openBulk();
       expect(scrollable()).toEqual([]);
       el().remove();
       flush();

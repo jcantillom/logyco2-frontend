@@ -2,12 +2,12 @@ import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { buildUser, FAKE_TOKEN, ORG_ENVIA } from '../../../testing/builders';
+import { buildUser, ORG_ENVIA } from '../../../testing/builders';
 import { AppError } from '../errors/app-error';
 import { SessionStore } from '../auth/session.store';
 import { APP_CONFIG } from '../config/app-config';
 import { OrganizationContext } from '../org/organization-context';
-import { authInterceptor } from './auth.interceptor';
+import { CSRF_HEADER, CSRF_VALUE, authInterceptor } from './auth.interceptor';
 import { errorInterceptor } from './error.interceptor';
 
 const API = 'http://api.test/api/v1';
@@ -37,19 +37,32 @@ describe('interceptores HTTP', () => {
 
   afterEach(() => controller.verify());
 
-  it('adjunta el Bearer token a peticiones de la API', () => {
-    session.setToken(FAKE_TOKEN);
+  it('las peticiones de lectura a la API viajan con credenciales (cookie) y sin cabecera anti-CSRF', () => {
     http.get(`${API}/auth/me`).subscribe();
-    expect(controller.expectOne(`${API}/auth/me`).request.headers.get('Authorization')).toBe('Bearer token-de-prueba');
+    const request = controller.expectOne(`${API}/auth/me`).request;
+    expect(request.withCredentials).toBeTrue();
+    expect(request.headers.has(CSRF_HEADER)).toBeFalse();
   });
 
-  it('NO envía el token a otros orígenes', () => {
-    session.setToken(FAKE_TOKEN);
-    http.get('https://tercero.example.com/datos').subscribe();
-    expect(controller.expectOne('https://tercero.example.com/datos').request.headers.has('Authorization')).toBeFalse();
+  it('las peticiones que cambian estado añaden la cabecera anti-CSRF', () => {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      http.request(method, `${API}/organizations`).subscribe();
+      const request = controller.expectOne(`${API}/organizations`).request;
+      expect(request.headers.get(CSRF_HEADER)).withContext(method).toBe(CSRF_VALUE);
+      expect(request.withCredentials).withContext(method).toBeTrue();
+    }
   });
 
-  it('no agrega cabecera sin sesión', () => {
+  it('NO envía credenciales ni cabecera a otros orígenes', () => {
+    http.post('https://tercero.example.com/datos', {}).subscribe();
+    const request = controller.expectOne('https://tercero.example.com/datos').request;
+    expect(request.withCredentials).toBeFalse();
+    expect(request.headers.has(CSRF_HEADER)).toBeFalse();
+    expect(request.headers.has('Authorization')).toBeFalse();
+  });
+
+  it('nunca adjunta un token: la aplicación no lo conoce', () => {
+    session.markIdentity();
     http.get(`${API}/organizations`).subscribe();
     expect(controller.expectOne(`${API}/organizations`).request.headers.has('Authorization')).toBeFalse();
   });
@@ -64,12 +77,12 @@ describe('interceptores HTTP', () => {
   });
 
   it('401 con sesión activa: cierra la sesión local y redirige a /login (sesión caducada)', () => {
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(buildUser());
     http.get(`${API}/users`).subscribe({ error: () => undefined });
     controller.expectOne(`${API}/users`).flush({ error: { code: 'INVALID_TOKEN' } }, { status: 401, statusText: 'Unauthorized' });
 
-    expect(session.hasToken()).toBeFalse();
+    expect(session.hasIdentity()).toBeFalse();
     expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { reason: 'expired', returnUrl: '/usuarios' } });
   });
 
@@ -81,7 +94,7 @@ describe('interceptores HTTP', () => {
   });
 
   it('403 por empresa inactiva marca el acceso como perdido sin cerrar sesión', () => {
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(buildUser());
     const context = TestBed.inject(OrganizationContext);
     expect(context.activeAccessLost()).toBeFalse();
@@ -94,7 +107,7 @@ describe('interceptores HTTP', () => {
   });
 
   it('404 no se reinterpreta como pérdida de acceso (el backend oculta la existencia)', () => {
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(buildUser());
     const context = TestBed.inject(OrganizationContext);
 
@@ -102,5 +115,45 @@ describe('interceptores HTTP', () => {
     controller.expectOne(`${API}/organizations/${ORG_ENVIA.id}`).flush({ error: { code: 'RESOURCE_NOT_FOUND' } }, { status: 404, statusText: 'Not Found' });
 
     expect(context.activeAccessLost()).toBeFalse();
+  });
+});
+
+describe('authInterceptor con la API en el mismo origen (URL relativa, proxy de desarrollo)', () => {
+  let http: HttpClient;
+  let controller: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: '', apiPrefix: '/api/v1' } },
+      ],
+    });
+    http = TestBed.inject(HttpClient);
+    controller = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => controller.verify());
+
+  it('las URLs relativas de la API viajan con credenciales y cabecera anti-CSRF', () => {
+    http.post('/api/v1/auth/login', {}).subscribe();
+    const request = controller.expectOne('/api/v1/auth/login').request;
+    expect(request.withCredentials).toBeTrue();
+    expect(request.headers.get(CSRF_HEADER)).toBe(CSRF_VALUE);
+  });
+
+  it('con query string también cuenta como API', () => {
+    http.get('/api/v1?x=1').subscribe();
+    expect(controller.expectOne('/api/v1?x=1').request.withCredentials).toBeTrue();
+  });
+
+  it('rutas parecidas, terceros y URLs protocolo-relativas NO reciben credenciales', () => {
+    for (const url of ['/api/v1evil/x', '/api/v2/x', '//evil.example/api/v1/x', 'https://tile.openstreetmap.org/1/1/1.png', '/assets/logo.svg']) {
+      http.post(url, {}).subscribe();
+      const request = controller.expectOne(url).request;
+      expect(request.withCredentials).withContext(url).toBeFalse();
+      expect(request.headers.has(CSRF_HEADER)).withContext(url).toBeFalse();
+    }
   });
 });

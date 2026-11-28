@@ -1,9 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 import { reloadOnContextChange } from '../../core/org/organization-context';
 import { PageHeroComponent } from '../../shared/ui/page-hero.component';
 import { OrgRequiredComponent } from '../../shared/ui/org-required.component';
-import { monthSlots, periodRangeLabel } from '../../domain/models/period';
+import { DEFAULT_GRANULARITY, Granularity, parseGranularity } from '../../domain/models/granularity';
+import { periodRangeLabel } from '../../domain/models/period';
 import { AccessPolicy } from '../../core/auth/access-policy';
 import { SessionStore } from '../../core/auth/session.store';
 import { FuelPriceCardsComponent } from '../intelligence/fuel-price-cards.component';
@@ -21,10 +24,15 @@ import { PeriodSelectorComponent } from './period-selector.component';
 import { FuelShareCardComponent } from './fuel-share-card.component';
 import { MonthlyEmissionsCardComponent } from './monthly-emissions-card.component';
 import { ResultCardComponent } from './result-card.component';
+import { MethodologyDialogComponent } from './methodology-dialog.component';
+import { MethodologyFacade } from './methodology.facade';
 import { ImportsOverviewFacade } from './imports-overview.facade';
 import { FootprintFacade } from './footprint.facade';
 import { coverageHint, tripsInScope, withPossibleDuplicates } from '../../shared/ui/footprint.format';
 import { hasEmissions, noEmissionsText } from './footprint.view';
+
+/** Parámetro de la URL con la granularidad de la serie («?gran=week»). */
+export const GRANULARITY_PARAM = 'gran';
 
 /** Cada cuánto se renueva el Resumen mientras haya cargas en proceso (para ver la huella apenas termina el cálculo). */
 const REFRESH_MS = 5000;
@@ -32,7 +40,7 @@ const REFRESH_MS = 5000;
 /** Resumen de la empresa: solo datos reales; lo que aún no tiene backend se anuncia como «Próximamente», nunca con ejemplos. */
 @Component({
   selector: 'app-dashboard',
-  imports: [PageHeroComponent, FuelPriceCardsComponent, RouterLink, OrgRequiredComponent, KpiTileComponent, FactorRotatorCardComponent, FootprintCardComponent, PeriodSelectorComponent, ResultCardComponent, MonthlyEmissionsCardComponent, FuelShareCardComponent],
+  imports: [PageHeroComponent, FuelPriceCardsComponent, RouterLink, OrgRequiredComponent, KpiTileComponent, FactorRotatorCardComponent, FootprintCardComponent, PeriodSelectorComponent, ResultCardComponent, MethodologyDialogComponent, MonthlyEmissionsCardComponent, FuelShareCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     HEADER_CHIP_STYLES,
@@ -45,7 +53,7 @@ const REFRESH_MS = 5000;
       .row.b { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       .row.c { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); } .row.c.single { grid-template-columns: minmax(0, 1fr); }
       .team { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-      .team li { display: flex; align-items: center; gap: 12px; padding: 4px 4px; border-bottom: 1px solid var(--c-bd); } 
+      .team li { display: flex; align-items: center; gap: 12px; padding: 4px 4px; border-bottom: 1px solid var(--c-bd); }
       .team .av { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--c-ok-soft); color: var(--c-accent); font-weight: 700; font-size: 0.76rem; }
       .team .who { min-width: 0; flex: 1; } .team .who strong { display: block; color: var(--c-head); font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .team .who small { display: block; color: var(--c-mu); font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .team .rl { flex: none; font-size: 0.74rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--c-s3); color: var(--c-text2); }
@@ -82,7 +90,7 @@ const REFRESH_MS = 5000;
                 <app-footprint-card size="sm" data-testid="kpi-footprint" [footprint]="footprint()" [status]="footprintStatus()" (retry)="reloadFootprint()" [link]="canSeeImports() ? '/cargas' : null" />
                 @if (canSeeImports()) {
                   <app-kpi-tile size="sm" data-testid="kpi-trips" label="Viajes procesados" [caption]="tripsCaption()" [icon]="icons.pin" [iconSolid]="true" [value]="tripsValue()" [status]="imports.counts.status()" link="/cargas" (retry)="imports.reloadCounts()" />
-                  <app-kpi-tile size="sm" data-testid="kpi-missing" label="Datos por completar" [caption]="missingCaption()" [icon]="icons.alert" [value]="missingValue()" [tone]="missingTone()" [status]="imports.counts.status()" link="/cargas" (retry)="imports.reloadCounts()" />
+                  <app-kpi-tile size="sm" data-testid="kpi-missing" label="Datos por completar" [caption]="missingCaption()" [icon]="icons.alert" [value]="missingValue()" [tone]="missingTone()" [status]="missingStatus()" link="/cargas" (retry)="reloadFootprint()" />
                 }
                 @if (canSeeVehicles()) {
                   <app-kpi-tile size="sm" data-testid="kpi-registered" label="Vehículos registrados" [caption]="vehiclesCaption()" [icon]="icons.truck" [value]="summary()?.registered ?? 0" [status]="vehicles.summary.status()" link="/vehiculos" (retry)="vehicles.loadSummary()" />
@@ -94,12 +102,12 @@ const REFRESH_MS = 5000;
             </section>
           }
           <div class="row b">
-            <app-period-result-card data-testid="period-result-card" [footprint]="footprint()" [footprintStatus]="footprintStatus()" (retryFootprint)="reloadFootprint()" [counts]="canSeeImports() ? counts() ?? null : null" [periodLabel]="resultPeriodLabel()" [status]="canSeeImports() ? imports.counts.status() : 'ready'" (retry)="imports.reloadCounts()" />
+            <app-period-result-card data-testid="period-result-card" [footprint]="footprint()" [footprintStatus]="footprintStatus()" (retryFootprint)="reloadFootprint()" (methodology)="methodology.show()" [counts]="canSeeImports() ? counts() ?? null : null" [periodLabel]="resultPeriodLabel()" [status]="canSeeImports() ? imports.counts.status() : 'ready'" (retry)="imports.reloadCounts()" />
             <app-factor-rotator-card appearance="tile" data-testid="emission-factor" />
           </div>
 
           <div class="row b" data-testid="charts-row">
-            <app-monthly-emissions-card data-testid="monthly-chart" [monthly]="footprint()?.byMonth ?? null" [slots]="chartSlots()" [periodLabel]="resultPeriodLabel()" [partial]="partial()" [partialHint]="partialHint()" [emptyText]="chartEmptyText()" [status]="footprintStatus()" (retry)="reloadFootprint()" />
+            <app-monthly-emissions-card data-testid="monthly-chart" [series]="footprint()?.series ?? null" [seriesTotalKg]="footprint()?.seriesTotalKg ?? null" [granularity]="granularity()" [disabled]="disabledGranularities()" [notice]="granularityNotice()" (granularityChange)="chooseGranularity($event)" [periodLabel]="resultPeriodLabel()" [partial]="partial()" [partialHint]="partialHint()" [emptyText]="chartEmptyText()" [status]="footprintStatus()" (retry)="reloadFootprint()" />
             <app-fuel-share-card data-testid="fuel-chart" [byFuel]="footprint()?.byFuel ?? null" [periodLabel]="resultPeriodLabel()" [partial]="partial()" [partialHint]="partialHint()" [emptyText]="chartEmptyText()" [status]="footprintStatus()" (retry)="reloadFootprint()" />
           </div>
 
@@ -134,6 +142,9 @@ const REFRESH_MS = 5000;
           </div>
       </app-org-required>
     </div>
+    @if (methodology.open()) {
+      <app-methodology-dialog [footprint]="footprint()" (closed)="methodology.hide()" />
+    }
   `,
 })
 export class DashboardComponent {
@@ -144,7 +155,15 @@ export class DashboardComponent {
   protected readonly vehicles = inject(VehiclesFacade);
   private readonly access = inject(AccessPolicy);
   protected readonly imports = inject(ImportsOverviewFacade);
+  protected readonly methodology = inject(MethodologyFacade);
   private readonly footprints = inject(FootprintFacade);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  protected readonly granularity = this.footprints.granularity;
+  protected readonly granularityNotice = this.footprints.notice;
+  protected readonly disabledGranularities = this.footprints.disabledGranularities;
+  /** `?gran=` de la URL: reabrir o recargar conserva la granularidad. */
+  private readonly granularityParam = toSignal(this.route.queryParamMap.pipe(map((params) => params.get(GRANULARITY_PARAM))), { initialValue: null });
   /** La huella exige `indicators:read` (los tres roles de empresa la tienen). */
   private readonly canSeeFootprint = computed(() => this.access.can('indicators:read'));
   /** Huella real del periodo elegido (`null` mientras no llegue o sin permiso): alimenta la tarjeta de huella, el resultado por combustible y las dos gráficas. */
@@ -168,21 +187,6 @@ export class DashboardComponent {
 
     return f && !hasEmissions(f) ? noEmissionsText(f) : null;
   });
-  /** Meses del periodo elegido para el eje X de las barras: del `from` al `to` (con «todos», del mínimo al máximo de la lista), los 24 más recientes. */
-  protected readonly chartSlots = computed(() => {
-    const selection = this.imports.selection();
-    const list = this.imports.periods.data() ?? [];
-
-    if (selection !== 'ALL') return monthSlots(selection.from, selection.to);
-
-    // Con «todos» el total suma TODAS las cargas calculadas, también las que abarcan más de un mes y no figuran como periodo en la lista: el eje cubre ambos.
-    const starts = [...list.map((p) => p.from), ...(this.footprint()?.byMonth ?? []).map((m) => `${m.month}-01`)];
-    const ends = [...list.map((p) => p.to), ...(this.footprint()?.byMonth ?? []).map((m) => `${m.month}-01`)];
-
-    if (starts.length === 0) return [];
-
-    return monthSlots(starts.reduce((min, d) => (d < min ? d : min)), ends.reduce((max, d) => (d > max ? d : max)));
-  });
   /** El periodo elegido en el selector, para el chip de «Resultado del periodo» («Todos los periodos» si no hay filtro). */
   protected readonly resultPeriodLabel = computed(() => {
     const selection = this.imports.selection();
@@ -205,14 +209,28 @@ export class DashboardComponent {
 
     return this.imports.selection() === 'ALL' ? 'viajes revisados en total' : 'viajes revisados en el periodo';
   });
-  protected readonly missingValue = computed(() => (this.hasRows() ? formatCount(this.counts()?.rowsPending ?? 0) : '—'));
-  protected readonly missingTone = computed(() => ((this.counts()?.rowsPending ?? 0) > 0 ? 'warn' : ''));
+  /**
+   * «Datos por completar» = viajes SIN CÁLCULO, en vivo: pendientes + bloqueados del inventario del periodo elegido (los mismos totales de la tarjeta de huella:
+   * sin duplicados, retenidos ni anulados). No es la calidad del archivo al subirlo (esa foto vive en las cargas) y baja al calcular o completar viajes.
+   */
+  private readonly missingTrips = computed(() => {
+    const t = this.footprint()?.totals;
+
+    return t ? { pending: t.tripsPending + t.tripsBlocked, scope: tripsInScope(t) } : null;
+  });
+  protected readonly missingValue = computed(() => {
+    const m = this.missingTrips();
+
+    return m && m.scope > 0 ? formatCount(m.pending) : '—';
+  });
+  protected readonly missingTone = computed(() => ((this.missingTrips()?.pending ?? 0) > 0 ? 'warn' : ''));
+  protected readonly missingStatus = computed(() => this.footprintStatus());
   protected readonly missingCaption = computed(() => {
-    const c = this.counts();
+    const m = this.missingTrips();
 
-    if (!this.hasRows() || !c) return 'Aparecerá cuando subas un archivo';
+    if (!m || m.scope === 0) return 'Aparecerá cuando subas un archivo';
 
-    return c.rowsPending > 0 ? `${share(c.rowsPending, c.rowsRead)} % de los viajes procesados` : 'Todo lo procesado se puede calcular';
+    return m.pending > 0 ? `${share(m.pending, m.scope)} % de los viajes sin calcular` : 'Todos los viajes están calculados';
   });
   protected readonly vehiclesCaption = computed(() => {
     const pending = this.canSeeImports() ? (this.counts()?.vehiclesPending ?? 0) : 0;
@@ -236,12 +254,32 @@ export class DashboardComponent {
   /** Hubo cargas en proceso en la última lectura: al llegar a 0 se vuelve a pedir la huella (una carga terminó). */
   private hadRunning = false;
 
+  /** El control de la tarjeta cambió la granularidad: la facade vuelve a pedir la serie y la URL se actualiza. */
+  protected chooseGranularity(granularity: Granularity): void {
+    this.footprints.setGranularity(granularity);
+  }
+
   /** Vuelve a pedir la huella del periodo elegido (reintento). */
   protected reloadFootprint(): void {
     this.footprints.reload();
   }
 
   constructor() {
+    // La URL manda al abrir y al cambiar (atrás, enlace): un valor ausente conserva el actual y uno inválido (hostil) vuelve a la mensual.
+    effect(() => {
+      const param = this.granularityParam();
+
+      if (param !== null) untracked(() => this.footprints.setGranularity(parseGranularity(param)));
+    });
+    // La granularidad vigente (también tras volver a una anterior por un rechazo del servidor) queda en la URL; la mensual, que es la de por defecto, la quita.
+    effect(() => {
+      const granularity = this.footprints.granularity();
+      const current = untracked(() => this.granularityParam());
+
+      if (current === (granularity === DEFAULT_GRANULARITY ? null : granularity)) return;
+
+      void this.router.navigate([], { relativeTo: this.route, queryParams: { [GRANULARITY_PARAM]: granularity === DEFAULT_GRANULARITY ? null : granularity }, queryParamsHandling: 'merge', replaceUrl: true });
+    });
     // La huella espera a que el periodo esté resuelto (lista de periodos lista o fallida) para no pedir «todos» y luego el periodo elegido.
     effect(() => {
       const selection = this.imports.selection();

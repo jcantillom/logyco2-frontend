@@ -1,4 +1,4 @@
-import { countText, dayText, distanceText, fuelText, kgText, momentText, quantityText, routeText, sharedTone, statusTone, tonsText } from './operations.view';
+import { countText, dayText, distanceText, efficiencyDisplay, fuelText, kgText, momentText, quantityText, routeText, sharedTone, statusTone, tonsText } from './operations.view';
 
 describe('operations.view', () => {
   it('los conteos acotados llevan «+» y los vacíos no dicen nada', () => {
@@ -39,5 +39,45 @@ describe('operations.view', () => {
     expect(sharedTone('CONFIRMED_MATCH')).toBe('success');
     expect(sharedTone('CONFLICTING_DATA')).toBe('danger');
     expect(sharedTone('POSSIBLE_MATCH')).toBe('warning');
+  });
+
+  describe('efficiencyDisplay: de dónde salió el rendimiento del viaje', () => {
+    const base = { efficiency: { quantity: 8, unit: 'km/gal' }, efficiencyLabel: null, vehicleEfficiency: null, methodLabel: 'Estimado' };
+    const record = { value: 6.9, unit: 'km/gal', origin: 'DECLARED' as const, basis: 'THEORETICAL' as const, note: 'Ficha del fabricante', measuredOn: null, declaredByName: 'Ana Prueba', declaredAt: '2026-11-20T15:00:00Z', isCurrent: true };
+
+    it('sin etiqueta del servidor conserva lo de siempre: el rendimiento de la fila y el método de cálculo', () => {
+      expect(efficiencyDisplay(base)).toEqual({ value: '8 km/gal', hint: 'Estimado', tip: null });
+    });
+
+    it('lo que la fila declaró se dice con la etiqueta del servidor («Declarado en la fila»)', () => {
+      expect(efficiencyDisplay({ ...base, efficiencyLabel: 'Declarado en la fila' })).toEqual({ value: '8 km/gal', hint: 'Declarado en la fila', tip: null });
+    });
+
+    it('con el del vehículo muestra el valor del registro (la fila no trae rendimiento), su origen y base, la fecha y, como ayuda, la nota y quién lo declaró', () => {
+      const display = efficiencyDisplay({ ...base, efficiency: { quantity: null, unit: null }, efficiencyLabel: 'Declarado para el vehículo', vehicleEfficiency: record });
+
+      expect(display.value).toBe('6,9 km/gal');
+      expect(display.hint).toBe('Declarado para el vehículo (Teórico) · 20/11/2026');
+      expect(display.tip).toBe('Ficha del fabricante · Declarado el 20/11/2026 · por Ana Prueba');
+    });
+
+    it('sin etiqueta del servidor no inventa «Declarado para el vehículo»: usa el origen del registro', () => {
+      expect(efficiencyDisplay({ ...base, vehicleEfficiency: record }).hint).toBe('Declarado (Teórico) · 20/11/2026');
+      expect(efficiencyDisplay({ ...base, vehicleEfficiency: { ...record, origin: 'MEASURED', basis: null } }).hint).toBe('Medido · 20/11/2026');
+    });
+
+    it('un estimado por referencia dice la etiqueta del servidor «Estimado (referencia UPME)» y la base teórica, sin que la pantalla la infiera', () => {
+      const estimated = { ...record, origin: 'ESTIMATED' as const, note: 'Tabla 2.8, PDF p. 32', declaredByName: null };
+
+      expect(efficiencyDisplay({ ...base, efficiencyLabel: 'Estimado (referencia UPME)', vehicleEfficiency: estimated }).hint).toBe('Estimado (referencia UPME) (Teórico) · 20/11/2026');
+      expect(efficiencyDisplay({ ...base, vehicleEfficiency: estimated }).hint).toBe('Estimado (Teórico) · 20/11/2026');
+    });
+
+    it('un registro medido usa la fecha de la medición, y uno reemplazado avisa que el viaje usó un valor anterior', () => {
+      const display = efficiencyDisplay({ ...base, efficiencyLabel: 'Medido', vehicleEfficiency: { ...record, origin: 'MEASURED', basis: 'REAL', measuredOn: '2026-11-01', note: null, declaredByName: null, isCurrent: false } });
+
+      expect(display.hint).toBe('Medido (Real) · valor anterior · 01/11/2026');
+      expect(display.tip).toBe('Medido el 01/11/2026 · El vehículo tiene ahora otro rendimiento; este viaje no se recalcula solo');
+    });
   });
 });

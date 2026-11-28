@@ -50,6 +50,7 @@ export function toEmissionFactor(dto: EmissionFactorDto): EmissionFactor {
     name: dto.name,
     value: dto.value,
     unit: dto.unit,
+    unitLabel: dto.unit_label ?? null,
     volumeUnit: dto.volume_unit,
     efficiencyUnit: dto.efficiency_unit,
     gas: dto.gas,

@@ -1,5 +1,8 @@
-import { BulkApplyResult, BulkPreview, BulkScope, CappedCount, CompletionField, CompletionInput, CompletionOutcome, CompletionState, ExportJob, OperationTrip, OperationsPage, SharedState, SharedStateCode, TabCounts, TripDetail, TripPlace, TripQuantity, TripStatus } from '../../domain/models/operations';
-import { BulkApplyDto, BulkPreviewDto, BulkScopeDto, CappedCountDto, CompletionFieldDto, CompletionBodyDto, CompletionOutDto, CompletionStateDto, ExportJobDto, OperationPlaceDto, OperationQuantityDto, OperationSharedDto, OperationTripDto, OperationsPageDto, TabCountsDto, TripDetailDto } from '../dto/operations.dto';
+import { BulkApplyResult, BulkPreview, BulkScope, CappedCount, CompletionPlatesPage, CompletionField, CompletionInput, CompletionOutcome, CompletionState, ExportJob, OperationTrip, OperationsPage, SharedState, SharedStateCode, TabCounts, TripDetail, TripPlace, TripQuantity, TripStatus } from '../../domain/models/operations';
+import { toEvidence } from './duplicates.mappers';
+import { parseGranularity } from '../../domain/models/granularity';
+import { efficiencyBasis, efficiencyOrigin } from './vehicle-efficiency.mappers';
+import { BulkApplyDto, BulkPreviewDto, BulkScopeDto, CappedCountDto, CompletionPlatesPageDto, CompletionFieldDto, CompletionBodyDto, CompletionOutDto, CompletionStateDto, ExportJobDto, OperationPlaceDto, OperationQuantityDto, OperationSharedDto, OperationTripDto, OperationsPageDto, TabCountsDto, TripDetailDto } from '../dto/operations.dto';
 
 /** Un decimal que llega como texto («300.0000»); vacío o no numérico es «sin dato», nunca 0. */
 const decimal = (value: string | number | null | undefined): number | null => {
@@ -24,6 +27,7 @@ export const toOperationTrip = (dto: OperationTripDto): OperationTrip => ({
   destination: place(dto.destination),
   distanceKm: decimal(dto.distance_km),
   cargoTon: decimal(dto.cargo_ton),
+  cargoConvertedFromKg: dto.cargo_converted_from_kg === true,
   fuelType: dto.fuel_type ?? null,
   kgCo2: decimal(dto.kg_co2),
   status: dto.status as TripStatus,
@@ -37,6 +41,7 @@ export const toOperationTrip = (dto: OperationTripDto): OperationTrip => ({
   configurationCode: dto.vehicle?.configuration_code ?? null,
   shared: shared(dto.shared),
   corrected: dto.corrected === true,
+  source: dto.source === 'MANUAL' ? 'MANUAL' : 'FILE',
 });
 
 export const toOperationsPage = (dto: OperationsPageDto): OperationsPage => ({
@@ -65,6 +70,7 @@ export const toTripDetail = (dto: TripDetailDto): TripDetail => ({
   calculatedAt: dto.identity.calculated_at ?? null,
   tripDate: dto.trip_date ?? null,
   cargoTon: decimal(dto.cargo_ton),
+  cargoConvertedFromKg: dto.cargo_converted_from_kg === true,
   fuelType: dto.fuel_type ?? null,
   status: dto.status as TripStatus,
   stateLabel: dto.state_label,
@@ -89,6 +95,20 @@ export const toTripDetail = (dto: TripDetailDto): TripDetail => ({
   consumption: quantity(dto.energy.consumption),
   volumeNormalized: quantity(dto.energy.volume_normalized),
   efficiency: quantity(dto.energy.efficiency),
+  efficiencyLabel: dto.energy.efficiency_label ?? null,
+  vehicleEfficiency: dto.energy.vehicle_efficiency
+    ? {
+        value: Number(dto.energy.vehicle_efficiency.value),
+        unit: dto.energy.vehicle_efficiency.unit,
+        origin: efficiencyOrigin(dto.energy.vehicle_efficiency.origin),
+        basis: efficiencyBasis(dto.energy.vehicle_efficiency.basis),
+        note: dto.energy.vehicle_efficiency.note ?? null,
+        measuredOn: dto.energy.vehicle_efficiency.measured_on ?? null,
+        declaredByName: dto.energy.vehicle_efficiency.declared_by_name ?? null,
+        declaredAt: dto.energy.vehicle_efficiency.declared_at,
+        isCurrent: dto.energy.vehicle_efficiency.is_current,
+      }
+    : null,
   emissions: dto.emissions
     ? {
         kgCo2: Number(dto.emissions.kg_co2),
@@ -107,6 +127,7 @@ export const toTripDetail = (dto: TripDetailDto): TripDetail => ({
     status: dto.dedup.status,
     statusLabel: dto.dedup.status_label,
     ruleLabel: dto.dedup.rule_label ?? null,
+    evidence: dto.dedup.evidence ? toEvidence(dto.dedup.evidence) : null,
     resolvedByName: dto.dedup.resolved_by_name ?? null,
     resolvedAt: dto.dedup.resolved_at ?? null,
     duplicateOf: dto.dedup.duplicate_of
@@ -119,6 +140,10 @@ export const toTripDetail = (dto: TripDetailDto): TripDetail => ({
   missingFields: dto.missing_fields ?? [],
   correctionVersion: dto.correction_version ?? 0,
   corrected: dto.corrected ? { at: dto.corrected.at, byName: dto.corrected.by_name ?? null } : null,
+  source: dto.identity.source === 'MANUAL' ? 'MANUAL' : 'FILE',
+  registeredByName: dto.identity.registered_by_name ?? null,
+  voidable: dto.voidable === true,
+  voidBlockedReason: dto.void_blocked_reason ?? null,
   declared: dto.declared
     ? { fields: dto.declared.fields, fuelType: dto.declared.fuel_type ?? null, consumption: quantity(dto.declared.consumption), efficiency: quantity(dto.declared.efficiency), distanceKm: decimal(dto.declared.distance_km) }
     : null,
@@ -137,6 +162,7 @@ export const toExportJob = (dto: ExportJobDto): ExportJob => ({
   expiresAt: dto.expires_at ?? null,
   errorCode: dto.error_code ?? null,
   downloadable: dto.downloadable,
+  granularity: parseGranularity(dto.filters?.['granularity']),
 });
 
 const toCompletionField = (dto: CompletionFieldDto): CompletionField => ({
@@ -198,7 +224,20 @@ export const toCompletionOutcome = (dto: CompletionOutDto): CompletionOutcome =>
 export const toBulkScopeBody = (scope: BulkScope): BulkScopeDto => ({
   reason: 'DISTANCE_WITHOUT_EFFICIENCY',
   ...(scope.importFileId ? { import_file_id: scope.importFileId } : {}),
-  items: scope.items.map((item) => ({ plate: item.plate, efficiency_value: item.value.trim(), efficiency_unit: item.unit })),
+  items: scope.items.map((item) => ({ plate: item.plate, efficiency_value: item.value.trim(), ...(item.unit ? { efficiency_unit: item.unit } : {}) })),
+});
+
+export const toCompletionPlatesPage = (dto: CompletionPlatesPageDto): CompletionPlatesPage => ({
+  items: dto.data.map((plate) => ({
+    plate: plate.plate,
+    trips: plate.trips,
+    fuelType: plate.fuel_type ?? null,
+    fuelLabel: plate.fuel_label,
+    efficiencyUnit: plate.efficiency_unit ?? null,
+    unitOptions: (plate.unit_options ?? []).map((option) => ({ value: option.value, label: option.label })),
+  })),
+  nextCursor: dto.meta.next_cursor ?? null,
+  total: dto.meta.total_plates ? capped(dto.meta.total_plates) : null,
 });
 
 export const toBulkPreview = (dto: BulkPreviewDto): BulkPreview => ({

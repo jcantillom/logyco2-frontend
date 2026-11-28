@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { buildSuperAdmin, buildUser, FAKE_TOKEN, membership, ORG_ENVIA } from '../../../testing/builders';
+import { buildSuperAdmin, buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { CurrentUser } from '../../domain/models/identity';
 import { LandingPolicy, PENDING_ACCESS, PLATFORM_HOME, WORKSPACE_HOME } from './landing-policy';
 import { SessionStore } from './session.store';
@@ -8,7 +8,7 @@ describe('LandingPolicy', () => {
   let policy: LandingPolicy;
   const as = (user: CurrentUser): void => {
     const session = TestBed.inject(SessionStore);
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(user);
   };
 
@@ -69,6 +69,9 @@ describe('LandingPolicy', () => {
       as(buildUser());
       expect(policy.resolve('https://evil.example')).toBe(WORKSPACE_HOME);
       expect(policy.resolve('//evil.example')).toBe(WORKSPACE_HOME);
+      for (const hostile of ['/\\evil.example', '/\\/evil.example', '/%5Cevil.example', '/%5cevil.example', '/%2F/evil.example', '/%2f%2fevil.example', '/a\\b', '/ok%0d%0aSet-Cookie', '/%E0%A4%A', '\\evil.example', '/\tevil']) {
+        expect(policy.resolve(hostile)).withContext(hostile).toBe(WORKSPACE_HOME);
+      }
       expect(policy.resolve('/login')).toBe(WORKSPACE_HOME);
     });
   });

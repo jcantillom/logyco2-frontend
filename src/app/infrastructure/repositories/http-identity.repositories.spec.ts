@@ -29,16 +29,28 @@ describe('repositorios HTTP de identidad', () => {
 
   afterEach(() => http.verify());
 
-  it('login: POST /auth/login con email y password y desenvuelve {data}', () => {
-    let result: unknown;
+  it('login: POST /auth/login con email y password; el cuerpo no trae token y se descarta', () => {
+    let result: unknown = 'pendiente';
     TestBed.inject(HttpAuthRepository).login({ email: 'a@b.co', password: 's3cret' }).subscribe((r) => (result = r));
 
     const req = http.expectOne(`${API}/auth/login`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ email: 'a@b.co', password: 's3cret' });
-    req.flush({ data: { access_token: 'tok', token_type: 'Bearer', expiration_time_utc_bogota: null }, meta: { request_id: 'r' } });
+    req.flush({ data: { access_token: null, token_type: 'Bearer', expiration_time_utc_bogota: null }, meta: { request_id: 'r' } });
 
-    expect(result).toEqual({ accessToken: 'tok', tokenType: 'Bearer', expirationLabel: null });
+    expect(result).toBeUndefined();
+  });
+
+  it('logout: POST /auth/logout sin cuerpo (204)', () => {
+    let done = false;
+    TestBed.inject(HttpAuthRepository).logout().subscribe({ complete: () => (done = true) });
+
+    const req = http.expectOne(`${API}/auth/logout`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toBeNull();
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(done).toBeTrue();
   });
 
   it('getCurrentUser: GET /auth/me', () => {

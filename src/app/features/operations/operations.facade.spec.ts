@@ -426,6 +426,7 @@ describe('OperationsFacade', () => {
       expect(request.request.params.get('fuel')).toBe('GASOLINE');
       expect(request.request.params.get('from')).toBe('2026-01-01');
       expect(request.request.params.get('dedup')).toBe('held');
+      expect(request.request.params.get('granularity')).toBe('month');
       expect(request.request.params.has('cursor') || request.request.params.has('limit')).toBeFalse();
       request.flush(new Blob(['x']));
 
@@ -492,7 +493,7 @@ describe('OperationsFacade', () => {
       facade.generateReport();
       const create = http.expectOne((r) => r.url === EXPORTS_URL && r.method === 'POST');
 
-      expect(create.request.body).toEqual({ view: 'pending', fuel: 'GASOLINE', dedup: 'held' });
+      expect(create.request.body).toEqual({ view: 'pending', fuel: 'GASOLINE', dedup: 'held', granularity: 'month' });
       create.flush({ data: exportJobDto({ status: 'QUEUED', progress: 0, downloadable: false, size_bytes: null }), meta: {} }, { status: 202, statusText: 'Accepted' });
       expect(facade.exportOffer()).toBeNull();
       expect(facade.exportError()).toBeNull();
@@ -504,6 +505,84 @@ describe('OperationsFacade', () => {
 
       expect(facade.exportOffer()).toBeNull();
       expect(facade.exportError()?.code).toBe('EXPORT_IN_PROGRESS');
+    });
+
+    it('la granularidad elegida va al Excel directo, y al ofrecer el segundo plano (EXPORT_TOO_LARGE) el trabajo se pide con la misma', async () => {
+      loaded();
+      facade.exportPanelOpen.set(true);
+      facade.setEvolutionGranularity('week');
+      facade.exportReport();
+      const request = exportRequest();
+
+      expect(request.request.params.get('granularity')).toBe('week');
+      request.flush(new Blob([JSON.stringify({ error: { code: 'EXPORT_TOO_LARGE', message: 'x' } })], { type: 'application/json' }), { status: 422, statusText: 'Unprocessable Entity' });
+
+      for (let attempt = 0; attempt < 100 && facade.exporting(); attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(facade.exportOffer()).toEqual({ maxRows: null });
+      expect(facade.exportPanelOpen()).toBeFalse();
+      expect(facade.evolutionGranularity()).toBe('week');
+      facade.generateReport();
+
+      expect(http.expectOne((r) => r.url === EXPORTS_URL && r.method === 'POST').request.body).toEqual({ granularity: 'week', view: 'all' });
+      TestBed.inject(OperationExportsFacade).stop();
+    });
+
+    it('una descarga correcta cierra el popover; un error de granularidad o periodo lo deja abierto con la selección y GRANULARITY_TOO_FINE bloquea esa y las más finas hasta que cambie un filtro', async () => {
+      loaded();
+      spyOn(URL, 'createObjectURL').and.returnValue('blob:x');
+      spyOn(URL, 'revokeObjectURL');
+      spyOn(HTMLAnchorElement.prototype, 'click').and.stub();
+      facade.exportPanelOpen.set(true);
+      facade.setEvolutionGranularity('day');
+      facade.exportReport();
+      exportRequest().flush(new Blob([JSON.stringify({ error: { code: 'GRANULARITY_TOO_FINE', message: 'x' } })], { type: 'application/json' }), { status: 422, statusText: 'Unprocessable Entity' });
+
+      for (let attempt = 0; attempt < 100 && facade.exporting(); attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(facade.exportError()?.code).toBe('GRANULARITY_TOO_FINE');
+      expect(facade.exportError()?.message).toContain('Elige granularidad semanal o mensual');
+      expect(facade.exportPanelOpen()).toBeTrue();
+      expect(facade.evolutionGranularity()).toBe('day');
+      expect(facade.granularityRefused()).toBeTrue();
+      expect(facade.isGranularityRefused('day')).toBeTrue();
+      expect(facade.isGranularityRefused('week')).toBeFalse();
+      facade.exportReport();  // no vuelve a pedir lo ya rechazado
+      facade.setEvolutionGranularity('week');
+
+      expect(facade.exportError()).toBeNull();
+      expect(facade.granularityRefused()).toBeFalse();
+      facade.exportReport();
+      exportRequest().flush(new Blob(['x']));
+
+      expect(facade.exportPanelOpen()).toBeFalse();
+
+      facade.exportPanelOpen.set(true);
+      facade.exportReport();
+      exportRequest().flush(new Blob([JSON.stringify({ error: { code: 'INVALID_PERIOD', message: 'x' } })], { type: 'application/json' }), { status: 422, statusText: 'Unprocessable Entity' });
+
+      for (let attempt = 0; attempt < 100 && facade.exporting(); attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(facade.exportError()?.code).toBe('INVALID_PERIOD');
+      expect(facade.exportPanelOpen()).toBeTrue();
+      expect(facade.evolutionGranularity()).toBe('week');
+
+      facade.setEvolutionGranularity('day');
+      facade.setFuel('DIESEL');
+      list();
+      summary();
+
+      expect(facade.isGranularityRefused('day')).toBeFalse();
+    });
+
+    it('un 409 EXPORT_IN_PROGRESS al pedir el trabajo con otra granularidad queda en la alerta con el motivo del catálogo', () => {
+      loaded();
+      facade.setEvolutionGranularity('year');
+      facade.generateReport();
+      http.expectOne((r) => r.url === EXPORTS_URL && r.method === 'POST').flush({ error: { code: 'EXPORT_IN_PROGRESS', message: 'x' } }, { status: 409, statusText: 'Conflict' });
+
+      expect(facade.exportError()?.code).toBe('EXPORT_IN_PROGRESS');
+      expect(facade.exportError()?.message).not.toBe('x');
     });
 
     it('cancelExport (al salir de la pantalla) cancela la descarga directa en vuelo y no deja el botón en «Preparando…»', () => {

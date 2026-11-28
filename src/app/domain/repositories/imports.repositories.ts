@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportNotCalculable, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../models/imports';
+import { CargoUnit, CargoUnitResult, EfficiencyConsentResult, ImportCounts, ImportPeriod, ImportCreated, ImportDetail, ImportFilter, ImportNotCalculable, ImportSummary, TemplateFile, VehicleCandidate, VehicleCandidateKind, VehicleDecisionRequest, VehicleDecisionResult } from '../models/imports';
 import { Page, PageRequest } from '../models/pagination';
 import { PeriodRange } from '../models/period';
 
@@ -24,4 +24,8 @@ export abstract class ImportsRepository {
   abstract vehicleCandidates(organizationId: string, importId: string, kind: VehicleCandidateKind, request: PageRequest): Observable<Page<VehicleCandidate>>;
   /** Registra, actualiza u omite candidatos (409 `IMPORT_NOT_REVIEWED` si la carga no terminó; máximo 500 por petición). */
   abstract decideVehicles(organizationId: string, importId: string, request: VehicleDecisionRequest): Observable<VehicleDecisionResult>;
+  /** Confirma la unidad de la carga (`KG` solo si el servidor la propuso: 409 `CARGO_UNIT_NOT_PROPOSED`); solo recalcula la carga derivada de los viajes y es idempotente. */
+  abstract confirmCargoUnit(organizationId: string, importId: string, unit: CargoUnit): Observable<CargoUnitResult>;
+  /** Registra el consentimiento de estimar el rendimiento de la carga (modo ASK; también un «no») y estima los vehículos registrados con un «sí». Idempotente. */
+  abstract consentEfficiencyEstimation(organizationId: string, importId: string, estimate: boolean): Observable<EfficiencyConsentResult>;
 }

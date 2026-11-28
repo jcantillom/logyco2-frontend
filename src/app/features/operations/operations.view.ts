@@ -1,7 +1,8 @@
 import { AppError } from '../../core/errors/app-error';
-import { CappedCount, OperationsView, TripPlace, TripQuantity, TripStatus } from '../../domain/models/operations';
+import { CappedCount, OperationsView, TripDetail, TripPlace, TripQuantity, TripStatus } from '../../domain/models/operations';
 import { unitLabel } from '../../shared/ui/footprint.format';
 import { placeText } from '../quality/duplicates.view';
+import { BASIS_LABELS, ORIGIN_LABELS } from '../vehicles/vehicle-efficiency.view';
 import { FUEL_LABELS } from '../vehicles/vehicles.labels';
 
 export const NONE = '—';
@@ -42,6 +43,9 @@ export type Tone = 'success' | 'warning' | 'danger' | 'info';
 /** Color del chip por estado; el texto del chip es siempre el del servidor, así que el color no es la única señal. */
 export const statusTone = (status: TripStatus): Tone => (status === 'CALCULATED' ? 'success' : status === 'PENDING' ? 'warning' : status === 'BLOCKED' ? 'danger' : 'info');
 
+/** Color del chip del viaje: un viaje anulado no es un error ni un éxito (neutro); el resto, por su estado. */
+export const tripTone = (status: TripStatus, dedupStatus: string): Tone => (dedupStatus === 'VOIDED' ? 'info' : statusTone(status));
+
 export const sharedTone = (state: string): Tone => (state === 'CONFIRMED_MATCH' ? 'success' : state === 'CONFLICTING_DATA' ? 'danger' : 'warning');
 
 /** «254» o «10.000+» cuando el conteo llegó acotado. */
@@ -65,6 +69,10 @@ export function momentText(iso: string | null): string {
 }
 
 export const distanceText = (km: number | null): string => (km === null ? NONE : DISTANCE.format(km));
+/** Marca de una carga que el servidor derivó de kilogramos (`cargo_converted_from_kg`). */
+export const CONVERTED_FROM_KG = 'Convertida de kg';
+export const CONVERTED_FROM_KG_HINT = 'El archivo conserva su valor original en kilogramos.';
+
 export const tonsText = (tons: number | null): string => (tons === null ? NONE : TONS.format(tons));
 export const kgText = (kg: number | null): string => (kg === null ? NONE : KG.format(kg));
 export const factorText = (value: number | null): string => (value === null ? NONE : FACTOR.format(value));
@@ -109,3 +117,21 @@ export const quantityText = (value: TripQuantity): string => {
 
   return value.unit ? `${amount} ${unitLabel(value.unit)}` : amount;
 };
+
+/**
+ * El rendimiento con el que se calculó el viaje y de dónde salió, tal como lo dice el servidor. Si se usó el del vehículo, el valor es el del registro
+ * (lo que declaró la fila no existe) y el detalle largo (nota, fecha y quién lo declaró) va aparte, como ayuda. Sin origen, lo de siempre: lo de la
+ * fila y el método de cálculo.
+ */
+export function efficiencyDisplay(d: Pick<TripDetail, 'efficiency' | 'efficiencyLabel' | 'vehicleEfficiency' | 'methodLabel'>): { readonly value: string; readonly hint: string | null; readonly tip: string | null } {
+  const record = d.vehicleEfficiency;
+
+  if (!record) return { value: quantityText(d.efficiency), hint: d.efficiencyLabel ?? d.methodLabel, tip: null };
+
+  const label = d.efficiencyLabel ?? ORIGIN_LABELS[record.origin].text;
+  const when = dayText(record.measuredOn ?? record.declaredAt);
+  const hint = [`${label}${record.basis ? ` (${BASIS_LABELS[record.basis]})` : ''}`, record.isCurrent ? null : 'valor anterior', when].filter(Boolean).join(' · ');
+  const tip = [record.note, record.measuredOn ? `Medido el ${when}` : `Declarado el ${when}`, record.declaredByName ? `por ${record.declaredByName}` : null, record.isCurrent ? null : 'El vehículo tiene ahora otro rendimiento; este viaje no se recalcula solo'].filter(Boolean).join(' · ');
+
+  return { value: quantityText({ quantity: record.value, unit: record.unit }), hint, tip };
+}

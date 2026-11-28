@@ -5,13 +5,16 @@ import { Routes, provideRouter } from '@angular/router';
 import { Observable, NEVER } from 'rxjs';
 import { APP_CONFIG } from '../app/core/config/app-config';
 import { SessionStore } from '../app/core/auth/session.store';
-import { AuthToken, CurrentUser } from '../app/domain/models/identity';
+import { CurrentUser } from '../app/domain/models/identity';
 import { AuthRepository } from '../app/domain/repositories/identity.repositories';
 import { provideRepositories } from '../app/infrastructure/providers';
-import { buildUser, FAKE_TOKEN } from './builders';
+import { buildUser } from './builders';
 
 export class StubAuthRepository extends AuthRepository {
-  login(): Observable<AuthToken> {
+  login(): Observable<void> {
+    return NEVER;
+  }
+  logout(): Observable<void> {
     return NEVER;
   }
   getCurrentUser(): Observable<CurrentUser> {
@@ -32,6 +35,6 @@ export function provideTestApp(options: { routes?: Routes } = {}): (Provider | E
 }
 
 export function signInAs(user: CurrentUser = buildUser(), session: SessionStore): void {
-  session.setToken(FAKE_TOKEN);
+  session.markIdentity();
   session.setUser(user);
 }

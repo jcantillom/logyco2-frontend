@@ -1,5 +1,17 @@
 import {
   CandidateDecision,
+  CalculableWithEstimation,
+  CargoUnit,
+  CargoUnitApplied,
+  CargoUnitBasis,
+  CargoUnitProposal,
+  CargoUnitResult,
+  CargoUnitSource,
+  CargoUnitStatus,
+  CoverageCount,
+  EfficiencyConsentResult,
+  EfficiencyCoverage,
+  EstimationMode,
   ColumnRequirement,
   ImportColumn,
   ImportCounts,
@@ -21,7 +33,16 @@ import {
   VehicleDecisionResult,
 } from '../../domain/models/imports';
 import { toImportFootprint } from './footprint.mappers';
+import { toPlaceResolution } from './places.mappers';
 import {
+  CalculableWithEstimationDto,
+  CargoUnitAppliedDto,
+  CargoUnitProposalDto,
+  CargoUnitResultDto,
+  CoverageCountDto,
+  EfficiencyConsentBodyDto,
+  EfficiencyConsentResultDto,
+  EfficiencyCoverageDto,
   ImportColumnDto,
   ImportCountsDto,
   ImportCreatedDto,
@@ -45,6 +66,12 @@ const SEVERITIES: readonly IssueSeverity[] = ['ERROR', 'WARNING', 'INFO'];
 
 const KINDS: readonly VehicleCandidateKind[] = ['NEW', 'CHANGED', 'UNCHANGED'];
 const DECISIONS: readonly CandidateDecision[] = ['PENDING', 'ACCEPTED', 'REJECTED'];
+
+const CARGO_STATUSES: readonly CargoUnitStatus[] = ['KG_LIKELY', 'AMBIGUOUS'];
+const CARGO_BASES: readonly CargoUnitBasis[] = ['CAPACITY', 'PLAUSIBLE_RANGE'];
+const CARGO_UNITS: readonly CargoUnit[] = ['KG', 'TON'];
+const CARGO_SOURCES: readonly CargoUnitSource[] = ['HEADER', 'COMPANY_SETTING', 'ADMIN'];
+const MODES: readonly EstimationMode[] = ['OFF', 'ASK', 'AUTO'];
 
 const known = <T extends string>(options: readonly T[], value: string, fallback: T): T => options.find((option) => option === value) ?? fallback;
 
@@ -129,6 +156,92 @@ const toRoutes = (dto: ImportRoutesDto): ImportRoutes => ({
   rowsByUniqueName: dto.rows_by_unique_name ?? 0,
 });
 
+/** Un estado desconocido se trata como ambiguo: solo informa y nunca ofrece convertir lo que no se entiende. */
+const toCargoProposal = (dto: CargoUnitProposalDto): CargoUnitProposal => ({
+  status: known(CARGO_STATUSES, dto.status, 'AMBIGUOUS'),
+  basis: known(CARGO_BASES, dto.basis, 'PLAUSIBLE_RANGE'),
+  message: dto.message,
+  evidence: {
+    rowsWithCargo: dto.evidence.rows_with_cargo,
+    rowsOverLimit: dto.evidence.rows_over_limit,
+    shareOverLimitPct: dto.evidence.share_over_limit_pct,
+    limitTon: dto.evidence.limit_ton,
+    medianValue: dto.evidence.median_value,
+    medianAsTonsIfKg: dto.evidence.median_as_tons_if_kg,
+    medianCapacityTon: dto.evidence.median_capacity_ton,
+    medianPctOfCapacity: dto.evidence.median_pct_of_capacity,
+    rowsWithCapacity: dto.evidence.rows_with_capacity,
+    rowsOverCapacityIfKg: dto.evidence.rows_over_capacity_if_kg,
+    medianExact: dto.evidence.median_exact,
+    rowsStillOutOfRangeIfKg: dto.evidence.rows_still_out_of_range_if_kg,
+    totalTonIfKg: dto.evidence.total_ton_if_kg,
+    rowsWithCargoIfKg: dto.evidence.rows_with_cargo_if_kg,
+  },
+});
+
+const toCargoApplied = (dto: CargoUnitAppliedDto): CargoUnitApplied => ({
+  unit: known(CARGO_UNITS, dto.unit, 'TON'),
+  // Sin una fuente reconocible se atribuye a una persona: no se inventa un automatismo.
+  source: known(CARGO_SOURCES, dto.source, 'ADMIN'),
+  confirmedAt: dto.confirmed_at,
+  header: dto.header ?? null,
+});
+
+const count = (dto: CoverageCountDto): CoverageCount => ({ vehicles: dto.vehicles, trips: dto.trips });
+
+/** Un modo desconocido se trata como apagado: no se ofrece estimar lo que no se entiende. */
+const toCoverage = (dto: EfficiencyCoverageDto): EfficiencyCoverage => ({
+  estimation: {
+    platformEnabled: dto.estimation.platform_enabled,
+    mode: known(MODES, dto.estimation.mode, 'OFF'),
+    requiresConsent: dto.estimation.requires_consent,
+    canEstimate: dto.estimation.can_estimate,
+    consent: dto.estimation.consent ? { estimate: dto.estimation.consent.estimate } : null,
+  },
+  vehiclesInFile: dto.vehicles_in_file,
+  withOwnEfficiency: count(dto.with_own_efficiency),
+  alreadyEstimated: count(dto.already_estimated),
+  without: {
+    ...count(dto.without_efficiency),
+    estimable: {
+      ...count(dto.without_efficiency.estimable),
+      unregisteredVehicles: dto.without_efficiency.estimable.unregistered_vehicles,
+      references: dto.without_efficiency.estimable.references.map((reference) => ({
+        source: reference.source,
+        valueKmPerGal: reference.value_km_per_gal,
+        unit: reference.unit,
+        uncertaintyLow: reference.uncertainty_low,
+        uncertaintyHigh: reference.uncertainty_high,
+        licenceStatus: reference.licence_status,
+        vehicles: reference.vehicles,
+        trips: reference.trips,
+        unregisteredVehicles: reference.unregistered_vehicles,
+      })),
+    },
+    blockedByLicence: { ...count(dto.without_efficiency.blocked_by_licence), unregisteredVehicles: dto.without_efficiency.blocked_by_licence.unregistered_vehicles, message: dto.without_efficiency.blocked_by_licence.message },
+    noReference: { ...count(dto.without_efficiency.no_reference), reasons: dto.without_efficiency.no_reference.reasons.map((reason) => ({ code: reason.code, label: reason.label, vehicles: reason.vehicles, trips: reason.trips })) },
+  },
+  tripsWithoutDistance: count(dto.trips_without_distance),
+});
+
+export const toCargoUnitResult = (dto: CargoUnitResultDto): CargoUnitResult => ({
+  unit: known(CARGO_UNITS, dto.unit, 'TON'),
+  confirmedAt: dto.confirmed_at,
+  rowsUpdated: dto.rows_updated,
+  rowsConverted: dto.rows_converted,
+  unchanged: dto.unchanged,
+});
+
+export const toConsentBody = (estimate: boolean): EfficiencyConsentBodyDto => ({ estimate_efficiency: estimate });
+
+export const toConsentResult = (dto: EfficiencyConsentResultDto): EfficiencyConsentResult => ({
+  mode: known(MODES, dto.mode, 'OFF'),
+  estimateEfficiency: dto.estimate_efficiency,
+  vehiclesEstimated: dto.vehicles_estimated,
+  tripsCalculated: dto.trips_calculated,
+  tripsStillPending: dto.trips_still_pending,
+});
+
 const toReview = (dto: ImportReviewDto): ImportReview => ({
   format: importFormat(dto.format),
   rowsRead: dto.rows_read,
@@ -141,9 +254,19 @@ const toReview = (dto: ImportReviewDto): ImportReview => ({
   period: dto.period?.from && dto.period.to ? { from: dto.period.from, to: dto.period.to } : null,
   routes: dto.routes ? toRoutes(dto.routes) : null,
   totals: { distanceFromRoutesKm: dto.totals?.distance_from_routes_km ?? 0 },
+  cargoUnitProposal: dto.cargo_unit_proposal ? toCargoProposal(dto.cargo_unit_proposal) : null,
+  cargoUnitApplied: dto.cargo_unit_applied ? toCargoApplied(dto.cargo_unit_applied) : null,
+  efficiencyCoverage: dto.efficiency_coverage ? toCoverage(dto.efficiency_coverage) : null,
+  placeResolution: dto.place_resolution ? toPlaceResolution(dto.place_resolution) : null,
 });
 
-export const toImportDetail = (dto: ImportDetailDto): ImportDetail => ({ ...toImportSummary(dto), review: dto.review ? toReview(dto.review) : null, footprint: dto.footprint ? toImportFootprint(dto.footprint) : null });
+/** Un modo que no es ASK ni AUTO (u OFF) no se ofrece como estimable: sin bloque. */
+const toCalculableWithEstimation = (dto: CalculableWithEstimationDto | null | undefined): CalculableWithEstimation | null =>
+  dto && (dto.mode === 'ASK' || dto.mode === 'AUTO')
+    ? { trips: dto.trips, vehicles: dto.vehicles, alreadyEstimatedTrips: dto.already_estimated_trips ?? 0, mode: dto.mode, requiresConsent: dto.requires_consent === true, pendingWithoutDistanceOrReference: dto.pending_without_distance_or_reference ?? 0 }
+    : null;
+
+export const toImportDetail = (dto: ImportDetailDto): ImportDetail => ({ ...toImportSummary(dto), calculableWithEstimation: toCalculableWithEstimation(dto.calculable_with_estimation), review: dto.review ? toReview(dto.review) : null, footprint: dto.footprint ? toImportFootprint(dto.footprint) : null });
 
 export const toImportPeriod = (dto: ImportPeriodDto): ImportPeriod => ({ from: dto.period_from, to: dto.period_to, imports: dto.imports ?? 0, rowsRead: dto.rows_read ?? 0 });
 
@@ -187,6 +310,8 @@ export const toVehicleCandidate = (dto: VehicleCandidateDto): VehicleCandidate =
     modelYear: dto.proposed.model_year,
     fuelType: dto.proposed.fuel_type,
     vehicleType: dto.proposed.vehicle_type,
+    technology: dto.proposed.technology ?? null,
+    capacityTons: dto.proposed.capacity_tons ?? null,
   },
   fuelLabel: dto.fuel_label ?? null,
   changes: (dto.changes ?? []).map((change) => ({ field: change.field, label: change.label, before: text(change.before), after: text(change.after) })),
@@ -197,13 +322,18 @@ export const toVehicleCandidate = (dto: VehicleCandidateDto): VehicleCandidate =
 });
 
 /** Exactamente uno de los dos selectores: la lista de ids o el tipo. */
-export const toDecisionBody = (request: VehicleDecisionRequest): VehicleDecisionBodyDto =>
-  'candidateIds' in request ? { decision: request.decision, candidate_ids: request.candidateIds } : { decision: request.decision, kind: request.kind };
+export const toDecisionBody = (request: VehicleDecisionRequest): VehicleDecisionBodyDto => {
+  const selector = 'candidateIds' in request ? { decision: request.decision, candidate_ids: request.candidateIds } : { decision: request.decision, kind: request.kind };
+
+  return request.estimateEfficiency === undefined ? selector : { ...selector, estimate_efficiency: request.estimateEfficiency };
+};
 
 export const toDecisionResult = (dto: VehicleDecisionResultDto): VehicleDecisionResult => ({
   accepted: dto.accepted,
   rejected: dto.rejected,
   skipped: dto.skipped,
   skippedReasons: dto.skipped_reasons.map((reason) => ({ code: reason.code, rows: reason.rows })),
+  vehiclesEstimated: dto.vehicles_estimated ?? 0,
+  tripsEstimated: dto.trips_estimated ?? 0,
   remaining: dto.remaining,
 });

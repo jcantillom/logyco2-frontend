@@ -5,8 +5,8 @@ describe('vehicles.mappers', () => {
   it('toVehicle pasa a camelCase y conserva la placa original y la normalizada', () => {
     expect(toVehicle(vehicleDto())).toEqual({
       id: 'veh-1', plate: 'ABC123', plateOriginal: 'abc 123', country: 'CO', configurationCode: 'C2', configurationRecognized: true, vehicleType: 'Camión',
-      fuelType: 'DIESEL', modelYear: 2018, technology: null, capacityTons: 8, ownership: 'UNKNOWN', status: 'ACTIVE', source: 'MANUAL',
-      createdAt: '2026-03-02T10:00:00Z',
+      fuelType: 'DIESEL', modelYear: 2018, technology: null, technologyOriginal: null, capacityTons: 8, ownership: 'UNKNOWN', status: 'ACTIVE', source: 'MANUAL',
+      createdAt: '2026-03-02T10:00:00Z', efficiency: null,
     });
   });
 

@@ -1,8 +1,14 @@
+import { DuplicateEvidence } from './duplicates';
+import { Granularity } from './granularity';
+import { EfficiencyBasis, EfficiencyOrigin } from './vehicle-efficiency';
+
 /** Operaciones logísticas: viajes de la empresa con lo que el servidor guardó (nada se calcula en el navegador). Los decimales ya son números; «sin dato» es `null`, nunca 0. */
 export type TripStatus = 'CALCULATED' | 'PENDING' | 'BLOCKED' | 'DUPLICATE';
 export type OperationsView = 'all' | 'calculated' | 'pending' | 'issues' | 'shared';
 /** Qué viajes entran en la lista: los que cuentan (por defecto), los duplicados confirmados, los retenidos por revisar o todos con su estado. */
 export type DedupFilter = 'counted' | 'duplicates' | 'held' | 'all_states';
+/** Cómo entró el viaje: desde un archivo de carga o registrado a mano. */
+export type TripSource = 'FILE' | 'MANUAL';
 export type SharedStateCode = 'POSSIBLE_MATCH' | 'CONFIRMED_MATCH' | 'CONFLICTING_DATA';
 
 export interface TripPlace {
@@ -30,6 +36,8 @@ export interface OperationTrip {
   readonly destination: TripPlace;
   readonly distanceKm: number | null;
   readonly cargoTon: number | null;
+  /** La carga en toneladas salió de kilogramos (el archivo declaraba kg o se confirmó la conversión); el original no se modifica. */
+  readonly cargoConvertedFromKg: boolean;
   readonly fuelType: string | null;
   readonly kgCo2: number | null;
   readonly status: TripStatus;
@@ -45,6 +53,8 @@ export interface OperationTrip {
   readonly shared: SharedState | null;
   /** El viaje se completó en pantalla (marca barata del listado; quién y cuándo está en el detalle). */
   readonly corrected: boolean;
+  /** De dónde viene: un archivo o un registro manual (marca barata del listado). */
+  readonly source: TripSource;
 }
 
 /** Conteo acotado: con `capped` hay más que `value` y se muestra «10.000+». */
@@ -122,6 +132,8 @@ export interface TripDedup {
   readonly status: string;
   readonly statusLabel: string;
   readonly ruleLabel: string | null;
+  /** Evidencia guardada del caso (R3a trae aquí el «resuelto por el sistema» y las diferencias del vehículo); `null` si no hay. */
+  readonly evidence: DuplicateEvidence | null;
   readonly resolvedByName: string | null;
   readonly resolvedAt: string | null;
   readonly duplicateOf: TripDuplicateOf | null;
@@ -145,6 +157,8 @@ export interface TripDetail {
   readonly calculatedAt: string | null;
   readonly tripDate: string | null;
   readonly cargoTon: number | null;
+  /** La carga en toneladas salió de kilogramos (el archivo declaraba kg o se confirmó la conversión); el original no se modifica. */
+  readonly cargoConvertedFromKg: boolean;
   readonly fuelType: string | null;
   readonly status: TripStatus;
   readonly stateLabel: string;
@@ -160,6 +174,10 @@ export interface TripDetail {
   readonly consumption: TripQuantity;
   readonly volumeNormalized: TripQuantity;
   readonly efficiency: TripQuantity;
+  /** Texto del servidor sobre de dónde salió el rendimiento: «Declarado en la fila», «Declarado para el vehículo» o «Medido» (`null` con consumo real o sin calcular). */
+  readonly efficiencyLabel: string | null;
+  /** El rendimiento del vehículo con el que se calculó el viaje, tal como se declaró (`null` si no se usó el del vehículo). */
+  readonly vehicleEfficiency: TripVehicleEfficiency | null;
   readonly emissions: TripEmissions | null;
   readonly dedup: TripDedup;
   readonly shared: SharedState | null;
@@ -170,6 +188,25 @@ export interface TripDetail {
   readonly correctionVersion: number;
   readonly corrected: TripCorrected | null;
   readonly declared: TripDeclared | null;
+  readonly source: TripSource;
+  /** Quién lo registró (solo viajes manuales; `null` si la persona ya no existe). */
+  readonly registeredByName: string | null;
+  /** El servidor dice si se puede anular (solo viajes manuales sin confirmación con una vinculada) y, si no, por qué (texto en español). */
+  readonly voidable: boolean;
+  readonly voidBlockedReason: string | null;
+}
+
+/** El registro de rendimiento del vehículo usado para calcular el viaje; `isCurrent = false` si el vehículo tiene ahora otro (el viaje no se recalcula solo). */
+export interface TripVehicleEfficiency {
+  readonly value: number;
+  readonly unit: string;
+  readonly origin: EfficiencyOrigin;
+  readonly basis: EfficiencyBasis | null;
+  readonly note: string | null;
+  readonly measuredOn: string | null;
+  readonly declaredByName: string | null;
+  readonly declaredAt: string;
+  readonly isCurrent: boolean;
 }
 
 export interface TripCorrected {
@@ -204,6 +241,8 @@ export interface ExportJob {
   readonly expiresAt: string | null;
   readonly errorCode: string | null;
   readonly downloadable: boolean;
+  /** Granularidad de la hoja «Evolución de emisiones» con la que se pidió (los trabajos antiguos sin ese dato son mensuales). */
+  readonly granularity: Granularity;
 }
 
 // ------------------------------------------------------------------ completar viajes pendientes (Etapa 1)
@@ -261,11 +300,37 @@ export interface CompletionOutcome {
   readonly result: CompletionResult;
 }
 
-/** Un rendimiento EXPLÍCITO para una placa (nunca se propone ni se pone por defecto). */
+/** Un rendimiento EXPLÍCITO para una placa (nunca se propone ni se pone por defecto). `unit` es `null` cuando los viajes ya la declaran: el servidor usa la de cada viaje. */
 export interface BulkEfficiencyItem {
   readonly plate: string;
   readonly value: string;
-  readonly unit: string;
+  readonly unit: string | null;
+}
+
+/** Una placa con viajes por completar en bloque: lo que el servidor dice que hace falta pedirle a la persona. */
+export interface CompletionPlate {
+  readonly plate: string;
+  readonly trips: number;
+  readonly fuelType: string | null;
+  readonly fuelLabel: string;
+  /** La unidad que sus viajes ya declararon: con ella no se pide unidad. */
+  readonly efficiencyUnit: string | null;
+  readonly unitOptions: readonly CompletionOption[];
+}
+
+export interface CompletionPlatesRequest {
+  readonly importFileId: string | null;
+  /** Prefijo de placa. */
+  readonly query: string;
+  readonly limit: number;
+  readonly cursor: string | null;
+}
+
+export interface CompletionPlatesPage {
+  readonly items: readonly CompletionPlate[];
+  readonly nextCursor: string | null;
+  /** Solo en la primera página. */
+  readonly total: CappedCount | null;
 }
 
 export interface BulkScope {

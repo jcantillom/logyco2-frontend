@@ -20,7 +20,7 @@ export interface VehicleCatalogDto {
 }
 
 export interface EmissionFactorDto {
-  fuel_code: string; name: string; value: string | null; unit: string; volume_unit: string; efficiency_unit: string; gas: string;
+  fuel_code: string; name: string; value: string | null; unit: string; unit_label?: string | null; volume_unit: string; efficiency_unit: string; gas: string;
   source_name: string | null; source_document: string | null; source_url: string | null; reference_year: number | null;
   verification_status: 'NOT_CONFIGURED' | 'PENDING_VALIDATION' | 'VERIFIED' | 'INVALID_CONFIGURATION';
   usable_for_calculation: boolean;

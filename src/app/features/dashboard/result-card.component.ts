@@ -37,9 +37,12 @@ const BOX = 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9';
       /* Misma receta visual que «Factor de emisión» (ACCENT_CARD_STYLES) con el verde autorizado (aguamarina) como color de marca: es la tarjeta protagonista. */
       .rc { --card-accent: var(--c-secondary); position: relative; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 190px; padding: 14px 18px; border-color: color-mix(in srgb, var(--card-accent) 40%, var(--c-sf)); border-top-color: var(--card-accent); box-shadow: 0 10px 24px color-mix(in srgb, var(--card-accent) 20%, transparent), var(--shadow); container-type: inline-size; }
       .head { display: flex; align-items: center; gap: 12px; min-width: 0; padding-right: 30px; --tone: var(--c-success); --chip-bg: color-mix(in srgb, var(--card-accent) 20%, var(--c-sf)); }
-      .ht { min-width: 0; }
+      .ht { min-width: 0; overflow: hidden; }
+      /* Entrada al detalle «Metodología y calidad del dato»: a la derecha del encabezado, con rótulo corto (el nombre completo va en aria-label y title) y el encabezado sin envolver: no suma altura. */
+      .mlink { flex: none; margin-left: auto; padding: 2px 4px; border: 0; background: none; color: var(--c-accent); font: inherit; font-size: 0.78rem; font-weight: 650; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; cursor: pointer; }
+      .mlink:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; border-radius: 4px; }
       h2 { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--c-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .sub { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; min-width: 0; font-size: 0.78rem; color: var(--c-text2); }
+      .sub { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 2px 0 0; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 0.78rem; color: var(--c-text2); }
       .pchip { flex: none; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--card-accent) 14%, var(--c-sf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-accent) 40%, var(--c-sf)); color: var(--c-head); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
       .halves { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 18px; align-items: stretch; }
       .sep { width: 1px; background: var(--c-bd); }
@@ -54,6 +57,7 @@ const BOX = 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9';
       .split { display: flex; gap: 2px; height: 4px; border-radius: 3px; overflow: hidden; background: var(--c-s3); }
       .split i { display: block; min-width: 0; }
       .split i.m { background: var(--c-success); }
+      .split i.r { background: var(--c-dot-warning); }
       .split i.e { background: color-mix(in srgb, var(--card-accent) 40%, var(--c-sf)); }
       .pchip.partial { background: var(--c-sf); box-shadow: inset 0 0 0 1px var(--c-primary); }
       .note { display: block; font-size: 0.74rem; line-height: 1.2; color: var(--c-text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -97,6 +101,7 @@ const BOX = 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9';
           <h2 id="rc-title">Resultado del periodo</h2>
           <p class="sub">Huella del periodo @if (periodLabel(); as label) { <span class="pchip" data-testid="result-period">{{ label }}</span> }@if (partial()) { <span class="pchip partial" data-testid="result-partial" [attr.title]="partialHint()">Parcial</span> }@if (partialHint()) { <span class="sr-only" data-testid="result-partial-hint">{{ partialHint() }}</span> }</p>
         </div>
+        @if (methodologyLink()) { <button type="button" class="mlink" data-testid="result-methodology" aria-label="Metodología y calidad del dato" [attr.title]="methodologyHint() ?? 'Metodología y calidad del dato'" (click)="methodology.emit()">Metodología</button> }
       </header>
       <div class="halves">
         <div class="half" data-testid="result-fuel">
@@ -124,7 +129,7 @@ const BOX = 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9';
                     }
                   </div>
                 }
-                @if (split(); as s) { <span class="split" aria-hidden="true" data-testid="result-split"><i class="m" [style.flex-grow]="s.measured"></i><i class="e" [style.flex-grow]="s.estimated"></i></span> }
+                @if (split(); as s) { <span class="split" aria-hidden="true" data-testid="result-split"><i class="m" [style.flex-grow]="s.measured"></i><i class="e" [style.flex-grow]="s.estimated"></i>@if (s.reference > 0) { <i class="r" data-testid="result-split-reference" [style.flex-grow]="s.reference"></i> }</span> }
                 @if (measured(); as m) { <span class="note" data-testid="result-measured" [attr.title]="m.hint">{{ m.line }}<span class="sr-only" data-testid="result-measured-hint">. {{ m.hint }}</span></span> }
               } @else {
                 <div class="wait">
@@ -192,7 +197,21 @@ export class ResultCardComponent {
   readonly status = input<ResourceStatus>('ready');
   readonly retry = output();
   readonly retryFootprint = output();
+  /** Pide abrir el detalle «Metodología y calidad del dato» (lo aloja el Resumen). */
+  readonly methodology = output();
 
+  /** La entrada solo existe con la huella lista y con lo que el servidor entrega para el detalle (una huella sin esos bloques no deja un enlace vacío). */
+  protected readonly methodologyLink = computed(() => {
+    const f = this.footprint();
+
+    return this.footprintStatus() === 'ready' && !!f && !!(f.methodology || f.dataOriginShare || f.inventoryCoverage);
+  });
+  /** Tooltip con la versión, el alcance y la unidad que informa el servidor. */
+  protected readonly methodologyHint = computed(() => {
+    const m = this.footprint()?.methodology;
+
+    return m ? `Metodología ${m.version} · ${m.scopeLabel} · ${m.unit}` : null;
+  });
   protected readonly pending = computed(() => noEmissionsText(this.footprint()));
   protected readonly leafIcon = LEAF;
   protected readonly routeIcon = ROUTE;
@@ -217,7 +236,12 @@ export class ResultCardComponent {
   protected readonly split = computed(() => {
     const t = this.footprint()?.totals;
 
-    return hasEmissions(this.footprint()) && t && t.measuredKgCo2 + t.estimatedKgCo2 > 0 ? { measured: Math.max(t.measuredKgCo2, 0), estimated: Math.max(t.estimatedKgCo2, 0) } : null;
+    if (!hasEmissions(this.footprint()) || !t || t.measuredKgCo2 + t.estimatedKgCo2 <= 0) return null;
+
+    // Con viajes de referencia técnica la barra los separa de lo estimado con rendimiento declarado, con las cifras por origen del servidor.
+    return t.byOrigin && t.byOrigin.referenceEstimated.trips > 0
+      ? { measured: Math.max(t.byOrigin.realConsumption.kgCo2, 0), estimated: Math.max(t.byOrigin.declaredEfficiency.kgCo2, 0), reference: Math.max(t.byOrigin.referenceEstimated.kgCo2, 0) }
+      : { measured: Math.max(t.measuredKgCo2, 0), estimated: Math.max(t.estimatedKgCo2, 0), reference: 0 };
   });
   /**
    * Con distancias por ruta, «de ellos N km calculados por ruta (aprox.)» y la atribución de los datos van en el `title` de la tarjeta y en su descripción

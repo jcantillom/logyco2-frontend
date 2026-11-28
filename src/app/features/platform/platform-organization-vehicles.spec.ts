@@ -50,6 +50,17 @@ describe('Consola Super Admin: pestaña «Vehículos» de una empresa (solo lect
 
   afterEach(() => http.match(() => true));
 
+  it('es solo lectura: la tabla no trae la columna ni la acción de rendimiento ni la ficha (la consola no las expone)', () => {
+    render();
+    openVehicles();
+
+    expect(Array.from(el().querySelectorAll('thead th')).map((th) => th.textContent!.trim())).not.toContain('Rendimiento');
+    expect(q('[data-testid="efficiency-cell"]')).toBeNull();
+    expect(q('[data-testid="open-efficiency"]')).toBeNull();
+    expect(q('[data-testid="open-ficha"]')).toBeNull();
+    expect(q('[data-testid="view-detail"]')).not.toBeNull();
+  });
+
   it('el detalle de la empresa trae la pestaña «Vehículos» y no consulta nada hasta abrirla', () => {
     render();
 

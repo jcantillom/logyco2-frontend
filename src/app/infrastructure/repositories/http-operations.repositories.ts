@@ -2,11 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, throwError } from 'rxjs';
 import { AppError } from '../../core/errors/app-error';
 import { toAppError } from '../../core/errors/http-error-mapper';
-import { BulkApplyResult, BulkPreview, BulkScope, CompletionInput, CompletionOutcome, CompletionState, ExportJob, OperationsFilter, OperationsListRequest, OperationsPage, OperationsView, ReportFile, TabCounts, TripDetail } from '../../domain/models/operations';
+import { Granularity } from '../../domain/models/granularity';
+import { BulkApplyResult, BulkPreview, BulkScope, CompletionInput, CompletionPlatesPage, CompletionPlatesRequest, CompletionOutcome, CompletionState, ExportJob, OperationsFilter, OperationsListRequest, OperationsPage, OperationsView, ReportFile, TabCounts, TripDetail } from '../../domain/models/operations';
 import { OperationsRepository } from '../../domain/repositories/operations.repositories';
-import { BulkApplyDto, BulkPreviewDto, CompletionOutDto, CompletionStateDto, ExportJobDto, OperationsPageDto, TabCountsDto, TripDetailDto } from '../dto/operations.dto';
+import { BulkApplyDto, BulkPreviewDto, CompletionOutDto, CompletionPlatesPageDto, CompletionStateDto, ExportJobDto, OperationsPageDto, TabCountsDto, TripDetailDto } from '../dto/operations.dto';
 import { ApiClient, QueryParams } from '../http/api-client';
-import { toBulkApplyResult, toBulkPreview, toBulkScopeBody, toCompletionBody, toCompletionOutcome, toCompletionState, toExportJob, toOperationsPage, toTabCounts, toTripDetail } from '../mappers/operations.mappers';
+import { toBulkApplyResult, toBulkPreview, toBulkScopeBody, toCompletionBody, toCompletionOutcome, toCompletionPlatesPage, toCompletionState, toExportJob, toOperationsPage, toTabCounts, toTripDetail } from '../mappers/operations.mappers';
 
 const base = (organizationId: string): string => `/organizations/${encodeURIComponent(organizationId)}/operations/trips`;
 
@@ -43,15 +44,15 @@ export class HttpOperationsRepository extends OperationsRepository {
     return this.api.get<TabCountsDto>(`${base(organizationId)}/summary`, filterParams(filter)).pipe(map(toTabCounts));
   }
 
-  exportReport(organizationId: string, filter: OperationsFilter, view: OperationsView): Observable<ReportFile> {
+  exportReport(organizationId: string, filter: OperationsFilter, view: OperationsView, granularity: Granularity): Observable<ReportFile> {
     return this.api
-      .getFile(`${base(organizationId)}/export`, { ...filterParams(filter), view })
+      .getFile(`${base(organizationId)}/export`, { ...filterParams(filter), view, granularity })
       .pipe(map((file) => ({ blob: file.blob, fileName: file.fileName ?? defaultReportFileName() })));
   }
 
-  createExport(organizationId: string, filter: OperationsFilter, view: OperationsView): Observable<ExportJob> {
+  createExport(organizationId: string, filter: OperationsFilter, view: OperationsView, granularity: Granularity): Observable<ExportJob> {
     // El cuerpo es el mismo conjunto de parámetros del listado; lo vacío no se envía.
-    const body = Object.fromEntries(Object.entries({ ...filterParams(filter), view }).filter(([, value]) => value !== undefined));
+    const body = Object.fromEntries(Object.entries({ ...filterParams(filter), view, granularity }).filter(([, value]) => value !== undefined));
 
     return this.api.post<ExportJobDto>(exportsBase(organizationId), body).pipe(map(toExportJob));
   }
@@ -89,6 +90,18 @@ export class HttpOperationsRepository extends OperationsRepository {
         return throwError(() => (fresh ? new AppError(failure.kind, failure.code, failure.status, failure.message, failure.requestId, failure.details, failure.retryAfterSeconds, fresh) : failure));
       }),
     );
+  }
+
+  completionPlates(organizationId: string, request: CompletionPlatesRequest): Observable<CompletionPlatesPage> {
+    return this.api
+      .getBody<CompletionPlatesPageDto>(`${completionsBase(organizationId)}/plates`, {
+        reason: 'DISTANCE_WITHOUT_EFFICIENCY',
+        import_file_id: request.importFileId ?? undefined,
+        q: request.query || undefined,
+        limit: request.limit,
+        cursor: request.cursor ?? undefined,
+      })
+      .pipe(map(toCompletionPlatesPage));
   }
 
   previewCompletion(organizationId: string, scope: BulkScope): Observable<BulkPreview> {

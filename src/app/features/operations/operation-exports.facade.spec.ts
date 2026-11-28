@@ -144,12 +144,12 @@ describe('OperationExportsFacade', () => {
     facade.load();
     list().flush(exportsBody(exportJobDto({ id: 'old' })));
     let result: unknown = 'sin respuesta';
-    facade.request({ fuel: 'DIESEL' }, 'calculated', (error) => (result = error));
+    facade.request({ fuel: 'DIESEL' }, 'calculated', 'month', (error) => (result = error));
     const request = http.expectOne((r) => r.url === EXPORTS_URL && r.method === 'POST');
 
-    expect(request.request.body).toEqual({ fuel: 'DIESEL', view: 'calculated' });
+    expect(request.request.body).toEqual({ fuel: 'DIESEL', view: 'calculated', granularity: 'month' });
     expect(facade.requesting()).toBeTrue();
-    facade.request({}, 'all');  // una sola petición a la vez
+    facade.request({}, 'all', 'month');  // una sola petición a la vez
     request.flush({ data: exportJobDto({ id: 'new', status: 'QUEUED', progress: 0, downloadable: false, size_bytes: null }), meta: {} }, { status: 202, statusText: 'Accepted' });
 
     expect(result).toBeNull();
@@ -170,7 +170,7 @@ describe('OperationExportsFacade', () => {
     list().flush(exportsBody(runningExportDto(1000)));
     tick(EXPORTS_POLL_MS);
     const stale = list();  // consulta en vuelo cuando la persona pide el reporte
-    facade.request({}, 'all');
+    facade.request({}, 'all', 'month');
     expect(stale.cancelled).toBeTrue();
     http.expectOne((r) => r.method === 'POST').flush({ data: exportJobDto({ id: 'new', status: 'QUEUED', progress: 0, downloadable: false, size_bytes: null }), meta: {} }, { status: 202, statusText: 'Accepted' });
 
@@ -186,7 +186,7 @@ describe('OperationExportsFacade', () => {
   it('si el pedido falla retoma la vigilancia que se cortó al pedir', () => {
     facade.load();
     list().flush(exportsBody(runningExportDto(1000)));
-    facade.request({}, 'all');
+    facade.request({}, 'all', 'month');
     http.expectOne((r) => r.method === 'POST').flush({ error: { code: 'EXPORT_LIMIT', message: 'x' } }, { status: 409, statusText: 'Conflict' });
 
     list().flush(exportsBody(runningExportDto(2000)));
@@ -196,7 +196,7 @@ describe('OperationExportsFacade', () => {
 
   it('si el servidor rechaza el pedido (409) lo entrega como AppError con el mensaje del catálogo', () => {
     let failure: { code?: string; message?: string } | null = null;
-    facade.request({}, 'all', (error) => (failure = error));
+    facade.request({}, 'all', 'month', (error) => (failure = error));
     http.expectOne((r) => r.method === 'POST').flush({ error: { code: 'EXPORT_LIMIT', message: 'x' } }, { status: 409, statusText: 'Conflict' });
 
     expect(failure!.code).toBe('EXPORT_LIMIT');

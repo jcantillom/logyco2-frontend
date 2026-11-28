@@ -136,7 +136,7 @@ describe('HttpOperationsRepository y mappers de Operaciones logísticas', () => 
   it('exportReport: GET .../export como blob con la vista y los mismos filtros, sin cursor ni límite, y toma el nombre de Content-Disposition', () => {
     let result: { blob: Blob; fileName: string } | undefined;
 
-    repository.exportReport(ORG_ENVIA.id, { status: 'PENDING', fuel: 'DIESEL', importFileId: 'f-1', from: '2026-01-01', to: '2026-03-31', dedup: 'all_states', query: 'ABC' }, 'pending').subscribe((f) => (result = f));
+    repository.exportReport(ORG_ENVIA.id, { status: 'PENDING', fuel: 'DIESEL', importFileId: 'f-1', from: '2026-01-01', to: '2026-03-31', dedup: 'all_states', query: 'ABC' }, 'pending', 'quarter').subscribe((f) => (result = f));
     const request = http.expectOne((r) => r.url === `${OPERATIONS_URL}/export`);
 
     expect(request.request.method).toBe('GET');
@@ -151,6 +151,7 @@ describe('HttpOperationsRepository y mappers de Operaciones logísticas', () => 
     expect(params.get('to')).toBe('2026-03-31');
     expect(params.get('dedup')).toBe('all_states');
     expect(params.get('q')).toBe('ABC');
+    expect(params.get('granularity')).toBe('quarter');
     expect(params.has('cursor') || params.has('limit')).toBeFalse();
     request.flush(new Blob(['xlsx']), { headers: { 'Content-Disposition': 'attachment; filename="operaciones-logisticas_20261123.xlsx"' } });
 
@@ -161,10 +162,11 @@ describe('HttpOperationsRepository y mappers de Operaciones logísticas', () => 
   it('exportReport: sin filtros solo envía la vista, y sin Content-Disposition usa operaciones-logisticas_<yyyymmdd>.xlsx', () => {
     let name = '';
 
-    repository.exportReport(ORG_ENVIA.id, {}, 'all').subscribe((f) => (name = f.fileName));
+    repository.exportReport(ORG_ENVIA.id, {}, 'all', 'month').subscribe((f) => (name = f.fileName));
     const request = http.expectOne((r) => r.url === `${OPERATIONS_URL}/export`);
 
-    expect(request.request.params.keys()).toEqual(['view']);
+    expect(request.request.params.keys()).toEqual(['view', 'granularity']);
+    expect(request.request.params.get('granularity')).toBe('month');
     request.flush(new Blob(['x']));
 
     expect(name).toMatch(/^operaciones-logisticas_\d{8}\.xlsx$/);
@@ -175,21 +177,30 @@ describe('HttpOperationsRepository y mappers de Operaciones logísticas', () => 
     it('createExport: POST con los mismos filtros del listado y la pestaña (lo vacío no se envía) y entrega el trabajo de dominio', () => {
       let job: ExportJob | null = null;
 
-      repository.createExport(ORG_ENVIA.id, { status: 'PENDING', fuel: 'DIESEL', importFileId: 'f-1', from: '2026-01-01', to: '2026-03-31', dedup: 'held', query: 'ABC' }, 'pending').subscribe((j) => (job = j));
+      repository.createExport(ORG_ENVIA.id, { status: 'PENDING', fuel: 'DIESEL', importFileId: 'f-1', from: '2026-01-01', to: '2026-03-31', dedup: 'held', query: 'ABC' }, 'pending', 'week').subscribe((j) => (job = j));
       const request = http.expectOne((r) => r.url === EXPORTS_URL);
 
       expect(request.request.method).toBe('POST');
-      expect(request.request.body).toEqual({ status: 'PENDING', fuel: 'DIESEL', import_file_id: 'f-1', from: '2026-01-01', to: '2026-03-31', dedup: 'held', q: 'ABC', view: 'pending' });
+      expect(request.request.body).toEqual({ status: 'PENDING', fuel: 'DIESEL', import_file_id: 'f-1', from: '2026-01-01', to: '2026-03-31', dedup: 'held', q: 'ABC', view: 'pending', granularity: 'week' });
       request.flush({ data: exportJobDto({ status: 'QUEUED', progress: 0, downloadable: false, size_bytes: null }), meta: {} }, { status: 202, statusText: 'Accepted' });
 
-      expect(job).toEqual(jasmine.objectContaining({ id: 'job-1', status: 'QUEUED', rowsTotal: 250000, progress: 0, sizeBytes: null, requestedByName: 'Laura Gómez', downloadable: false }));
+      expect(job).toEqual(jasmine.objectContaining({ id: 'job-1', status: 'QUEUED', rowsTotal: 250000, progress: 0, sizeBytes: null, requestedByName: 'Laura Gómez', downloadable: false, granularity: 'month' }));
     });
 
-    it('createExport sin filtros solo envía la vista', () => {
-      repository.createExport(ORG_ENVIA.id, {}, 'all').subscribe();
+    it('el trabajo expone la granularidad de sus filtros; sin ella (trabajos antiguos) o con un valor desconocido es mensual', () => {
+      let jobs: ExportJob[] = [];
+
+      repository.listExports(ORG_ENVIA.id).subscribe((j) => (jobs = j));
+      http.expectOne((r) => r.url === EXPORTS_URL && r.method === 'GET').flush({ data: [exportJobDto({ filters: { granularity: 'day' } }), exportJobDto({ filters: {} }), exportJobDto({ filters: null }), exportJobDto({ filters: { granularity: 'hora' } })], meta: {} });
+
+      expect(jobs.map((j) => j.granularity)).toEqual(['day', 'month', 'month', 'month']);
+    });
+
+    it('createExport sin filtros solo envía la vista y la granularidad', () => {
+      repository.createExport(ORG_ENVIA.id, {}, 'all', 'year').subscribe();
       const request = http.expectOne((r) => r.url === EXPORTS_URL);
 
-      expect(request.request.body).toEqual({ view: 'all' });
+      expect(request.request.body).toEqual({ view: 'all', granularity: 'year' });
       request.flush({ data: exportJobDto(), meta: {} });
     });
 

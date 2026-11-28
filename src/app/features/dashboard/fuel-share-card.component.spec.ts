@@ -110,9 +110,9 @@ describe('FuelShareCardComponent', () => {
 
       expect(ring).not.toBeNull();
       expect(ring.getAttribute('aria-hidden')).toBe('true');
-      expect(ring.getBoundingClientRect().width).toBe(150);
-      expect(ring.querySelector('.track')!.getAttribute('r')).toBe('38');
-      expect(getComputedStyle(ring.querySelector('.track')!).strokeWidth).toBe('18px');
+      expect(ring.getBoundingClientRect().width).toBe(176);
+      expect(ring.querySelector('.track')!.getAttribute('r')).toBe('40');
+      expect(getComputedStyle(ring.querySelector('.track')!).strokeWidth).toBe('14px');
       expect(getComputedStyle(ring.querySelector('.edge')!).strokeDasharray).not.toBe('none');
       expect(Array.from(ring.querySelectorAll('text')).map((t) => t.textContent)).toEqual(['—', 'Sin cálculo']);
     });

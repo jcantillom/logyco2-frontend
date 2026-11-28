@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, CanActivateFn, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
-import { buildSuperAdmin, buildUser, FAKE_TOKEN, membership, ORG_ENVIA } from '../../../testing/builders';
+import { buildSuperAdmin, buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { CurrentUser } from '../../domain/models/identity';
 import { SessionStore } from '../auth/session.store';
 import { guestGuard } from './auth.guards';
@@ -10,7 +10,7 @@ describe('guards de aterrizaje', () => {
   let router: Router;
   const as = (user: CurrentUser): void => {
     const session = TestBed.inject(SessionStore);
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(user);
   };
   const run = (guard: CanActivateFn): string | true => {

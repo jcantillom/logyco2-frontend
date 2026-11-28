@@ -85,7 +85,7 @@ import { OWNERSHIP_LABELS, SOURCE_LABELS, STATUS_LABELS, changeValue, eventLabel
               <div><dt>Tipo</dt><dd>{{ d.vehicleType ?? '—' }}</dd></div>
               <div><dt>Combustible</dt><dd>{{ fuelText(d.fuelType) }}</dd></div>
               <div><dt>Modelo</dt><dd>{{ d.modelYear ?? '—' }}</dd></div>
-              <div><dt>Tecnología</dt><dd>{{ d.technology ?? '—' }}</dd></div>
+              <div><dt>Tecnología</dt><dd data-testid="vehicle-technology">{{ d.technology ?? '—' }} @if (d.technologyOriginal && d.technologyOriginal !== d.technology) { <small>Como llegó: {{ d.technologyOriginal }}</small> }</dd></div>
               <div><dt>Capacidad</dt><dd>{{ d.capacityTons === null ? '—' : d.capacityTons + ' t' }}</dd></div>
               <div><dt>Propiedad</dt><dd data-testid="ownership">{{ ownershipText() }}</dd></div>
               <div><dt>Origen del registro</dt><dd>{{ sourceText() }}</dd></div>

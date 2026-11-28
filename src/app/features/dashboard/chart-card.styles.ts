@@ -20,8 +20,8 @@ export const CHART_CARD_STYLES = `
       .cc .slots span { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.8rem; color: var(--c-mute2); }
       .cc .months { display: flex; justify-content: space-between; gap: 4px; margin-left: 4px; font-size: 0.68rem; color: var(--c-mu); min-height: 12px; }
       .cc .months.all { justify-content: space-around; }
-      .cc .ring { flex: none; width: 150px; height: 150px; }
-      .cc .ring .track { fill: none; stroke: var(--c-s3); stroke-width: 18; }
+      .cc .ring { flex: none; width: 176px; height: 176px; }
+      .cc .ring .track { fill: none; stroke: var(--c-s3); stroke-width: 14; }
       .cc .ring .edge { fill: none; stroke: var(--c-bd); stroke-width: 1; stroke-dasharray: 3 3; }
       .cc .ring .dash { text-anchor: middle; fill: var(--c-mute2); font-size: 16px; font-weight: 800; }
       .cc .ring .sub { text-anchor: middle; fill: var(--c-mu); font-size: 8px; font-weight: 600; }

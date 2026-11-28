@@ -1,7 +1,7 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ORG_ENVIA } from '../../../testing/builders';
-import { COMPLETIONS_URL, bulkApplyDto, bulkPreviewDto, completionOutDto, completionStateDto, completionUrl, operationTripDto, operationsPageBody, pendingTripDetailDto, tripDetailDto } from '../../../testing/operations';
+import { COMPLETIONS_URL, bulkApplyDto, bulkPreviewDto, completionOutDto, completionPlateDto, completionPlatesBody, completionStateDto, completionUrl, operationTripDto, operationsPageBody, pendingTripDetailDto, tripDetailDto } from '../../../testing/operations';
 import { provideTestApp } from '../../../testing/providers';
 import { AppError } from '../../core/errors/app-error';
 import { toAppError } from '../../core/errors/http-error-mapper';
@@ -135,6 +135,43 @@ describe('HttpOperationsRepository: completar viajes pendientes', () => {
     expect(request.request.body).toEqual({ reason: 'DISTANCE_WITHOUT_EFFICIENCY', items: [{ plate: 'ABC123', efficiency_value: '8', efficiency_unit: 'km/gal' }], token: 'tok-123456789' });
     request.flush({ data: bulkApplyDto(), meta: {} });
     expect(applied).toBe(301);
+  });
+
+  it('POST .../completions/preview sin unidad (la declarada por los viajes) no envía efficiency_unit', () => {
+    repository.previewCompletion(ORG_ENVIA.id, { importFileId: null, items: [{ plate: 'ABC123', value: '8', unit: null }, { plate: 'XYZ987', value: '9', unit: 'km/l' }] }).subscribe();
+
+    expect(http.expectOne(`${COMPLETIONS_URL}/preview`).request.body.items).toEqual([{ plate: 'ABC123', efficiency_value: '8' }, { plate: 'XYZ987', efficiency_value: '9', efficiency_unit: 'km/l' }]);
+  });
+
+  it('GET .../completions/plates envía motivo, carga, prefijo, límite y cursor (lo vacío no) y mapea placa, combustible, unidad declarada, opciones y total', () => {
+    let page: unknown = null;
+
+    repository.completionPlates(ORG_ENVIA.id, { importFileId: 'f-1', query: 'PLA', limit: 6, cursor: 'c1' }).subscribe((p) => (page = p));
+    const request = http.expectOne((r) => r.url === `${COMPLETIONS_URL}/plates`);
+
+    expect(request.request.method).toBe('GET');
+    expect(Object.fromEntries(request.request.params.keys().map((key) => [key, request.request.params.get(key)]))).toEqual({ reason: 'DISTANCE_WITHOUT_EFFICIENCY', import_file_id: 'f-1', q: 'PLA', limit: '6', cursor: 'c1' });
+    request.flush(completionPlatesBody([completionPlateDto(1), completionPlateDto(2, { efficiency_unit: 'km/gal', fuel_type: null, fuel_label: 'Mixto', unit_options: [] })], { next_cursor: 'c2', total_plates: { value: 1926, capped: false } }));
+
+    expect(page).toEqual({
+      items: [
+        { plate: 'PLA001', trips: 31, fuelType: 'DIESEL', fuelLabel: 'Diésel', efficiencyUnit: null, unitOptions: [{ value: 'km/gal', label: 'km/gal' }, { value: 'km/l', label: 'km/l' }] },
+        { plate: 'PLA002', trips: 32, fuelType: null, fuelLabel: 'Mixto', efficiencyUnit: 'km/gal', unitOptions: [] },
+      ],
+      nextCursor: 'c2',
+      total: { value: 1926, capped: false },
+    });
+  });
+
+  it('el listado de placas sin filtros no envía carga, prefijo ni cursor, y sin total en las páginas siguientes', () => {
+    let page: { total: unknown; nextCursor: unknown } | null = null;
+
+    repository.completionPlates(ORG_ENVIA.id, { importFileId: null, query: '', limit: 6, cursor: null }).subscribe((p) => (page = p));
+    const request = http.expectOne((r) => r.url === `${COMPLETIONS_URL}/plates`);
+
+    expect(request.request.params.keys().sort()).toEqual(['limit', 'reason']);
+    request.flush(completionPlatesBody([completionPlateDto(1)]));
+    expect(page).toEqual(jasmine.objectContaining({ total: null, nextCursor: null }));
   });
 
   it('el listado trae `corrected` y `reason`; el detalle trae completable, campos faltantes, corregido y declarado (nulos y falsos por omisión)', () => {

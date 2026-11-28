@@ -2,7 +2,8 @@ import { HttpTestingController } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { importFootprintDto } from '../../../testing/footprint';
-import { IMPORTS_URL, columnDto, importDetailDto, importSummaryDto, reviewDto, vehiclesDetectedDto } from '../../../testing/imports';
+import { IMPORTS_URL, cargoProposalDto, columnDto, coverageDto, importDetailDto, importSummaryDto, reviewDto, vehiclesDetectedDto } from '../../../testing/imports';
+import { resolutionDto } from '../../../testing/places';
 import { provideTestApp, signInAs } from '../../../testing/providers';
 import { SessionStore } from '../../core/auth/session.store';
 import { toImportSummary } from '../../infrastructure/mappers/imports.mappers';
@@ -41,6 +42,74 @@ describe('ImportReviewDialogComponent: revisión de una carga', () => {
     expect(q('dialog')!.getAttribute('aria-labelledby')).toBe('review-title');
     expect(text('#review-title')).toBe('operaciones-marzo.xlsx');
     expect(q('[role="status"][aria-busy="true"]')).not.toBeNull();
+  });
+
+  it('integra «Unidad de la carga» (tras el veredicto) y «Rendimiento de los vehículos» solo cuando el servidor los trae', () => {
+    open(importDetailDto({ review: reviewDto({ cargo_unit_proposal: cargoProposalDto(), efficiency_coverage: coverageDto() }) }));
+
+    expect(q('[data-testid="review-verdict"] + app-import-cargo-unit [data-testid="cargo-unit"]')).not.toBeNull();
+    expect(q('app-import-efficiency-coverage [data-testid="efficiency-coverage"]')).not.toBeNull();
+    expect(q('[data-testid="cargo-unit-kg"]')).not.toBeNull();
+  });
+
+  it('integra «Lugares por confirmar» solo cuando el servidor lista lugares sin resolver', () => {
+    open(importDetailDto({ review: reviewDto({ place_resolution: resolutionDto() }) }));
+
+    expect(q('app-import-places [data-testid="places"]')).not.toBeNull();
+    expect(q('[data-testid="place-toggle"]')).not.toBeNull();
+  });
+
+  it('sin lugares por resolver (o sin el bloque) no se dibuja «Lugares por confirmar»', () => {
+    open(importDetailDto({ review: reviewDto({ place_resolution: resolutionDto({ pending: [], pending_places: 0, pending_trips: 0 }) }) }));
+
+    expect(q('[data-testid="places"]')).toBeNull();
+  });
+
+  it('sin propuesta ni cobertura (cargas anteriores o en curso) ninguno de los dos bloques se dibuja', () => {
+    open();
+
+    expect(q('[data-testid="cargo-unit"]')).toBeNull();
+    expect(q('[data-testid="efficiency-coverage"]')).toBeNull();
+  });
+
+  const withEstimation = (overrides: object = {}): ImportDetailDto => ({
+    ...importDetailDto({ review: reviewDto({ issues: [{ code: 'CALCULABLE_WITH_ESTIMATION', severity: 'INFO', field: null, message: 'Se pueden calcular estimando el rendimiento.', rows: 40, sample_rows: [] }] }) }),
+    calculable_with_estimation: { trips: 40, vehicles: 3, already_estimated_trips: 0, mode: 'ASK', requires_consent: true, pending_without_distance_or_reference: 5, ...overrides },
+  });
+
+  it('con calculable_with_estimation muestra el bloque con las cifras del servidor y remite al control de consentimiento sin duplicarlo', () => {
+    open(withEstimation());
+
+    expect(text('[data-testid="cwe-text"]')).toBe('40 viajes se pueden estimar con referencia técnica (teórico) en 3 vehículos; 5 no tienen distancia o referencia.');
+    expect(text('[data-testid="cwe-consent"]')).toContain('«Rendimiento de los vehículos»');
+    expect(q('[data-testid="calculable-with-estimation"] button')).toBeNull();
+    expect(q('[data-testid="unrecognized"]')).toBeNull();
+  });
+
+  it('en modo AUTO explica que se estima solo y no pide consentimiento', () => {
+    open(withEstimation({ mode: 'AUTO', requires_consent: false, pending_without_distance_or_reference: 0 }));
+
+    expect(text('[data-testid="cwe-text"]')).toBe('40 viajes se pueden estimar con referencia técnica (teórico) en 3 vehículos.');
+    expect(q('[data-testid="cwe-consent"]')).toBeNull();
+    expect(text('[data-testid="cwe-auto"]')).toContain('automáticamente');
+  });
+
+  it('si ya se estimaron, lo dice con la cifra del servidor', () => {
+    open(withEstimation({ trips: 0, already_estimated_trips: 12, mode: 'AUTO', requires_consent: false, pending_without_distance_or_reference: 2 }));
+
+    expect(text('[data-testid="cwe-text"]')).toBe('12 viajes ya se calcularon con rendimiento estimado (teórico); 2 no tienen distancia o referencia.');
+  });
+
+  it('el hallazgo informativo CALCULABLE_WITH_ESTIMATION sale como «Información», no como error ni advertencia', () => {
+    open(withEstimation());
+
+    expect(text('[data-testid="issues"]')).toContain('Se pueden calcular estimando el rendimiento.');
+    expect(text('[data-testid="issues"] .badge')).toBe('Información');
+  });
+
+  it('sin el campo (null o ausente) no hay bloque: comportamiento de siempre', () => {
+    open(importDetailDto());
+    expect(q('[data-testid="calculable-with-estimation"]')).toBeNull();
   });
 
   const reason = (code: string, rows: number, sample: number[] = [4, 9]) => ({ code, label: `Motivo ${code}`, rows, sample_rows: sample });

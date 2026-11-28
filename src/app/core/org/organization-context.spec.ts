@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
-import { buildUser, FAKE_TOKEN, ORG_COORDINADORA, ORG_ENVIA } from '../../../testing/builders';
+import { buildUser, ORG_COORDINADORA, ORG_ENVIA } from '../../../testing/builders';
 import { SessionStore } from '../auth/session.store';
 import { ContextResetRegistry } from './context-reset';
 import { OrganizationContext } from './organization-context';
@@ -12,7 +12,7 @@ describe('OrganizationContext y limpieza de contexto', () => {
 
   beforeEach(() => {
     const session = TestBed.inject(SessionStore);
-    session.setToken(FAKE_TOKEN);
+    session.markIdentity();
     session.setUser(buildUser());
     context = TestBed.inject(OrganizationContext);
     registry = TestBed.inject(ContextResetRegistry);

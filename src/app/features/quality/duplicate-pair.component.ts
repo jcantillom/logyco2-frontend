@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { DuplicateDecision, PossibleDuplicate } from '../../domain/models/duplicates';
-import { comparisonFields, differingLabels, groupLine, idMismatchLine, lineageLine, ruleSentence, tripDateText } from './duplicates.view';
+import { comparisonFields, differingLabels, groupLine, idMismatchLine, lineageLine, qualityNoteLines, ruleSentence, tripDateText, vehicleDifferenceViews } from './duplicates.view';
 
 /**
  * Un posible duplicado: el viaje retenido (A, no suma por ahora) y el vigente (B, suma) lado a lado con solo lo necesario para decidir, lo que difiere
@@ -22,6 +22,12 @@ import { comparisonFields, differingLabels, groupLine, idMismatchLine, lineageLi
       .why { flex: 1 1 260px; margin: 0; color: var(--c-text2); font-size: 0.9rem; line-height: 1.4; }
       .facts { display: grid; gap: 2px; margin: -4px 0 0 38px; color: var(--c-text2); font-size: 0.84rem; line-height: 1.4; }
       .facts p { margin: 0; }
+      .vdiff { margin: 0; padding: 8px 12px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-s2); }
+      .vdiff h4 { margin: 0 0 6px; color: var(--c-head); font-size: 0.88rem; }
+      .vdiff ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+      .vdiff li { color: var(--c-text2); font-size: 0.86rem; line-height: 1.4; overflow-wrap: anywhere; }
+      .vdiff li b { color: var(--c-head); }
+      .qnote { margin: 8px 0 0; color: var(--c-text2); font-size: 0.84rem; line-height: 1.4; }
       .sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .side { min-width: 0; padding: 10px 12px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-s2); }
       .side h4 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 8px; font-size: 0.95rem; color: var(--c-head); }
@@ -57,6 +63,20 @@ import { comparisonFields, differingLabels, groupLine, idMismatchLine, lineageLi
           @if (lineage(); as line) { <p data-testid="pair-lineage">{{ line }}</p> }
           @if (group(); as line) { <p data-testid="pair-group">{{ line }}</p> }
         </div>
+      }
+
+      @if (vehicleDiffs().length > 0 || notes().length > 0) {
+        <section class="vdiff" aria-label="Diferencias en los datos del vehículo" data-testid="pair-vehicle-diffs">
+          @if (vehicleDiffs().length > 0) {
+            <h4>El archivo trae datos distintos del vehículo en los dos registros</h4>
+            <ul>
+              @for (diff of vehicleDiffs(); track diff.label) {
+                <li data-testid="pair-vehicle-diff"><b>{{ diff.label }}:</b> primer registro «{{ diff.anchor }}», registro repetido «{{ diff.repeated }}»</li>
+              }
+            </ul>
+          }
+          @for (note of notes(); track note) { <p class="qnote" data-testid="pair-quality-note">{{ note }}</p> }
+        </section>
       }
 
       <div class="sides">
@@ -115,5 +135,7 @@ export class DuplicatePairComponent {
   protected readonly idMismatch = computed(() => idMismatchLine(this.item().evidence));
   protected readonly lineage = computed(() => lineageLine(this.item().evidence));
   protected readonly group = computed(() => groupLine(this.item().evidence));
+  protected readonly vehicleDiffs = computed(() => vehicleDifferenceViews(this.item().evidence));
+  protected readonly notes = computed(() => qualityNoteLines(this.item().evidence));
   protected readonly date = computed(() => tripDateText(this.item().a.tripDate));
 }

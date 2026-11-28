@@ -278,6 +278,19 @@ describe('ActionsBellComponent: campana unificada con avisos', () => {
     expect(q('[data-testid="bell-panel"]')).toBeNull();
   });
 
+  it('un aviso de un viaje registrado a mano (import_kind MANUAL) abre /calidad y nunca /cargas', () => {
+    render();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+
+    openPanel([notificationDto({ id: 'n-7', kind: 'VEHICLES_NEW', payload: { import_id: 'imp-manual', new: 1, changed: 0, import_kind: 'MANUAL' } })], 1, 1);
+
+    q('[data-testid="notification"]')!.click();
+    http.expectOne({ method: 'POST', url: `${NOTIFICATIONS_URL}/n-7/read` }).flush({ data: {} });
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledOnceWith(['/calidad']);
+  });
+
   it('un aviso SHARED_OPERATIONS muestra el texto agrupado del servidor con su ícono propio, lo marca leído y abre /calidad en la pestaña de operaciones compartidas', () => {
     render();
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);

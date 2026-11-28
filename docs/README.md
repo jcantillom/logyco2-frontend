@@ -34,7 +34,7 @@ módulos sin backend no tienen pantalla, facade ni puerto: su ruta muestra `Comi
 
 | # | Hallazgo | Dónde |
 |---|---|---|
-| 1 | Bearer en `sessionStorage` con `sessionPersistence: 'tab'`; sin CSP; logout no revoca token | core.md |
+| 1 | Sesión ya en cookie HttpOnly (H-A1 resuelta); pendientes: sin CSP; logout no revoca en el proveedor | core.md |
 | 2 | `.badge-info` / `.alert-info` no definidas en `styles.scss` | shared.md, tooling.md |
 | 3 | `platform`: empresas, usuarios y auditoría ya se paginan en el servidor; quedan cargas completas (`fetchAllPages`) en el selector de empresas de usuarios y en el detalle de empresa | features/platform.md |
 | 4 | Componentes enormes con template/CSS inline; duplicación `users`/`platform` | features/README.md |

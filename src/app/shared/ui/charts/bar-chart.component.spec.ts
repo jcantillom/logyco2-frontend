@@ -59,7 +59,7 @@ describe('BarChartComponent', () => {
 
     expect(svg.getAttribute('role')).toBe('img');
     expect(svg.getAttribute('aria-label')).toBe('Emisiones por mes: Ene 2026 16.820 kg CO₂, Feb 2026 18.432 kg CO₂, Mar 2026 15.493 kg CO₂, Abr 2026 sin dato');
-    const table = el().querySelector('table.sr-only')!;
+    const table = el().querySelector('.sr-only > table')!;
 
     expect(table.querySelector('caption')!.textContent).toBe('Emisiones por mes');
     expect(Array.from(table.querySelectorAll('tbody tr')).map((r) => r.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['Ene 202616.820', 'Feb 202618.432', 'Mar 202615.493', 'Abr 2026Sin dato']);
@@ -98,5 +98,119 @@ describe('BarChartComponent', () => {
 
     expect(svg.getAttribute('height')).toBe('150');
     expect(Number(svg.getAttribute('width'))).toBeGreaterThan(0);
+  });
+
+  describe('tooltip propio y teclado (serie por granularidad)', () => {
+    const PARTIAL = 'Periodo parcial: incluye solo los días dentro del rango elegido';
+    const TIPS: BarDatum[] = [
+      { label: 'Sem 11', value: 1520.25, partial: true, tip: ['Sem 11', '1.520,25 kg CO₂ · 1,52 t', '12 viajes', PARTIAL] },
+      { label: 'Sem 12', value: 0, tip: ['Sem 12', '0 kg CO₂ · 0 t', '0 viajes'] },
+      { label: 'Sem 13', value: 310.5, partial: true, tip: ['Sem 13', '310,5 kg CO₂ · 0,31 t', '3 viajes', PARTIAL] },
+    ];
+    const svg = (): SVGElement => el().querySelector('svg')!;
+    const tip = (): string | null => {
+      const box = el().querySelector('[data-testid="bar-tip"]');
+
+      return box ? Array.from(box.children).map((c) => c.textContent).join(' | ') : null;
+    };
+    const key = (name: string): void => {
+      svg().dispatchEvent(new KeyboardEvent('keydown', { key: name }));
+      fixture.detectChanges();
+    };
+
+    it('una barra en cero no se dibuja pero su franja sí responde: el tooltip dice 0', () => {
+      render(TIPS);
+      const hits = qa('[data-testid="bar-hit"]');
+
+      expect(qa('[data-testid="bar"]').length).toBe(2);
+      expect(hits.length).toBe(3);
+      hits[1].dispatchEvent(new MouseEvent('mouseenter'));
+      fixture.detectChanges();
+      expect(tip()).toBe('Sem 12 | 0 kg CO₂ · 0 t | 0 viajes');
+    });
+
+    it('pasar el puntero muestra label, kg, t y viajes; salir lo oculta', () => {
+      render(TIPS);
+      qa('[data-testid="bar-hit"]')[0].dispatchEvent(new MouseEvent('mouseenter'));
+      fixture.detectChanges();
+
+      expect(tip()).toContain('Sem 11 | 1.520,25 kg CO₂ · 1,52 t | 12 viajes');
+      expect(tip()).toContain('Periodo parcial: incluye solo los días dentro del rango elegido');
+      expect(el().querySelector('[data-testid="bar-tip"]')!.getAttribute('aria-hidden')).toBe('true');
+      svg().dispatchEvent(new MouseEvent('mouseleave'));
+      fixture.detectChanges();
+      expect(tip()).toBeNull();
+    });
+
+    it('el SVG es un solo punto de tabulación; el foco muestra la primera y las flechas, Inicio, Fin y Escape recorren las barras', () => {
+      render(TIPS);
+
+      expect(svg().getAttribute('tabindex')).toBe('0');
+      svg().dispatchEvent(new FocusEvent('focus'));
+      fixture.detectChanges();
+      expect(tip()).toContain('Sem 11');
+      key('ArrowRight');
+      expect(tip()).toContain('Sem 12');
+      key('ArrowRight');
+      key('ArrowRight');
+      expect(tip()).toContain('Sem 13');
+      key('ArrowLeft');
+      expect(tip()).toContain('Sem 12');
+      key('Home');
+      expect(tip()).toContain('Sem 11');
+      key('End');
+      expect(tip()).toContain('Sem 13');
+      key('Escape');
+      expect(tip()).toBeNull();
+      expect(qa('[tabindex]').filter((n) => n.getAttribute('tabindex') === '0').length).toBe(1);
+    });
+
+    it('sin tooltips (meses de siempre) el SVG no entra en la tabulación y las flechas no hacen nada', () => {
+      render(THREE);
+
+      expect(svg().hasAttribute('tabindex')).toBeFalse();
+      key('ArrowRight');
+      expect(tip()).toBeNull();
+      expect(qa('[data-testid="bar-hit"]').length).toBe(0);
+    });
+
+    it('las barras parciales llevan trazo discontinuo, su etiqueta va en cursiva y la leyenda explica «Periodo parcial»', () => {
+      render(TIPS);
+
+      expect(qa('[data-testid="bar"]').filter((b) => b.classList.contains('partial')).length).toBe(2);
+      expect(qa('[data-testid="bar-month"]').filter((b) => b.classList.contains('partial')).length).toBe(2);
+      expect(el().querySelector('[data-testid="bar-legend-partial"]')!.textContent).toContain('Periodo parcial');
+      expect(getComputedStyle(qa('[data-testid="bar"]')[0]).strokeDasharray).not.toBe('none');
+    });
+
+    it('la tabla para lectores de pantalla va recortada en un contenedor: con 20 barras no agranda la página', () => {
+      render(Array.from({ length: 20 }, (_, i): BarDatum => ({ label: `${i + 1} mar`, value: i, tip: ['x'] })));
+      const box = el().querySelector('.sr-only')!.getBoundingClientRect();
+
+      expect([Math.round(box.width), Math.round(box.height)]).toEqual([1, 1]);
+    });
+
+    it('sin barras parciales no hay leyenda de parcial', () => {
+      render(THREE);
+
+      expect(el().querySelector('[data-testid="bar-legend-partial"]')).toBeNull();
+    });
+
+    it('con 400 barras el SVG sigue ligero (< 1.000 nodos), sin cifras, pistas de fondo ni tendencia, y rotula una de cada N', () => {
+      const data = Array.from({ length: 400 }, (_, i): BarDatum => ({ label: `${i + 1} mar`, value: i % 7 === 0 ? 0 : i, tip: [`${i + 1} mar`, 'x', 'y'] }));
+
+      render(data);
+
+      expect(svg().querySelectorAll('*').length).toBeLessThan(1000);
+      expect(qa('[data-testid="bar-value"]').length).toBe(0);
+      expect(qa('[data-testid="bar-trend"]').length).toBe(0);
+      expect(qa('.track').length).toBe(0);
+      expect(qa('[data-testid="bar-month"]').length).toBeLessThan(60);
+      expect(qa('[data-testid="bar-month"]')[0].textContent).toBe('1 mar');
+      expect(el().querySelector('[data-testid="bar-legend"]')!.textContent).not.toContain('Tendencia');
+      expect(el().querySelector('[data-testid="bar-table"]')).toBeNull();
+      expect(svg().getAttribute('aria-label')).toContain('400 periodos');
+      expect(el().scrollWidth).toBeLessThanOrEqual(el().clientWidth);
+    });
   });
 });

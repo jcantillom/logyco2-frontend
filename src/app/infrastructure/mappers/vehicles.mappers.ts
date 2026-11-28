@@ -18,6 +18,7 @@ import {
   VehiclePatchDto,
   VehicleSummaryDto,
 } from '../dto/vehicles.dto';
+import { toVehicleEfficiency } from './vehicle-efficiency.mappers';
 
 const OWNERSHIPS: readonly VehicleOwnership[] = ['UNKNOWN', 'OWN', 'CONTRACTED', 'THIRD_PARTY', 'SUBCONTRACTED'];
 
@@ -47,12 +48,14 @@ export function toVehicle(dto: VehicleDto): Vehicle {
     fuelType: dto.fuel_type,
     modelYear: dto.model_year,
     technology: dto.technology,
+    technologyOriginal: dto.technology_original ?? null,
     capacityTons: dto.capacity_tons,
     ownership: ownership(dto.ownership),
     status: vehicleStatus(dto.status),
     // Un origen que el cliente no conoce se muestra como registro manual, el de siempre.
     source: dto.source === 'IMPORT' ? 'IMPORT' : 'MANUAL',
     createdAt: dto.created_at,
+    efficiency: toVehicleEfficiency(dto.efficiency),
   };
 }
 

@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { AuthToken, CurrentUser, LoginCredentials } from '../models/identity';
+import { CurrentUser, LoginCredentials } from '../models/identity';
 import { CommercialRelationship, OrganizationProfileChanges, Organization, OrganizationChanges, OrganizationDeleted, OrganizationDeletionPlan, OrganizationListFilter, OrganizationTypeInfo } from '../models/organization';
 import { Page, PageRequest } from '../models/pagination';
 import {
@@ -20,7 +20,10 @@ import {
  * de inyección, sin depender de implementaciones HTTP.
  */
 export abstract class AuthRepository {
-  abstract login(credentials: LoginCredentials): Observable<AuthToken>;
+  /** Inicia sesión: el backend fija la cookie HttpOnly. El token de la respuesta se ignora a propósito. */
+  abstract login(credentials: LoginCredentials): Observable<void>;
+  /** Cierra la sesión: el backend borra la cookie. */
+  abstract logout(): Observable<void>;
   abstract getCurrentUser(): Observable<CurrentUser>;
 }
 

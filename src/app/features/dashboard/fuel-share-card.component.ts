@@ -36,9 +36,9 @@ const DROP = 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z';
             } @else {
               <div class="donut-frame" data-testid="chart-empty">
                 <svg class="ring" viewBox="0 0 112 112" aria-hidden="true" data-testid="donut-frame">
-                  <circle class="track" cx="56" cy="56" r="38" />
-                  <circle class="edge" cx="56" cy="56" r="46" />
-                  <circle class="edge" cx="56" cy="56" r="30" />
+                  <circle class="track" cx="56" cy="56" r="40" />
+                  <circle class="edge" cx="56" cy="56" r="47" />
+                  <circle class="edge" cx="56" cy="56" r="33" />
                   <text class="dash" x="56" y="57">—</text>
                   <text class="sub" x="56" y="70">Sin cálculo</text>
                 </svg>

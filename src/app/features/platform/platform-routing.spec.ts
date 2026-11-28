@@ -2,17 +2,18 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { Observable, of, throwError } from 'rxjs';
-import { buildSuperAdmin, buildUser, FAKE_TOKEN, membership, ORG_ENVIA } from '../../../testing/builders';
+import { buildSuperAdmin, buildUser, membership, ORG_ENVIA } from '../../../testing/builders';
 import { provideTestApp, signInAs } from '../../../testing/providers';
 import { routes } from '../../app.routes';
 import { SessionStore } from '../../core/auth/session.store';
 import { AppError } from '../../core/errors/app-error';
-import { AuthToken, CurrentUser } from '../../domain/models/identity';
+import { CurrentUser } from '../../domain/models/identity';
 import { AuthRepository } from '../../domain/repositories/identity.repositories';
 
 class FakeAuthRepository extends AuthRepository {
   me = jasmine.createSpy('me');
-  login(): Observable<AuthToken> { return of(FAKE_TOKEN); }
+  login(): Observable<void> { return of(undefined); }
+  logout(): Observable<void> { return of(undefined); }
   getCurrentUser(): Observable<CurrentUser> { return this.me(); }
 }
 

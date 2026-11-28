@@ -29,7 +29,7 @@ describe('duplicates.mappers', () => {
     expect(pair.b?.id).toBe('trip-b1');
     expect(pair.b?.distanceKm).toBe(400);
     expect(pair.differences).toEqual(['distance_km']);
-    expect(pair.evidence).toEqual({ identical: false, matches: ['trip_id', 'plate', 'trip_date'], differs: ['distance_km'], kind: null, lineage: null, group: null, idMismatch: false });
+    expect(pair.evidence).toEqual({ identical: false, matches: ['trip_id', 'plate', 'trip_date'], differs: ['distance_km'], kind: null, lineage: null, group: null, idMismatch: false, auto: false, vehicleDiffers: [], otherDiffers: [], notes: [] });
     expect(toPossibleDuplicate(possibleDuplicateDto({ b: null, evidence: null })).b).toBeNull();
     expect(toPossibleDuplicate(possibleDuplicateDto({ b: null, evidence: null })).evidence).toBeNull();
     expect(toDuplicateTrip(originalTripDto()).fileName).toBe('operaciones-septiembre.xlsx');
@@ -38,7 +38,7 @@ describe('duplicates.mappers', () => {
   it('R4 a R6: lee la clase de caso, el linaje y el grupo de la evidencia', () => {
     const pair = toPossibleDuplicate(possibleDuplicateDto({ rule: 'R6', evidence: { identical: false, matches: [], differs: [], kind: 'extra_row', lineage: { established: true, mutual: false, rows: 27, new_pct: 90, previous_pct: 100 }, group: { existing: 3, new: 4 } } }));
 
-    expect(pair.evidence).toEqual({ identical: false, matches: [], differs: [], kind: 'extra_row', lineage: { established: true, mutual: false, rows: 27, newPct: 90, previousPct: 100 }, group: { existing: 3, new: 4 }, idMismatch: false });
+    expect(pair.evidence).toEqual({ identical: false, matches: [], differs: [], kind: 'extra_row', lineage: { established: true, mutual: false, rows: 27, newPct: 90, previousPct: 100 }, group: { existing: 3, new: 4 }, idMismatch: false, auto: false, vehicleDiffers: [], otherDiffers: [], notes: [] });
   });
 
   it('`id_mismatch` es un booleano opcional: solo `true` cuenta; ausente o de otra forma es false', () => {
@@ -52,8 +52,8 @@ describe('duplicates.mappers', () => {
     const odd = toPossibleDuplicate(possibleDuplicateDto({ rule: 'R9', evidence: { identical: true, matches: [], differs: [], kind: 'futuro', lineage: { established: true, mutual: true, rows: 3 } as never, group: { existing: 2 } as never } }));
 
     expect(odd.rule).toBe('R9');
-    expect(odd.evidence).toEqual({ identical: true, matches: [], differs: [], kind: null, lineage: null, group: null, idMismatch: false });
-    expect(toPossibleDuplicate(possibleDuplicateDto({ evidence: { identical: true } as never })).evidence).toEqual({ identical: true, matches: [], differs: [], kind: null, lineage: null, group: null, idMismatch: false });
+    expect(odd.evidence).toEqual({ identical: true, matches: [], differs: [], kind: null, lineage: null, group: null, idMismatch: false, auto: false, vehicleDiffers: [], otherDiffers: [], notes: [] });
+    expect(toPossibleDuplicate(possibleDuplicateDto({ evidence: { identical: true } as never })).evidence).toEqual({ identical: true, matches: [], differs: [], kind: null, lineage: null, group: null, idMismatch: false, auto: false, vehicleDiffers: [], otherDiffers: [], notes: [] });
   });
 
   it('el cuerpo de la resolución usa los nombres del servidor y solo lleva `keep` cuando se elige', () => {

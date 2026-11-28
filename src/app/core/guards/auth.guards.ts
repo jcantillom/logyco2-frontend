@@ -11,7 +11,7 @@ export const authGuard: CanActivateFn = (_route, state) => {
   const router = inject(Router);
 
   if (session.isAuthenticated()) return true;
-  if (session.hasToken()) return router.createUrlTree(['/aceptar-invitacion']);
+  if (session.hasIdentity()) return router.createUrlTree(['/aceptar-invitacion']);
   return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
 };
 
@@ -21,10 +21,10 @@ export const guestGuard: CanActivateFn = () => {
   return inject(SessionStore).isAuthenticated() ? router.parseUrl(inject(LandingPolicy).home()) : true;
 };
 
-/** Exige un token (aunque aún no exista usuario local): solo para aceptar invitaciones. */
+/** Exige una identidad válida (aunque aún no exista usuario local): solo para aceptar invitaciones. */
 export const tokenGuard: CanActivateFn = () => {
   const router = inject(Router);
-  return inject(SessionStore).hasToken() ? true : router.createUrlTree(['/login']);
+  return inject(SessionStore).hasIdentity() ? true : router.createUrlTree(['/login']);
 };
 
 /**

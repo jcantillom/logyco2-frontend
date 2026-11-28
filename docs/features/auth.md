@@ -19,9 +19,9 @@ Archivos: `login.component.ts` (398 l., estilos + template inline), `login-succe
 |---|---|---|---|
 | `login` | `canActivate: [guestGuard]` (si ya hay sesión -> `LandingPolicy.home()`) | `loadComponent` lazy | `LoginComponent` |
 | `activar` | ninguno (pública) | lazy | `ActivateAccountComponent` |
-| `aceptar-invitacion` | `canActivate: [tokenGuard]` (exige token; si no -> `/login`) | lazy | `AcceptInvitationComponent` |
+| `aceptar-invitacion` | `canActivate: [tokenGuard]` (exige identidad válida, restaurada por la cookie; si no -> `/login`) | lazy | `AcceptInvitationComponent` |
 
-Las tres están fuera del `ShellComponent` (pantalla completa, sin sidebar). `authGuard` (en `core/guards/auth.guards.ts`) redirige a `/aceptar-invitacion` cuando hay token pero no usuario local y a `/login?returnUrl=` si no hay token.
+Las tres están fuera del `ShellComponent` (pantalla completa, sin sidebar). `authGuard` (en `core/guards/auth.guards.ts`) redirige a `/aceptar-invitacion` cuando hay identidad pero no usuario local y a `/login?returnUrl=` si no hay sesión. La sesión se restaura al arrancar (`SessionBootstrap`, cookie HttpOnly): recargar o abrir la URL en otra pestaña no devuelve al login mientras la cookie siga vigente.
 
 ## 3. Árbol de componentes
 
@@ -52,8 +52,9 @@ La feature no define servicios propios; usa `AuthFacade`, `SessionStore`, `Landi
 ## 5. Endpoints HTTP consumidos (indirectos, vía repositorios) [V por `infrastructure/repositories`]
 | Acción | Método y ruta | Repositorio |
 |---|---|---|
-| Login | `POST /auth/login` (`LoginResponseDto` -> `AuthToken`) | `HttpAuthRepository.login` |
-| Usuario actual | `GET /auth/me` (`MeResponseDto` -> `CurrentUser`) | `getCurrentUser` (vía `AuthFacade`) |
+| Login | `POST /auth/login` (fija la cookie HttpOnly; el cuerpo trae `access_token: null`, el SPA nunca recibe el token) | `HttpAuthRepository.login` |
+| Cerrar sesión | `POST /auth/logout` (204; borra la cookie) | `HttpAuthRepository.logout` |
+| Usuario actual / restaurar sesión | `GET /auth/me` (`MeResponseDto` -> `CurrentUser`, con `session_expires_at`) | `getCurrentUser` (vía `AuthFacade`, `SessionBootstrap`) |
 | Aceptar invitación org | `POST /users/invitations/accept` body `{ code }` | `HttpInvitationsRepository.accept` |
 | Aceptar invitación superadmin | `POST /platform/super-admins/invitations/accept` body `{ code }` | `HttpSuperAdminsRepository.accept` |
 | Validar enlace de activación | `POST /onboarding/activation/check` body `{ code }` | `HttpOnboardingRepository.checkActivation` (vía `OnboardingFacade`) |

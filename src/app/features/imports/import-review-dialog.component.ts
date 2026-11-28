@@ -3,13 +3,16 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, e
 import { RouterLink } from '@angular/router';
 import { AppError } from '../../core/errors/app-error';
 import { toAppError } from '../../core/errors/http-error-mapper';
-import { ImportColumn, ImportReview, ImportRoutes, ImportSummary, ReviewIssue } from '../../domain/models/imports';
+import { CalculableWithEstimation, ImportColumn, ImportReview, ImportRoutes, ImportSummary, ReviewIssue } from '../../domain/models/imports';
 import { monthLabel, periodKind, periodRangeLabel } from '../../domain/models/period';
 import { COVERAGE_CAVEAT, FOOTPRINT_UNIT, coverageHint, coverageLine, formatKgCo2, formatPct, measuredEstimatedHint, measuredEstimatedLine, noEmissionsReason, possibleDuplicatesLine } from '../../shared/ui/footprint.format';
 import { CloseOnBackdropDirective } from '../../shared/ui/close-on-backdrop.directive';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import { ExcelIconComponent } from '../../shared/ui/excel-icon.component';
 import { TruckProgressComponent } from '../../shared/ui/truck-progress.component';
+import { ImportCargoUnitComponent } from './import-cargo-unit.component';
+import { ImportEfficiencyCoverageComponent } from './import-efficiency-coverage.component';
+import { ImportPlacesComponent } from './import-places.component';
 import { ImportsFacade } from './imports.facade';
 import { DIVIPOLA_URL, FORMAT_LABELS, MAX_EXAMPLES, OSM_COPYRIGHT_URL, exampleText, routesCount, REQUIREMENT_LABELS, SEVERITY_LABELS, formatCount, formatSize, isRunning, pendingAction, phaseLabel, sampleRowsShort, share, tripsCount } from './imports.labels';
 import { overallPercent, processedIn, stepText } from './imports.progress';
@@ -46,7 +49,7 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
 /** Informe de una carga: qué tan lista está (veredicto), el desglose, qué hacer y, plegados, los avisos y las columnas. */
 @Component({
   selector: 'app-import-review-dialog',
-  imports: [DatePipe, NgTemplateOutlet, RouterLink, CloseOnBackdropDirective, StatusBadgeComponent, TruckProgressComponent, ExcelIconComponent],
+  imports: [DatePipe, NgTemplateOutlet, RouterLink, ImportCargoUnitComponent, ImportEfficiencyCoverageComponent, ImportPlacesComponent, CloseOnBackdropDirective, StatusBadgeComponent, TruckProgressComponent, ExcelIconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -131,6 +134,9 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
       .attrib a { color: var(--c-accent); text-underline-offset: 2px; }
       .attrib a:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; border-radius: 4px; }
       .foot { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; color: var(--c-mu); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+      .est { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--c-bd); border-radius: 12px; background: var(--c-s2); }
+      .est p { margin: 0; font-size: 0.9rem; color: var(--c-text); }
+      .est p.small { font-size: 0.82rem; color: var(--c-mu); }
       .note { margin: 0; color: var(--c-text2); font-size: 0.9rem; }
       .prog { display: flex; flex-direction: column; gap: 6px; }
       .msg { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
@@ -209,6 +215,19 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
                 }
               </section>
 
+              @if (d.calculableWithEstimation; as c) {
+                <section class="note est" aria-labelledby="cwe-title" data-testid="calculable-with-estimation">
+                  <h3 id="cwe-title">Se puede calcular estimando el rendimiento</h3>
+                  <p data-testid="cwe-text">{{ estimationText(c) }}</p>
+                  @if (c.requiresConsent) { <p class="small" data-testid="cwe-consent">Confirma la estimación en «Rendimiento de los vehículos», más abajo.</p> }
+                  @else if (c.mode === 'AUTO') { <p class="small" data-testid="cwe-auto">Tu empresa estima el rendimiento automáticamente al importar.</p> }
+                </section>
+              }
+
+              <app-import-cargo-unit [importId]="d.id" [review]="r" />
+
+              @if (r.placeResolution; as places) { <app-import-places [importId]="d.id" [resolution]="places" /> }
+
               @if (footprint(); as f) {
                 <section class="fp" aria-labelledby="fp-title" data-testid="review-footprint">
                   @if (f.hasEmissions) {
@@ -245,6 +264,8 @@ const SEVERITY_ORDER: Readonly<Record<string, number>> = { ERROR: 0, WARNING: 1,
                 <li data-testid="breakdown-estimated"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.estimated" /></svg><b>{{ count(r.methods.estimatedConsumption) }}</b><span><strong>Con consumo estimado.</strong> Calculado con distancia y rendimiento</span></li>
                 <li data-testid="breakdown-pending"><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons.pending" /></svg><b>{{ count(r.methods.pending) }}</b><span><strong>Por completar datos.</strong> Les falta algún dato</span></li>
               </ul>
+
+              @if (r.efficiencyCoverage; as coverage) { <app-import-efficiency-coverage [importId]="d.id" [coverage]="coverage" /> }
 
               @if (reasons().length > 0) {
                 <section aria-labelledby="todo-title" data-testid="review-todo">
@@ -357,6 +378,15 @@ export class ImportReviewDialogComponent {
   protected readonly retryError = signal<AppError | null>(null);
 
   protected readonly caveat = COVERAGE_CAVEAT;
+
+  /** «N viajes se pueden estimar con referencia técnica (teórico) en M vehículos; K no tienen distancia o referencia.» con las cifras del servidor. */
+  protected estimationText(c: CalculableWithEstimation): string {
+    const head = c.trips > 0
+      ? `${tripsCount(c.trips)} ${c.trips === 1 ? 'se puede estimar' : 'se pueden estimar'} con referencia técnica (teórico) en ${formatCount(c.vehicles)} ${c.vehicles === 1 ? 'vehículo' : 'vehículos'}`
+      : `${tripsCount(c.alreadyEstimatedTrips)} ya ${c.alreadyEstimatedTrips === 1 ? 'se calculó' : 'se calcularon'} con rendimiento estimado (teórico)`;
+
+    return c.pendingWithoutDistanceOrReference > 0 ? `${head}; ${formatCount(c.pendingWithoutDistanceOrReference)} no ${c.pendingWithoutDistanceOrReference === 1 ? 'tiene' : 'tienen'} distancia o referencia.` : `${head}.`;
+  }
   /** Versión corta y siempre visible de la aclaración (el texto completo va en `title` y en texto accesible). */
   protected readonly shortCaveat = '% por cantidad de viajes, no por emisiones';
 

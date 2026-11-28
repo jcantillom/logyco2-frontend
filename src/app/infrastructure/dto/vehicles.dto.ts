@@ -1,3 +1,5 @@
+import { EfficiencySummaryDto } from './vehicle-efficiency.dto';
+
 /** Contratos JSON del backend para vehículos de empresa (`/organizations/{id}/vehicles…`). */
 export interface VehicleDto {
   readonly id: string;
@@ -10,11 +12,13 @@ export interface VehicleDto {
   readonly fuel_type: string | null;
   readonly model_year: number | null;
   readonly technology: string | null;
+  readonly technology_original?: string | null;
   readonly capacity_tons: number | null;
   readonly ownership: string;
   readonly status: string;
   readonly source: string;
   readonly created_at: string;
+  readonly efficiency?: EfficiencySummaryDto | null;
 }
 
 export interface VehicleChangeDto {

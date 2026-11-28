@@ -8,6 +8,24 @@ function httpError(status: number, body: unknown, headers?: Record<string, strin
 }
 
 describe('toAppError', () => {
+  it('INVALID_GRANULARITY y GRANULARITY_TOO_FINE (422) salen en español del catálogo, sin el texto ni el número del servidor', () => {
+    const invalid = toAppError(httpError(422, { error: { code: 'INVALID_GRANULARITY', message: 'La granularidad debe ser day, week, month' } }));
+    const fine = toAppError(httpError(422, { error: { code: 'GRANULARITY_TOO_FINE', message: 'El periodo tiene 700 días: la serie diaria admite hasta 400.' } }));
+
+    expect([invalid.kind, invalid.code]).toEqual(['validation', 'INVALID_GRANULARITY']);
+    expect(invalid.message).toBe('Esa granularidad no es válida: elige diaria, semanal, mensual, trimestral, semestral o anual.');
+    expect([fine.kind, fine.code]).toEqual(['validation', 'GRANULARITY_TOO_FINE']);
+    expect(fine.message).toBe('El periodo es demasiado largo para ver la serie diaria. Elige granularidad semanal o mensual, o un periodo más corto.');
+    expect(fine.message).not.toMatch(/\d{3}/);
+  });
+
+  it('INVALID_PERIOD (422) sale en español del catálogo, sin el texto del servidor', () => {
+    const period = toAppError(httpError(422, { error: { code: 'INVALID_PERIOD', message: 'from must be between 2000-01-01 and 2100-12-31' } }));
+
+    expect([period.kind, period.code]).toEqual(['validation', 'INVALID_PERIOD']);
+    expect(period.message).toBe('El periodo no es válido: indica la fecha inicial y la final, y que la inicial no sea posterior.');
+  });
+
   it('traduce un código conocido con el mensaje del catálogo, no con el del servidor', () => {
     const error = toAppError(
       httpError(401, { error: { code: 'INVALID_CREDENTIALS', message: 'Mensaje interno del servidor', request_id: 'req-1' } }),

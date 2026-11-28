@@ -10,7 +10,7 @@
 - Arquitectura por capas con inversión de dependencias estilo hexagonal: la UI usa **facades** (en `features/`) → **puertos** (clases abstractas en `domain/repositories`) → **adaptadores** (`infrastructure/repositories`, HTTP). El enlace puerto↔adaptador vive en un único archivo: `src/app/infrastructure/providers.ts`. [V]
 - Solo la identidad/organizaciones/usuarios/invitaciones/superadmins/RBAC/métricas/salud/Intelligence/guía de cálculo de emisiones (`emissions`: vehículos, factor del diésel B2 y simulación) y el inventario de vehículos de la empresa (`vehicles`) las cargas de Excel (`imports`) y Operaciones logísticas (`operations`: listado por cursor, resumen y detalle) tienen backend real, y solo eso tiene pantalla. Los módulos sin backend (conciliación, evidencias, emisiones, reportes, reducción y varias secciones de la consola) **no tienen pantalla, facade, puerto ni datos**: su ruta renderiza `ComingSoonComponent` ("Próximamente") y su ítem de menú lleva `soon: true`. [V]
 - Estado: señales (`signal`, `computed`, `effect`) en servicios `providedIn: 'root'`; nada de NgRx. El recurso asíncrono estándar es `ScopedResource<T>`. Todo estado dependiente de la organización se registra en `ContextResetRegistry` para descartarlo al cambiar de organización o cerrar sesión. [V]
-- Autenticación: Bearer token en memoria (`SessionStore`); persistencia opcional en `sessionStorage` solo en desarrollo (`sessionPersistence: 'tab'`). RBAC en cliente (`AccessPolicy`) es solo para mostrar/ocultar; el backend autoriza. [V]
+- Autenticación: cookie HttpOnly fijada por el backend (el JS no ve el token); `SessionStore` guarda solo el usuario en memoria y la sesión se restaura al arrancar con `GET /auth/me` (`SessionBootstrap`). RBAC en cliente (`AccessPolicy`) es solo para mostrar/ocultar; el backend autoriza. [V]
 - Errores: un único punto (`errorInterceptor` + `toAppError`) convierte todo en `AppError` con mensaje del catálogo en español; nunca se muestra el texto crudo del servidor. [V]
 - Sin NgRx, sin Angular Material/CDK, sin librería de gráficos: gráficos SVG propios. Estilos: `src/styles.scss` (tokens CSS) + estilos inline por componente. [V]
 
@@ -138,7 +138,7 @@ Flujo típico de una lectura real (ejemplo organizaciones):
 | 6 | `{ provide: IMAGE_CONFIG, useValue: { disableImageSizeWarning: true, disableImageLazyLoadWarning: true } }` | silencia avisos de `NgOptimizedImage` (logo sin reescalar) |
 | 7 | `{ provide: APP_CONFIG, useValue: environment }` | configuración por entorno (`AppConfig`) |
 | 8 | `provideRepositories()` | binding puertos → adaptadores (`infrastructure/providers.ts`) |
-| 9 | `provideAppInitializer(() => inject(SessionPersistence).restore())` | antes de la primera navegación restaura/revalida sesión si `sessionPersistence === 'tab'` (timeout 5 s) |
+| 9 | `provideAppInitializer(() => inject(SessionBootstrap).restore())` | antes de la primera navegación restaura la sesión desde la cookie con `GET /auth/me` (timeout 5 s) y activa la sincronización entre pestañas |
 
 Componente raíz `App` (`src/app/app.ts`, selector `app-root`, OnPush): `<router-outlet />`, `<app-toast-host />`, `<app-confirm-dialog-host />` y `<app-action-feedback-host />` (los tres hosts globales renderizan `ToastService`, `ConfirmService` y `ActionFeedbackService`); inyecta `ThemeService` para aplicar el tema guardado desde el primer render. [V]
 
@@ -208,7 +208,7 @@ Observación: `/acceso-denegado` solo existe bajo el shell de organización; un 
 | `ScopedResource<T>` (`status`, `data`, `error`, `load()`, `reset()`) | facades de `features/*` | recurso asíncrono con descarte de respuestas tardías (contador de generación) |
 | `ContextResetRegistry` | `core/org/context-reset.ts` | `track(resource)` en facades; `resetAll()` al cambiar de organización y al cerrar sesión |
 | `reloadOnContextChange(load)` | componentes (constructor) | `effect` que recarga al cambiar la organización activa |
-| `sessionStorage` `logyco2.session` | `SessionPersistence` | solo token, solo si `sessionPersistence==='tab'` |
+| `localStorage` `logyco2.session.signal` | `CrossTabSession` | solo señal de login/logout, solo si el navegador no ofrece `BroadcastChannel`; sin datos sensibles |
 
 Sin store global tipo NgRx; sin caché HTTP; los datos se piden de nuevo en cada carga. [V]
 
@@ -222,10 +222,10 @@ Sin store global tipo NgRx; sin caché HTTP; los datos se piden de nuevo en cada
 
 ## 8. Autenticación y autorización
 
-- Login: `POST /auth/login` → `{access_token, token_type, expiration_time_utc_bogota}`; luego `GET /auth/me` carga usuario y membresías. Sin refresh token ni cookie HttpOnly; el cierre de sesión **no revoca** el token en el servidor. [V (README + código)]
-- Sesión en memoria (`SessionStore`). Persistencia por entorno (`AppConfig.sessionPersistence`): dev `tab` (sessionStorage, revalidada con `/auth/me`, timeout 5 s), prod `memory`. [V]
-- `authInterceptor` adjunta `Authorization: Bearer …` **solo** si la URL empieza por `apiBaseUrl + apiPrefix`. [V]
-- Identidad válida sin usuario local (`USER_NOT_REGISTERED`): `AuthFacade.pendingRegistration=true`; el token se conserva solo para aceptar invitación (`/aceptar-invitacion`). [V]
+- Login: `POST /auth/login` fija la cookie HttpOnly (la respuesta trae `access_token` para clientes de API; la SPA lo ignora); luego `GET /auth/me` carga usuario, membresías y `session_expires_at`. Sin refresh (contrato del proveedor sin confirmar); `POST /auth/logout` borra la cookie pero no revoca en el proveedor. [V]
+- `SessionStore` en memoria sin token; la persistencia es la cookie (sobrevive a recargas y pestañas) y no hay configuración por entorno en el frontend. Sincronización de login/logout entre pestañas con `CrossTabSession`. [V]
+- `authInterceptor` activa `withCredentials` y la cabecera anti-CSRF `X-Requested-With: LoGyCO2` (métodos que cambian estado) **solo** si la URL empieza por `apiBaseUrl + apiPrefix`. [V]
+- Identidad válida sin usuario local (`USER_NOT_REGISTERED`): `AuthFacade.pendingRegistration=true`; la identidad (cookie) se conserva solo para aceptar invitación (`/aceptar-invitacion`). [V]
 - Autorización de interfaz: `AccessPolicy` espeja la matriz rol→permiso del backend (`GLOBAL_ROLE_PERMISSIONS`, `ORGANIZATION_ROLE_PERMISSIONS`); `/auth/me` solo devuelve roles. Solo oculta menús y bloquea navegación; el backend decide (403/404). [V]
 - Rol global: `hasSuperAdminRole(user)` = usuario activo con `global_roles` que contenga `SUPER_ADMIN`; confirmado con consulta fresca en `platformGuard`. `ORG_ADMIN` nunca da acceso global. [V]
 
@@ -256,7 +256,7 @@ Estilo de código: comillas simples, 2 espacios, `printWidth: 100` (config `pret
 
 | Principio | Cómo se materializa | Dónde | Evaluación |
 |---|---|---|---|
-| **S** (SRP) | Un servicio = una responsabilidad: `SessionStore` (estado), `SessionPersistence` (almacenamiento), `SessionExpiryHandler` (reacción a 401), `AccessPolicy` (permisos), `PlatformAccess` (hint de rol global), `ToastService`/`ConfirmService` | `core/` | Bien. Excepción: `ShellComponent` con ~60 líneas de CSS inline y varias responsabilidades (layout + nav + avisos) |
+| **S** (SRP) | Un servicio = una responsabilidad: `SessionStore` (estado), `SessionBootstrap` (restauración) y `CrossTabSession` (entre pestañas), `SessionExpiryHandler` (reacción a 401), `AccessPolicy` (permisos), `PlatformAccess` (hint de rol global), `ToastService`/`ConfirmService` | `core/` | Bien. Excepción: `ShellComponent` con ~60 líneas de CSS inline y varias responsabilidades (layout + nav + avisos) |
 | **O** (OCP) | Añadir un módulo = nuevo puerto + adaptador HTTP + una línea en `providers.ts`; añadir un mensaje de error = una entrada en `ERROR_MESSAGES` | `providers.ts`, `error-catalog.ts` | Bien. `providers.ts` es la única edición obligatoria y crece linealmente |
 | **L** (LSP) | Cada `Http*Repository` extiende su clase abstracta y la sustituye sin que la facade lo note | `infrastructure/` | Bien |
 | **I** (ISP) | Puertos pequeños por agregado (`AuthRepository`, `UsersRepository`, `InvitationsRepository`, `MembershipsRepository`, …) | `domain/repositories` | Bien; algunos puertos son anchos (`OrganizationAdminRepository` 6 métodos) pero cohesivos |
@@ -273,11 +273,11 @@ Formato: severidad · archivo · problema · sugerencia. Detalle por capa en cad
 
 | ID | Sev. | Ubicación | Hallazgo | Sugerencia |
 |---|---|---|---|---|
-| H-A1 | Alta | `src/app/core/auth/session-persistence.ts`, `src/environments/environment.ts` | Con `sessionPersistence: 'tab'` el token Bearer vive en `sessionStorage` (legible por cualquier XSS). Está documentado y acotado a desarrollo; producción usa `memory`. El logout no revoca el token (no hay endpoint). | Mantener `memory` en prod; priorizar cookie HttpOnly + `/auth/refresh` + `/auth/logout` (contrato en README). Añadir una prueba/guard de build que falle si `production && sessionPersistence==='tab'` |
+| H-A1 | Resuelta | `core/auth/session.store.ts` | El token ya no está en el JavaScript ni en `sessionStorage`: viaja en cookie HttpOnly del backend. Residual: el logout no revoca en el proveedor y el login aún devuelve `access_token` en el JSON (clientes de API). | Decidir si se retira del cuerpo para navegadores; revocación en servidor si se exige |
 | H-A2 | Media | `src/app/core/auth/access-policy.ts` | La matriz rol→permiso duplica la del backend (riesgo de deriva silenciosa). Solo afecta UX, no seguridad. | Que `/auth/me` devuelva permisos efectivos (ya recomendado en README) y eliminar el espejo |
 | H-A3 | Media | `eslint.config.js` | Sin reglas que hagan cumplir las dependencias entre capas (p. ej. `domain` no importa `infrastructure`); hoy se cumple solo por disciplina. | `no-restricted-imports` por glob de carpeta o `eslint-plugin-boundaries`/`@nx/enforce-module-boundaries` |
 | H-A4 | Baja | `src/app/app.config.ts` | Zone.js sigue activo con componentes OnPush + signals; Angular 20 permite `provideZonelessChangeDetection()`. | Evaluar migración a zoneless (quitar `zone.js` de `polyfills` en `angular.json`) |
-| H-A5 | Baja | `src/index.html` | Sin Content-Security-Policy (ni meta ni se ve cabecera). | Definir CSP en el servidor/hosting (importante mientras el token pueda estar en `sessionStorage`) [?] cabeceras reales no comprobadas |
+| H-A5 | Baja | `src/index.html` | Sin Content-Security-Policy (ni meta ni se ve cabecera). | Definir CSP en el servidor/hosting (defensa en profundidad contra XSS) [?] cabeceras reales no comprobadas |
 | H-A6 | Baja | repo | Según `CLAUDE.md` el repositorio aún no tiene commits (no se ejecutó `git` al documentar [?]). | Hacer un primer commit para tener línea base |
 | H-A7 | Baja | `src/app/app.routes.ts` | `/acceso-denegado` y `**` están dentro del shell de organización; un fallo de guard en `/plataforma` redirige al shell de organización y muestra su navegación. | Aceptable; si se quiere separar contextos, añadir rutas de error bajo `/plataforma` |
 | H-A8 | Info | tests | 934 specs ejecutadas (carpetas `features`, `infrastructure`, `shared` y `core`). Cobertura de `core` buena (guards, interceptors, sesión, mapper de errores); `shared/` logo, resource-state, shell, navegación, charts, pager, paginación por cursor, org-logo, close-on-backdrop; sin e2e. | Añadir specs a `pagination`, `confirm-dialog-host`, `toast-host`, `user-menu` |

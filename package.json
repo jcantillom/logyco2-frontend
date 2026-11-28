@@ -17,7 +17,8 @@
     "pretest:ci": "npm run env",
     "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
     "prebuild:prod": "node scripts/generate-env.mjs --production",
-    "build:prod": "ng build --configuration production"
+    "build:prod": "ng build --configuration production",
+    "test:env": "node --test scripts/generate-env.test.mjs"
   },
   "prettier": {
     "printWidth": 100,

@@ -92,6 +92,7 @@ describe('OperationExportsComponent: panel «Reportes»', () => {
     expect(done.textContent).toContain('hace 5 min');
     expect(done.textContent).toContain('31,5 MB');
     expect(done.textContent).toContain('vence en 70 h');
+    expect(done.textContent).toContain('Evolución mensual');
     expect(done.querySelector('[data-testid="export-progress"]')).toBeNull();
   });
 

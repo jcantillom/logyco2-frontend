@@ -33,9 +33,9 @@ npm run test:ci           # Karma + ChromeHeadless, una sola pasada
 npm run build:prod        # dist/logyco2-frontend; exige APP_ENV=production
 ```
 
-- Antes de nada: `cp .env.example .env` (y ajuste los valores). El backend FastAPI debe estar en `API_BASE_URL` (por defecto `http://127.0.0.1:8120`) y tener el origen del frontend en su `CORS_ALLOWED_ORIGINS`. [V]
+- Antes de nada: `cp .env.example .env` (y ajuste los valores). `API_BASE_URL` vacío: `ng serve` reenvía `/api` al backend en `http://127.0.0.1:8120` (`proxy.conf.json`, ver `serve.options.proxyConfig` en `angular.json`); el backend FastAPI debe estar levantado ahí y tener el origen del frontend en su `CORS_ALLOWED_ORIGINS`. [V]
 - Para tests: Chrome requerido; en macOS el README sugiere `export CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`. [V]
-- En producción el pipeline define `APP_ENV=production`, `API_BASE_URL`, `API_PREFIX` y `SESSION_PERSISTENCE=memory` como variables de entorno; `npm run build:prod` falla si falta alguna, si `APP_ENV` no es `production` o si la sesión no es `memory`. [V]
+- En producción el pipeline define `APP_ENV=production`, `API_BASE_URL`, y `API_PREFIX` como variables de entorno; `npm run build:prod` falla si falta alguna o si `APP_ENV` no es `production`. La sesión (cookie HttpOnly) se configura en el backend (`AUTH_COOKIE_*`). [V]
 
 ## 2. Scripts
 
@@ -117,7 +117,7 @@ Proyecto único `logyco2-frontend` (`projectType: application`, `prefix: app`, `
 
 ## 9. Entornos
 
-`src/environments/environment.ts` lo **genera** `scripts/generate-env.mjs` desde `.env` o el entorno (valida valores; sin valores por defecto en el código) y exporta `environment: AppConfig` con `apiBaseUrl`, `apiPrefix` y `sessionPersistence`. Variables: `APP_ENV` (`development`/`production`), `API_BASE_URL` (origen sin barra final; vacío solo en producción), `API_PREFIX`, `SESSION_PERSISTENCE` (`tab` solo en desarrollo; `memory` obligatorio en producción). Se inyecta como `APP_CONFIG` (`app.config.ts`). El frontend no debe contener secretos: solo URLs públicas.
+`src/environments/environment.ts` lo **genera** `scripts/generate-env.mjs` desde `.env` o el entorno (valida valores; sin valores por defecto en el código) y exporta `environment: AppConfig` con `apiBaseUrl` y `apiPrefix`. Variables: `APP_ENV` (`development`/`production`), `API_BASE_URL` (origen sin barra final; vacío solo en producción), `API_PREFIX`. Se inyecta como `APP_CONFIG` (`app.config.ts`). El frontend no debe contener secretos: solo URLs públicas.
 
 ## 10. Editor
 

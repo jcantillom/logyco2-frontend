@@ -39,7 +39,7 @@ describe('NotCalculableDialogComponent: confirmar una carga sin viajes calculabl
     fixture.componentRef.setInput('summary', toImportSummary(SUMMARY));
     fixture.componentInstance.closed.subscribe(() => closed++);
     fixture.detectChanges();
-    http.expectOne({ method: 'GET', url: `${IMPORTS_URL}/imp-1` }).flush({ data: importDetailDto({ review }) });
+    http.expectOne({ method: 'GET', url: `${IMPORTS_URL}/imp-1` }).flush({ data: importDetailDto({ review, not_calculable: { acknowledged_at: null } }) });
     fixture.detectChanges();
   }
 
@@ -47,6 +47,43 @@ describe('NotCalculableDialogComponent: confirmar una carga sin viajes calculabl
   const closing = (): Promise<unknown> => new Promise((resolve) => q<HTMLDialogElement>('dialog')!.addEventListener('close', resolve, { once: true }));
 
   afterEach(() => http?.match(() => true));
+
+  it('nunca se dibuja ni se abre el diálogo mientras carga el detalle, ni cuando el detalle dice que se puede calcular estimando; no se confirma nada', async () => {
+    TestBed.configureTestingModule({ imports: [NotCalculableDialogComponent], providers: [...provideTestApp()] });
+    signInAs(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN'])] }), TestBed.inject(SessionStore));
+    http = TestBed.inject(HttpTestingController);
+    closed = 0;
+    fixture = TestBed.createComponent(NotCalculableDialogComponent);
+    fixture.componentRef.setInput('summary', toImportSummary(SUMMARY));
+    fixture.componentInstance.closed.subscribe(() => closed++);
+    fixture.detectChanges();
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect(q('dialog')).toBeNull();
+
+    http.expectOne({ method: 'GET', url: `${IMPORTS_URL}/imp-1` }).flush({ data: { ...importDetailDto({ review: REVIEW }), not_calculable: null, calculable_with_estimation: { trips: 40, vehicles: 2, already_estimated_trips: 0, mode: 'ASK', requires_consent: true, pending_without_distance_or_reference: 0 } } });
+    for (let i = 0; i < 3; i++) {
+      fixture.detectChanges();
+      await Promise.resolve();
+      expect(q('dialog')).toBeNull();
+    }
+
+    expect(closed).toBe(1);
+    http.expectNone(ACK);
+  });
+
+  it('una carga sin not_calculable en el detalle tampoco abre el aviso', () => {
+    TestBed.configureTestingModule({ imports: [NotCalculableDialogComponent], providers: [...provideTestApp()] });
+    signInAs(buildUser({ memberships: [membership(ORG_ENVIA, ['ORG_ADMIN'])] }), TestBed.inject(SessionStore));
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(NotCalculableDialogComponent);
+    fixture.componentRef.setInput('summary', toImportSummary(SUMMARY));
+    fixture.detectChanges();
+    http.expectOne({ method: 'GET', url: `${IMPORTS_URL}/imp-1` }).flush({ data: importDetailDto({ review: REVIEW }) });
+    fixture.detectChanges();
+
+    expect(q('dialog')).toBeNull();
+  });
 
   it('es un diálogo modal con rol alertdialog, nombre y descripción accesibles y el foco inicial en «Cancelar»', () => {
     render();

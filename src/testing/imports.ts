@@ -1,4 +1,4 @@
-import { ImportColumnDto, ImportCountsDto, ImportPeriodDto, ImportDetailDto, ImportReviewDto, ImportSummaryDto, VehicleCandidateDto } from '../app/infrastructure/dto/imports.dto';
+import { CargoUnitAppliedDto, CargoUnitProposalDto, EfficiencyCoverageDto, ImportColumnDto, ImportCountsDto, ImportPeriodDto, ImportDetailDto, ImportReviewDto, ImportSummaryDto, VehicleCandidateDto } from '../app/infrastructure/dto/imports.dto';
 import { ORG_ENVIA } from './builders';
 
 /** URL base de las cargas de la empresa de pruebas. */
@@ -95,3 +95,53 @@ export const changedCandidateDto = (overrides: Partial<VehicleCandidateDto> = {}
     ],
     ...overrides,
   });
+
+/** Propuesta del servidor de leer la carga como kilogramos (`KG_LIKELY` por defecto). */
+export const cargoProposalDto = (overrides: Partial<CargoUnitProposalDto> = {}): CargoUnitProposalDto => ({
+  status: 'KG_LIKELY',
+  proposed_unit: 'KG',
+  declared_unit: 'TON',
+  basis: 'CAPACITY',
+  message: 'La columna parece estar en kilogramos: la mediana equivale al 98 % de la capacidad si fuera kg.',
+  evidence: {
+    rows_with_cargo: 180,
+    rows_over_limit: 178,
+    share_over_limit_pct: 98.9,
+    limit_ton: 1000,
+    median_value: 34440,
+    median_as_tons_if_kg: 34.44,
+    median_capacity_ton: 35,
+    median_pct_of_capacity: 98.4,
+    rows_with_capacity: 180,
+    rows_over_capacity_if_kg: 0,
+    median_exact: true,
+    rows_still_out_of_range_if_kg: 2,
+    total_ton_if_kg: 6199.2,
+    rows_with_cargo_if_kg: 178,
+  },
+  ...overrides,
+});
+
+export const cargoAppliedDto = (overrides: Partial<CargoUnitAppliedDto> = {}): CargoUnitAppliedDto => ({ unit: 'KG', source: 'ADMIN', confirmed_at: '2026-03-02T09:30:00Z', confirmed_by: 'usr-1', header: null, ...overrides });
+
+/** Cobertura con una referencia estimable, otra bloqueada por licencia y viajes sin distancia; modo ASK sin consentimiento. */
+export const coverageDto = (overrides: Partial<EfficiencyCoverageDto> = {}): EfficiencyCoverageDto => ({
+  estimation: { platform_enabled: true, mode: 'ASK', requires_consent: true, can_estimate: true, consent: null },
+  vehicles_in_file: 18,
+  with_own_efficiency: { vehicles: 4, trips: 60 },
+  already_estimated: { vehicles: 2, trips: 30 },
+  without_efficiency: {
+    vehicles: 12,
+    trips: 110,
+    estimable: {
+      vehicles: 8,
+      trips: 80,
+      unregistered_vehicles: 3,
+      references: [{ source: 'UPME', value_km_per_gal: 7.5, unit: 'km/gal', uncertainty_low: 6.1, uncertainty_high: 9.4, licence_status: 'UNVERIFIED_TEST_ONLY', mapping_confidence: 'HIGH', vehicles: 8, trips: 80, unregistered_vehicles: 3 }],
+    },
+    blocked_by_licence: { vehicles: 1, trips: 10, unregistered_vehicles: 0, message: 'La fuente de estos vehículos no tiene la licencia confirmada.' },
+    no_reference: { vehicles: 3, trips: 20, reasons: [{ code: 'CONFIGURATION_MISSING', label: 'El vehículo no tiene configuración', vehicles: 3, trips: 20 }] },
+  },
+  trips_without_distance: { trips: 14, vehicles: 5 },
+  ...overrides,
+});
